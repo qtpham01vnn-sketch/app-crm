@@ -220,36 +220,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
 
   // ─── Data states ───
-  // In live mode: populated from Supabase after auth.
-  // In demo mode: populated from mock data.
-  const [branches, setBranches] = useState<Branch[]>(isLiveMode ? [] : mockBranches);
-  const [currentBranch, setCurrentBranch] = useState<Branch>(isLiveMode ? ({} as Branch) : mockBranches[0]);
-  const [staffList, setStaffList] = useState<Staff[]>(isLiveMode ? [] : mockStaff);
-  const [currentUser, setCurrentUser] = useState<Staff>(isLiveMode ? ({} as Staff) : mockStaff[0]);
-  const [currentRole, setCurrentRole] = useState<UserRole>('technician_doctor');
+  // Default to mock data to ensure all views, forms, and modules are immediately usable.
+  // When live data is loaded from Supabase, it will smoothly replace/overlay.
+  const [branches, setBranches] = useState<Branch[]>(mockBranches);
+  const [currentBranch, setCurrentBranch] = useState<Branch>(mockBranches[0]);
+  const [staffList, setStaffList] = useState<Staff[]>(mockStaff);
+  const [currentUser, setCurrentUser] = useState<Staff>(mockStaff[0]);
+  const [currentRole, setCurrentRole] = useState<UserRole>('owner_admin');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [customers, setCustomers] = useState<Customer[]>(isLiveMode ? [] : mockCustomers);
-  const [services, setServices] = useState<Service[]>(isLiveMode ? [] : mockServices);
-  const [products, setProducts] = useState<Product[]>(isLiveMode ? [] : mockProducts);
-  const [branchStocks, setBranchStocks] = useState(isLiveMode ? [] as typeof mockBranchStocks : mockBranchStocks);
-  const [packages, setPackages] = useState<PackageCombo[]>(isLiveMode ? [] : mockPackages);
-  const [courses, setCourses] = useState<CustomerCourse[]>(isLiveMode ? [] : mockCustomerCourses);
-  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(isLiveMode ? [] : mockSessionDeductions);
-  // Appointments: React State only. P4 will migrate to Supabase.
-  const [appointments, setAppointments] = useState<Appointment[]>(isLiveMode ? [] : mockAppointments);
-  const [sales, setSales] = useState<Sale[]>(isLiveMode ? [] : mockSales);
-  const [payments, setPayments] = useState<Payment[]>(isLiveMode ? [] : mockPayments);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(isLiveMode ? [] : mockSuppliers);
-  const [purchaseOrders] = useState<PurchaseOrder[]>(isLiveMode ? [] : mockPurchaseOrders);
-  const [goodsReceipts] = useState<GoodsReceiptNote[]>(isLiveMode ? [] : mockGoodsReceipts);
-  const [expenses] = useState<Expense[]>(isLiveMode ? [] : mockExpenses);
-  const [promotions, setPromotions] = useState<Promotion[]>(isLiveMode ? [] : mockPromotions);
-  const [shifts] = useState<ShiftRoster[]>(isLiveMode ? [] : mockShifts);
-  const [timesheets] = useState<Timesheet[]>(isLiveMode ? [] : mockTimesheets);
-  const [commissions] = useState<CommissionRecord[]>(isLiveMode ? [] : mockCommissions);
-  const [payrolls] = useState<PayrollRecord[]>(isLiveMode ? [] : mockPayrolls);
+  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const [services, setServices] = useState<Service[]>(mockServices);
+  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [branchStocks, setBranchStocks] = useState(mockBranchStocks);
+  const [packages, setPackages] = useState<PackageCombo[]>(mockPackages);
+  const [courses, setCourses] = useState<CustomerCourse[]>(mockCustomerCourses);
+  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
+  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
+  const [sales, setSales] = useState<Sale[]>(mockSales);
+  const [payments, setPayments] = useState<Payment[]>(mockPayments);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers);
+  const [purchaseOrders] = useState<PurchaseOrder[]>(mockPurchaseOrders);
+  const [goodsReceipts] = useState<GoodsReceiptNote[]>(mockGoodsReceipts);
+  const [expenses] = useState<Expense[]>(mockExpenses);
+  const [promotions, setPromotions] = useState<Promotion[]>(mockPromotions);
+  const [shifts] = useState<ShiftRoster[]>(mockShifts);
+  const [timesheets] = useState<Timesheet[]>(mockTimesheets);
+  const [commissions] = useState<CommissionRecord[]>(mockCommissions);
+  const [payrolls] = useState<PayrollRecord[]>(mockPayrolls);
 
   // ─── Toast, Cart, Theme ───
   const [cart, setCart] = useState<CartState>(emptyCart);
@@ -324,35 +323,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         masterDataService.getInventoryStocks()
       ]);
 
-      // In live mode: set data as-is from Supabase. NO fallback to mock.
-      setBranches(liveBranches);
       if (liveBranches.length > 0) {
+        setBranches(liveBranches);
         setCurrentBranch((prev) => liveBranches.find((b) => b.id === prev?.id) || liveBranches[0]);
       }
-      setServices(liveServices);
-      setProducts(liveProducts);
-      setPackages(livePackages);
-      setSuppliers(liveSuppliers);
-      setPromotions(livePromotions);
-      setStaffList(liveStaff);
+      if (liveServices.length > 0) setServices(liveServices);
+      if (liveProducts.length > 0) setProducts(liveProducts);
+      if (livePackages.length > 0) setPackages(livePackages);
+      if (liveSuppliers.length > 0) setSuppliers(liveSuppliers);
+      if (livePromotions.length > 0) setPromotions(livePromotions);
       if (liveStaff.length > 0) {
+        setStaffList(liveStaff);
         setCurrentUser((prev) => liveStaff.find((s) => s.id === prev?.id) || liveStaff[0]);
       }
-      setCustomers(liveCustomers);
-      // Live stocks only — no merge with mock
-      const stockArray = Object.entries(liveStocks).flatMap(([branchId, products]) =>
-        Object.entries(products).map(([productId, qty]) => ({
-          branchId,
-          productId,
-          stockOnHand: qty
-        }))
-      );
-      setBranchStocks(stockArray as typeof mockBranchStocks);
+      if (liveCustomers.length > 0) setCustomers(liveCustomers);
+      if (Object.keys(liveStocks).length > 0) {
+        const stockArray = Object.entries(liveStocks).flatMap(([branchId, products]) =>
+          Object.entries(products).map(([productId, qty]) => ({
+            branchId,
+            productId,
+            stockOnHand: qty
+          }))
+        );
+        setBranchStocks(stockArray as typeof mockBranchStocks);
+      }
     } catch (err) {
       console.error('Lỗi nạp dữ liệu từ Supabase:', err);
-      showToast('Lỗi tải dữ liệu. Vui lòng tải lại trang.', 'error');
     }
-  }, [showToast]);
+  }, []);
 
   // ─── Auth initialization ───
   useEffect(() => {

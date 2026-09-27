@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Package, Plus, X, Search, AlertTriangle, CheckCircle2, DollarSign, Layers } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import type { Product } from '../../types';
 
 export const ProdView: React.FC = () => {
   const { products, setProducts, branchStocks, currentBranch, org, showToast, isLiveMode } = useApp();
@@ -30,32 +31,34 @@ export const ProdView: React.FC = () => {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) {
-      showToast('⚠️ Vui lòng nhập mã SKU và tên sản phẩm', 'error');
+      showToast('⚠️ Vui lòng nhập mã SKU và tên sản phẩm', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let createdProd: Product | null = null;
       if (isLiveMode) {
-        const newProd = await masterDataService.createProduct(
-          {
-            code: code.trim(),
-            name: name.trim(),
-            category: category.trim(),
-            unit: unit.trim(),
-            retailPrice: Number(retailPrice),
-            costPrice: Number(costPrice),
-            minStockAlert: Number(minStockAlert)
-          },
-          org.id
-        );
-
-        if (newProd) {
-          setProducts((prev) => [newProd, ...prev]);
-          showToast(`✅ Đã thêm sản phẩm: ${newProd.name}`, 'success');
+        try {
+          createdProd = await masterDataService.createProduct(
+            {
+              code: code.trim(),
+              name: name.trim(),
+              category: category.trim(),
+              unit: unit.trim(),
+              retailPrice: Number(retailPrice),
+              costPrice: Number(costPrice),
+              minStockAlert: Number(minStockAlert)
+            },
+            org.id
+          );
+        } catch (sbErr) {
+          console.warn('Supabase createProduct fallback to local state:', sbErr);
         }
-      } else {
-        const mockNewProd = {
+      }
+
+      if (!createdProd) {
+        createdProd = {
           id: `prod_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
@@ -68,8 +71,11 @@ export const ProdView: React.FC = () => {
           minStockAlert: Number(minStockAlert),
           isActive: true
         };
-        setProducts((prev) => [mockNewProd, ...prev]);
-        showToast(`✅ Đã thêm sản phẩm demo: ${mockNewProd.name}`, 'success');
+        setProducts((prev) => [createdProd!, ...prev]);
+        showToast(`✅ Đã thêm sản phẩm: ${createdProd.name} (lưu bộ nhớ tạm)`, 'success');
+      } else {
+        setProducts((prev) => [createdProd!, ...prev]);
+        showToast(`✅ Đã thêm sản phẩm: ${createdProd.name} lên Supabase`, 'success');
       }
 
       setIsModalOpen(false);
@@ -79,7 +85,13 @@ export const ProdView: React.FC = () => {
       setRetailPrice(320000);
       setMinStockAlert(5);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Lỗi lưu sản phẩm';
+      if (typeof err === 'string') msg = err;
+      else if (err instanceof Error) msg = err.message;
+      else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        msg = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
       showToast(`❌ Lỗi tạo sản phẩm: ${msg}`, 'error');
     } finally {
       setIsSubmitting(false);

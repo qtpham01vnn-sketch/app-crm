@@ -40,9 +40,11 @@ interface NavGroup {
 }
 
 export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, appointments, courses, cart, currentTheme, setIsThemeModalOpen } = useApp();
+  const { activeTab, setActiveTab, appointments, courses, cart, currentBranch, currentTheme, setIsThemeModalOpen } = useApp();
 
-  const pendingApptsCount = appointments.filter((a) => a.status === 'booked' || a.status === 'confirmed').length;
+  const pendingApptsCount = appointments.filter(
+    (a) => (!currentBranch?.id || a.branchId === currentBranch.id || !a.branchId) && (a.status === 'booked' || a.status === 'confirmed')
+  ).length;
   const cartItemsCount = cart.items.length;
 
   const navGroups: NavGroup[] = [

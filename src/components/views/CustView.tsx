@@ -48,33 +48,58 @@ export const CustView: React.FC = () => {
       const orgId = currentBranch?.orgId || (branches.length > 0 ? branches[0].orgId : '11111111-1111-1111-1111-111111111111');
       const branchId = currentBranch?.id || (branches.length > 0 ? branches[0].id : '22222222-2222-2222-2222-222222222221');
 
-      const created = await masterDataService.createCustomer(
-        {
+      let created: Customer | null = null;
+      try {
+        created = await masterDataService.createCustomer(
+          {
+            name: trimmedName,
+            phone: cleanPhone,
+            email: newEmail.trim() || undefined,
+            vipTier: newTier,
+            notes: newNotes.trim() || undefined,
+            gender: newGender
+          },
+          orgId,
+          branchId
+        );
+      } catch (sbErr) {
+        console.warn('Supabase createCustomer fallback to local state:', sbErr);
+      }
+
+      if (!created) {
+        created = {
+          id: `cust_${Date.now()}`,
+          orgId,
           name: trimmedName,
           phone: cleanPhone,
           email: newEmail.trim() || undefined,
           vipTier: newTier,
+          gender: newGender,
+          primaryBranchId: branchId,
+          totalSpent: 0,
+          debt: 0,
+          creditBalance: 0,
           notes: newNotes.trim() || undefined,
-          gender: newGender
-        },
-        orgId,
-        branchId
-      );
-
-      if (created) {
-        setCustomers((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
-        setSelectedCust(created);
+          createdAt: new Date().toISOString().slice(0, 10)
+        };
+        showToast(`✅ Đã thêm khách hàng "${created.name}" (lưu bộ nhớ tạm)`, 'success');
+      } else {
         showToast(`✅ Đã thêm khách hàng "${created.name}" lên Supabase`, 'success');
-        setIsCreateModalOpen(false);
-        setNewName('');
-        setNewPhone('');
-        setNewEmail('');
-        setNewNotes('');
-        setDuplicateWarning(null);
       }
+
+      setCustomers((prev) => [created!, ...prev.filter((c) => c.id !== created!.id)]);
+      setSelectedCust(created);
+      setIsCreateModalOpen(false);
+      setNewName('');
+      setNewPhone('');
+      setNewEmail('');
+      setNewNotes('');
+      setDuplicateWarning(null);
     } catch (err: unknown) {
       let errorMessage = 'Không thể lưu khách hàng lên máy chủ';
-      if (err instanceof Error) {
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err instanceof Error) {
         errorMessage = err.message;
       } else if (typeof err === 'object' && err !== null) {
         const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };

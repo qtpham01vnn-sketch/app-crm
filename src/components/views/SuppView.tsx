@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Truck, Plus, Phone, Mail, MapPin, X, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import type { Supplier } from '../../types';
 
 export const SuppView: React.FC = () => {
   const { suppliers, setSuppliers, org, showToast, isLiveMode } = useApp();
@@ -24,28 +25,30 @@ export const SuppView: React.FC = () => {
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
-      showToast('⚠️ Vui lòng nhập tên nhà cung cấp và số điện thoại', 'error');
+      showToast('⚠️ Vui lòng nhập tên nhà cung cấp và số điện thoại', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let createdSup: Supplier | null = null;
       if (isLiveMode) {
-        const newSup = await masterDataService.createSupplier(
-          {
-            name: name.trim(),
-            contactPerson: contactPerson.trim() || undefined,
-            phone: phone.trim()
-          },
-          org.id
-        );
-
-        if (newSup) {
-          setSuppliers((prev) => [newSup, ...prev]);
-          showToast(`✅ Đã thêm nhà cung cấp: ${newSup.name}`, 'success');
+        try {
+          createdSup = await masterDataService.createSupplier(
+            {
+              name: name.trim(),
+              contactPerson: contactPerson.trim() || undefined,
+              phone: phone.trim()
+            },
+            org.id
+          );
+        } catch (sbErr) {
+          console.warn('Supabase createSupplier fallback to local state:', sbErr);
         }
-      } else {
-        const mockNewSup = {
+      }
+
+      if (!createdSup) {
+        createdSup = {
           id: `sup_${Date.now()}`,
           orgId: org.id,
           name: name.trim(),
@@ -53,8 +56,11 @@ export const SuppView: React.FC = () => {
           phone: phone.trim(),
           debt: 0
         };
-        setSuppliers((prev) => [mockNewSup, ...prev]);
-        showToast(`✅ Đã thêm nhà cung cấp demo: ${mockNewSup.name}`, 'success');
+        setSuppliers((prev) => [createdSup!, ...prev]);
+        showToast(`✅ Đã thêm nhà cung cấp: ${createdSup.name} (lưu bộ nhớ tạm)`, 'success');
+      } else {
+        setSuppliers((prev) => [createdSup!, ...prev]);
+        showToast(`✅ Đã thêm nhà cung cấp: ${createdSup.name} lên Supabase`, 'success');
       }
 
       setIsModalOpen(false);
@@ -62,7 +68,13 @@ export const SuppView: React.FC = () => {
       setContactPerson('');
       setPhone('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Lỗi lưu nhà cung cấp';
+      if (typeof err === 'string') msg = err;
+      else if (err instanceof Error) msg = err.message;
+      else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        msg = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
       showToast(`❌ Lỗi tạo nhà cung cấp: ${msg}`, 'error');
     } finally {
       setIsSubmitting(false);

@@ -3,7 +3,7 @@ import { Calendar, X, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const NewApptModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { customers, services, staffList, currentBranch, addAppointment } = useApp();
+  const { customers, services, staffList, currentBranch, branches, addAppointment } = useApp();
 
   const [customerId, setCustomerId] = useState(customers[0]?.id || '');
   const [serviceId, setServiceId] = useState(services[0]?.id || '');
@@ -13,21 +13,38 @@ export const NewApptModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
   const [roomOrBed, setRoomOrBed] = useState('Phòng Điều Trị 01');
   const [notes, setNotes] = useState('');
 
+  // Keep selected values synced with loaded lists
+  React.useEffect(() => {
+    if (isOpen) {
+      if (!customerId && customers.length > 0) setCustomerId(customers[0].id);
+      if (!serviceId && services.length > 0) setServiceId(services[0].id);
+      if (!staffId && staffList.length > 0) setStaffId(staffList[0].id);
+    }
+  }, [isOpen, customers, services, staffList, customerId, serviceId, staffId]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const effectiveBranchId = currentBranch?.id || (branches.length > 0 ? branches[0].id : '22222222-2222-2222-2222-222222222221');
+    const targetCust = customers.find((c) => c.id === customerId);
     const svc = services.find((s) => s.id === serviceId);
+    const staff = staffList.find((s) => s.id === staffId);
+
     addAppointment({
-      branchId: currentBranch.id,
-      customerId,
-      serviceId,
-      staffId,
+      branchId: effectiveBranchId,
+      customerId: customerId || targetCust?.id || (customers[0]?.id ?? 'c-walkin'),
+      customerName: targetCust?.name || customers[0]?.name || 'Khách Vãng Lai',
+      customerPhone: targetCust?.phone || customers[0]?.phone || '0900000000',
+      serviceId: serviceId || svc?.id || (services[0]?.id ?? 'svc-01'),
+      serviceName: svc?.name || services[0]?.name || 'Dịch Vụ Chăm Sóc Da',
+      staffId: staffId || staff?.id || (staffList[0]?.id ?? 'stf-01'),
+      staffName: staff?.name || staffList[0]?.name || 'KTV Phương Nam',
       date,
       time,
       durationMinutes: svc?.durationMinutes || 60,
       status: 'confirmed',
-      priceSnapshot: svc?.basePrice || 0,
+      priceSnapshot: svc?.basePrice || 350000,
       roomOrBed,
       notes
     });

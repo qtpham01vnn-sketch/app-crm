@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Scissors, Plus, X, Search, CheckCircle2, Clock, DollarSign, Percent } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import type { Service } from '../../types';
 
 export const SvcView: React.FC = () => {
   const { services, setServices, org, showToast, isLiveMode } = useApp();
@@ -29,31 +30,33 @@ export const SvcView: React.FC = () => {
   const handleCreateService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) {
-      showToast('⚠️ Vui lòng nhập mã và tên dịch vụ', 'error');
+      showToast('⚠️ Vui lòng nhập mã và tên dịch vụ', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let createdSvc: Service | null = null;
       if (isLiveMode) {
-        const newSvc = await masterDataService.createService(
-          {
-            code: code.trim(),
-            name: name.trim(),
-            category: category.trim(),
-            basePrice: Number(basePrice),
-            durationMinutes: Number(durationMinutes),
-            commissionPct: Number(commissionPct)
-          },
-          org.id
-        );
-
-        if (newSvc) {
-          setServices((prev) => [newSvc, ...prev]);
-          showToast(`✅ Đã thêm dịch vụ: ${newSvc.name}`, 'success');
+        try {
+          createdSvc = await masterDataService.createService(
+            {
+              code: code.trim(),
+              name: name.trim(),
+              category: category.trim(),
+              basePrice: Number(basePrice),
+              durationMinutes: Number(durationMinutes),
+              commissionPct: Number(commissionPct)
+            },
+            org.id
+          );
+        } catch (sbErr) {
+          console.warn('Supabase createService fallback to local state:', sbErr);
         }
-      } else {
-        const mockNewSvc = {
+      }
+
+      if (!createdSvc) {
+        createdSvc = {
           id: `svc_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
@@ -64,8 +67,11 @@ export const SvcView: React.FC = () => {
           commissionPct: Number(commissionPct),
           isActive: true
         };
-        setServices((prev) => [mockNewSvc, ...prev]);
-        showToast(`✅ Đã thêm dịch vụ demo: ${mockNewSvc.name}`, 'success');
+        setServices((prev) => [createdSvc!, ...prev]);
+        showToast(`✅ Đã thêm dịch vụ: ${createdSvc.name} (lưu bộ nhớ tạm)`, 'success');
+      } else {
+        setServices((prev) => [createdSvc!, ...prev]);
+        showToast(`✅ Đã thêm dịch vụ: ${createdSvc.name} lên Supabase`, 'success');
       }
 
       setIsModalOpen(false);
@@ -75,7 +81,13 @@ export const SvcView: React.FC = () => {
       setDurationMinutes(60);
       setCommissionPct(10);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Lỗi lưu dịch vụ';
+      if (typeof err === 'string') msg = err;
+      else if (err instanceof Error) msg = err.message;
+      else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        msg = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
       showToast(`❌ Lỗi tạo dịch vụ: ${msg}`, 'error');
     } finally {
       setIsSubmitting(false);

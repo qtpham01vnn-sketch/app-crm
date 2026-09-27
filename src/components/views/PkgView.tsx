@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layers, Plus, X, Sparkles, Clock, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import type { PackageCombo } from '../../types';
 
 export const PkgView: React.FC = () => {
   const { packages, setPackages, services, org, showToast, isLiveMode } = useApp();
@@ -24,31 +25,33 @@ export const PkgView: React.FC = () => {
   const handleCreatePackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) {
-      showToast('⚠️ Vui lòng nhập mã và tên gói combo', 'error');
+      showToast('⚠️ Vui lòng nhập mã và tên gói combo', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let createdPkg: PackageCombo | null = null;
       if (isLiveMode) {
-        const newPkg = await masterDataService.createPackage(
-          {
-            code: code.trim(),
-            name: name.trim(),
-            serviceId: serviceId || (services[0]?.id ?? '55555555-5555-5555-5555-555555555551'),
-            sessions: Number(sessions),
-            price: Number(price),
-            validityDays: Number(validityDays)
-          },
-          org.id
-        );
-
-        if (newPkg) {
-          setPackages((prev) => [newPkg, ...prev]);
-          showToast(`✅ Đã thêm gói combo: ${newPkg.name}`, 'success');
+        try {
+          createdPkg = await masterDataService.createPackage(
+            {
+              code: code.trim(),
+              name: name.trim(),
+              serviceId: serviceId || (services[0]?.id ?? '55555555-5555-5555-5555-555555555551'),
+              sessions: Number(sessions),
+              price: Number(price),
+              validityDays: Number(validityDays)
+            },
+            org.id
+          );
+        } catch (sbErr) {
+          console.warn('Supabase createPackage fallback to local state:', sbErr);
         }
-      } else {
-        const mockNewPkg = {
+      }
+
+      if (!createdPkg) {
+        createdPkg = {
           id: `pkg_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
@@ -59,8 +62,11 @@ export const PkgView: React.FC = () => {
           validityDays: Number(validityDays),
           isActive: true
         };
-        setPackages((prev) => [mockNewPkg, ...prev]);
-        showToast(`✅ Đã thêm gói combo demo: ${mockNewPkg.name}`, 'success');
+        setPackages((prev) => [createdPkg!, ...prev]);
+        showToast(`✅ Đã thêm gói combo: ${createdPkg.name} (lưu bộ nhớ tạm)`, 'success');
+      } else {
+        setPackages((prev) => [createdPkg!, ...prev]);
+        showToast(`✅ Đã thêm gói combo: ${createdPkg.name} lên Supabase`, 'success');
       }
 
       setIsModalOpen(false);
@@ -70,7 +76,13 @@ export const PkgView: React.FC = () => {
       setPrice(3000000);
       setValidityDays(180);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Lỗi lưu gói combo';
+      if (typeof err === 'string') msg = err;
+      else if (err instanceof Error) msg = err.message;
+      else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        msg = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
       showToast(`❌ Lỗi tạo gói combo: ${msg}`, 'error');
     } finally {
       setIsSubmitting(false);

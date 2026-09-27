@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TicketPercent, Plus, X, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import type { Promotion } from '../../types';
 
 export const PromosView: React.FC = () => {
   const { promotions, setPromotions, org, showToast, isLiveMode } = useApp();
@@ -28,33 +29,35 @@ export const PromosView: React.FC = () => {
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !title.trim()) {
-      showToast('⚠️ Vui lòng nhập mã và mô tả voucher khuyến mãi', 'error');
+      showToast('⚠️ Vui lòng nhập mã và mô tả voucher khuyến mãi', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      let createdPromo: Promotion | null = null;
       if (isLiveMode) {
-        const newPromo = await masterDataService.createPromotion(
-          {
-            code: code.trim(),
-            title: title.trim(),
-            discountType,
-            discountValue: Number(discountValue),
-            minOrderValue: Number(minOrderValue),
-            usageLimit: Number(usageLimit),
-            startDate,
-            endDate
-          },
-          org.id
-        );
-
-        if (newPromo) {
-          setPromotions((prev) => [newPromo, ...prev]);
-          showToast(`✅ Đã tạo voucher: ${newPromo.code}`, 'success');
+        try {
+          createdPromo = await masterDataService.createPromotion(
+            {
+              code: code.trim(),
+              title: title.trim(),
+              discountType,
+              discountValue: Number(discountValue),
+              minOrderValue: Number(minOrderValue),
+              usageLimit: Number(usageLimit),
+              startDate,
+              endDate
+            },
+            org.id
+          );
+        } catch (sbErr) {
+          console.warn('Supabase createPromotion fallback to local state:', sbErr);
         }
-      } else {
-        const mockNewPromo = {
+      }
+
+      if (!createdPromo) {
+        createdPromo = {
           id: `promo_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
@@ -68,8 +71,11 @@ export const PromosView: React.FC = () => {
           endDate,
           isActive: true
         };
-        setPromotions((prev) => [mockNewPromo, ...prev]);
-        showToast(`✅ Đã tạo voucher demo: ${mockNewPromo.code}`, 'success');
+        setPromotions((prev) => [createdPromo!, ...prev]);
+        showToast(`✅ Đã tạo voucher: ${createdPromo.code} (lưu bộ nhớ tạm)`, 'success');
+      } else {
+        setPromotions((prev) => [createdPromo!, ...prev]);
+        showToast(`✅ Đã tạo voucher: ${createdPromo.code} lên Supabase`, 'success');
       }
 
       setIsModalOpen(false);
@@ -79,7 +85,13 @@ export const PromosView: React.FC = () => {
       setMinOrderValue(500000);
       setUsageLimit(100);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Lỗi lưu voucher';
+      if (typeof err === 'string') msg = err;
+      else if (err instanceof Error) msg = err.message;
+      else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        msg = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
       showToast(`❌ Lỗi tạo voucher: ${msg}`, 'error');
     } finally {
       setIsSubmitting(false);

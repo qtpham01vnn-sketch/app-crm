@@ -8,7 +8,7 @@ export const ApptsView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewAp
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const branchAppts = appointments.filter(
-    (a) => a.branchId === currentBranch.id && (filterStatus === 'all' || a.status === filterStatus)
+    (a) => (!currentBranch?.id || a.branchId === currentBranch.id || !a.branchId) && (filterStatus === 'all' || a.status === filterStatus)
   );
 
   const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
@@ -18,6 +18,10 @@ export const ApptsView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewAp
     done: { label: 'Hoàn Thành', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
     cancelled: { label: 'Đã Hủy', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' }
   };
+
+  const allBranchApptsCount = appointments.filter(
+    (a) => !currentBranch?.id || a.branchId === currentBranch.id || !a.branchId
+  ).length;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -40,7 +44,7 @@ export const ApptsView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewAp
               onClick={() => setFilterStatus('all')}
               className={`px-2.5 py-1 rounded-lg shrink-0 ${filterStatus === 'all' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600'}`}
             >
-              Tất cả ({appointments.filter((a) => a.branchId === currentBranch.id).length})
+              Tất cả ({allBranchApptsCount})
             </button>
             <button
               onClick={() => setFilterStatus('in_progress')}

@@ -64,72 +64,100 @@ export const mockBranches: Branch[] = [
 export const mockStaff: Staff[] = [
   {
     id: 'st-01',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Nguyễn Phương Nam',
-    code: 'NV01',
+    code: 'NV-ADM01',
     phone: '0901234567',
     email: 'admin@phuongnam.vn',
     role: 'owner_admin',
-    branchIds: ['br-01', 'br-02', 'br-03'],
-    primaryBranchId: 'br-01',
+    branchIds: ['22222222-2222-2222-2222-222222222221', '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222223'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     baseSalary: 35000000,
     commissionRate: 5,
     status: 'active'
   },
   {
     id: 'st-02',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Trần Thị Mai (Quản lý Q1)',
-    code: 'NV02',
+    code: 'NV-QL01',
     phone: '0912345678',
     email: 'mai.tran@phuongnam.vn',
     role: 'branch_manager',
-    branchIds: ['br-01'],
-    primaryBranchId: 'br-01',
+    branchIds: ['22222222-2222-2222-2222-222222222221'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     baseSalary: 18000000,
     commissionRate: 8,
     status: 'active'
   },
   {
     id: 'st-03',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'BS. Lê Hoàng Long (Bác Sĩ CKI)',
-    code: 'NV03',
+    code: 'NV-BS01',
     phone: '0923456789',
     email: 'bs.long@phuongnam.vn',
     role: 'technician_doctor',
-    branchIds: ['br-01', 'br-02'],
-    primaryBranchId: 'br-01',
+    branchIds: ['22222222-2222-2222-2222-222222222221', '22222222-2222-2222-2222-222222222222'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     baseSalary: 25000000,
     commissionRate: 15,
     status: 'active'
   },
   {
     id: 'st-04',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Phạm Thu Hà (Lễ Tân & Thu Ngân)',
-    code: 'NV04',
+    code: 'NV-TN01',
     phone: '0934567890',
     email: 'ha.pham@phuongnam.vn',
     role: 'cashier_receptionist',
-    branchIds: ['br-01'],
-    primaryBranchId: 'br-01',
+    branchIds: ['22222222-2222-2222-2222-222222222221'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     baseSalary: 9000000,
     commissionRate: 3,
     status: 'active'
   },
   {
     id: 'st-05',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Vũ Ngọc Lan (Kỹ Thuật Viên Spa)',
-    code: 'NV05',
+    code: 'NV-KTV01',
     phone: '0945678901',
     email: 'lan.vu@phuongnam.vn',
     role: 'technician_doctor',
-    branchIds: ['br-01'],
-    primaryBranchId: 'br-01',
+    branchIds: ['22222222-2222-2222-2222-222222222221', '22222222-2222-2222-2222-222222222223'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     baseSalary: 8500000,
     commissionRate: 10,
+    status: 'active'
+  },
+  {
+    id: 'st-06',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    name: 'BS. Hoàng Văn Đức (Nha Khoa Q7)',
+    code: 'NV-BS02',
+    phone: '0956789012',
+    email: 'duc.hoang@phuongnam.vn',
+    role: 'technician_doctor',
+    branchIds: ['22222222-2222-2222-2222-222222222222'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222222',
+    baseSalary: 26000000,
+    commissionRate: 15,
+    status: 'active'
+  },
+  {
+    id: 'st-07',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    name: 'Đặng Kim Chi (Quản lý Thủ Đức)',
+    code: 'NV-QL02',
+    phone: '0967890123',
+    email: 'chi.dang@phuongnam.vn',
+    role: 'branch_manager',
+    branchIds: ['22222222-2222-2222-2222-222222222223'],
+    primaryBranchId: '22222222-2222-2222-2222-222222222223',
+    baseSalary: 18000000,
+    commissionRate: 8,
     status: 'active'
   }
 ];
@@ -330,17 +358,29 @@ export const mockProducts: Product[] = [
 ];
 
 export const mockBranchStocks: BranchInventoryStock[] = [
-  { id: 'bs-01', branchId: 'br-01', productId: 'prd-01', stockOnHand: 24, minStock: 10 },
-  { id: 'bs-02', branchId: 'br-01', productId: 'prd-02', stockOnHand: 18, minStock: 8 },
-  { id: 'bs-03', branchId: 'br-01', productId: 'prd-03', stockOnHand: 35, minStock: 15 },
-  { id: 'bs-04', branchId: 'br-01', productId: 'prd-04', stockOnHand: 5, minStock: 20 },
-  { id: 'bs-05', branchId: 'br-02', productId: 'prd-01', stockOnHand: 12, minStock: 10 }
+  // Chi Nhánh Quận 1 (HCM-Q1)
+  { id: 'bs-01', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-01', stockOnHand: 48, minStock: 10 },
+  { id: 'bs-02', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-02', stockOnHand: 35, minStock: 8 },
+  { id: 'bs-03', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-03', stockOnHand: 22, minStock: 15 },
+  { id: 'bs-04', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-04', stockOnHand: 60, minStock: 20 },
+
+  // Chi Nhánh Quận 7 - Phú Mỹ Hưng (HCM-Q7)
+  { id: 'bs-05', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-01', stockOnHand: 15, minStock: 10 },
+  { id: 'bs-06', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-02', stockOnHand: 6, minStock: 8 },
+  { id: 'bs-07', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-03', stockOnHand: 18, minStock: 15 },
+  { id: 'bs-08', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-04', stockOnHand: 25, minStock: 20 },
+
+  // Chi Nhánh TP. Thủ Đức (HCM-TD)
+  { id: 'bs-09', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-01', stockOnHand: 5, minStock: 10 },
+  { id: 'bs-10', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-02', stockOnHand: 28, minStock: 8 },
+  { id: 'bs-11', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-03', stockOnHand: 4, minStock: 15 },
+  { id: 'bs-12', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-04', stockOnHand: 8, minStock: 20 }
 ];
 
 export const mockPackages: PackageCombo[] = [
   {
     id: 'pkg-01',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Liệu Trình Trị Mụn Chuẩn Y Khoa (10 Buổi)',
     code: 'GOI-ACNE-10',
     serviceId: 'svc-02',
@@ -352,7 +392,7 @@ export const mockPackages: PackageCombo[] = [
   },
   {
     id: 'pkg-02',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Combo Laser Trẻ Hóa Pico Toning (6 Buổi)',
     code: 'GOI-PICO-6',
     serviceId: 'svc-05',
@@ -399,7 +439,7 @@ export const mockSessionDeductions: SessionDeduction[] = [
   {
     id: 'ded-01',
     courseId: 'crs-01',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-03',
     sessionsDeducted: 1,
     performedAt: '2026-02-01 14:30',
@@ -409,7 +449,7 @@ export const mockSessionDeductions: SessionDeduction[] = [
   {
     id: 'ded-02',
     courseId: 'crs-01',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-03',
     sessionsDeducted: 1,
     performedAt: '2026-02-18 15:00',
@@ -419,9 +459,10 @@ export const mockSessionDeductions: SessionDeduction[] = [
 ];
 
 export const mockAppointments: Appointment[] = [
+  // ─── Chi nhánh Quận 1 (HCM-Q1) ───
   {
     id: 'apt-01',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-01',
     customerName: 'Chị Đặng Thu Thảo',
     customerPhone: '0988112233',
@@ -429,7 +470,7 @@ export const mockAppointments: Appointment[] = [
     serviceName: 'Laser Pico Toning Trị Nám (Buổi 3)',
     staffId: 'st-03',
     staffName: 'BS. Lê Hoàng Long',
-    date: '2026-09-26',
+    date: '2026-09-27',
     time: '14:00',
     durationMinutes: 60,
     status: 'in_progress',
@@ -440,7 +481,7 @@ export const mockAppointments: Appointment[] = [
   },
   {
     id: 'apt-02',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-02',
     customerName: 'Anh Trần Tuấn Anh',
     customerPhone: '0977223344',
@@ -448,7 +489,7 @@ export const mockAppointments: Appointment[] = [
     serviceName: 'Tẩy Trắng Răng Laser Whitening',
     staffId: 'st-03',
     staffName: 'BS. Lê Hoàng Long',
-    date: '2026-09-26',
+    date: '2026-09-27',
     time: '15:30',
     durationMinutes: 60,
     status: 'confirmed',
@@ -457,7 +498,7 @@ export const mockAppointments: Appointment[] = [
   },
   {
     id: 'apt-03',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-03',
     customerName: 'Chị Hoàng Bảo Ngọc',
     customerPhone: '0966334455',
@@ -465,41 +506,97 @@ export const mockAppointments: Appointment[] = [
     serviceName: 'Chăm Sóc & Trẻ Hóa Da Oxy Jet',
     staffId: 'st-05',
     staffName: 'Vũ Ngọc Lan',
-    date: '2026-09-26',
+    date: '2026-09-27',
     time: '16:00',
     durationMinutes: 75,
     status: 'booked',
     priceSnapshot: 650000,
     roomOrBed: 'Giường Spa 03'
   },
+
+  // ─── Chi nhánh Quận 7 - Phú Mỹ Hưng (HCM-Q7) ───
   {
     id: 'apt-04',
-    branchId: 'br-01',
+    branchId: '22222222-2222-2222-2222-222222222222',
     customerId: 'c-04',
     customerName: 'Cô Nguyễn Thị Hoa',
     customerPhone: '0911445566',
     serviceId: 'svc-04',
     serviceName: 'Cạo Vôi Răng Siêu Âm',
-    staffId: 'st-03',
-    staffName: 'BS. Lê Hoàng Long',
-    date: '2026-09-26',
+    staffId: 'st-06',
+    staffName: 'BS. Hoàng Văn Đức',
+    date: '2026-09-27',
     time: '10:00',
     durationMinutes: 45,
     status: 'done',
     priceSnapshot: 350000,
     roomOrBed: 'Ghế Nha Khoa 01'
+  },
+  {
+    id: 'apt-05',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    customerId: 'c-01',
+    customerName: 'Chị Đặng Thu Thảo',
+    customerPhone: '0988112233',
+    serviceId: 'svc-02',
+    serviceName: 'Cấy Tinh Chất Phục Hồi Y Khoa',
+    staffId: 'st-06',
+    staffName: 'BS. Hoàng Văn Đức',
+    date: '2026-09-27',
+    time: '16:30',
+    durationMinutes: 60,
+    status: 'confirmed',
+    priceSnapshot: 950000,
+    roomOrBed: 'Phòng Điều Trị 02'
+  },
+
+  // ─── Chi nhánh TP. Thủ Đức (HCM-TD) ───
+  {
+    id: 'apt-06',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    customerId: 'c-02',
+    customerName: 'Anh Trần Tuấn Anh',
+    customerPhone: '0977223344',
+    serviceId: 'svc-03',
+    serviceName: 'Tẩy Trắng Răng Laser Whitening',
+    staffId: 'st-03',
+    staffName: 'BS. Lê Hoàng Long',
+    date: '2026-09-27',
+    time: '11:00',
+    durationMinutes: 60,
+    status: 'in_progress',
+    priceSnapshot: 1800000,
+    roomOrBed: 'Ghế Nha Khoa VIP'
+  },
+  {
+    id: 'apt-07',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    customerId: 'c-03',
+    customerName: 'Chị Hoàng Bảo Ngọc',
+    customerPhone: '0966334455',
+    serviceId: 'svc-05',
+    serviceName: 'Laser Pico Toning Trị Nám',
+    staffId: 'st-05',
+    staffName: 'Vũ Ngọc Lan',
+    date: '2026-09-27',
+    time: '15:00',
+    durationMinutes: 60,
+    status: 'booked',
+    priceSnapshot: 1500000,
+    roomOrBed: 'Phòng Laser 01'
   }
 ];
 
 export const mockSales: Sale[] = [
+  // ─── Chi nhánh Quận 1 (HCM-Q1) ───
   {
     id: 'sale-001',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-01',
     customerName: 'Chị Đặng Thu Thảo',
     invoiceNo: 'HĐ260926-001',
-    date: '2026-09-26',
+    date: '2026-09-27',
     time: '11:15',
     staffId: 'st-04',
     staffName: 'Phạm Thu Hà',
@@ -519,16 +616,16 @@ export const mockSales: Sale[] = [
     paymentMethod: 'bank_transfer',
     status: 'completed',
     notes: 'Khách thanh toán chuyển khoản qua VietQR',
-    createdAt: '2026-09-26 11:15:20'
+    createdAt: '2026-09-27 11:15:20'
   },
   {
     id: 'sale-002',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-02',
     customerName: 'Anh Trần Tuấn Anh',
     invoiceNo: 'HĐ260925-004',
-    date: '2026-09-25',
+    date: '2026-09-26',
     time: '17:30',
     staffId: 'st-04',
     staffName: 'Phạm Thu Hà',
@@ -547,35 +644,120 @@ export const mockSales: Sale[] = [
     paymentMethod: 'split',
     status: 'partial',
     notes: 'Cọc 300k tiền mặt, còn nợ 1.500k',
-    createdAt: '2026-09-25 17:30:00'
+    createdAt: '2026-09-26 17:30:00'
+  },
+
+  // ─── Chi nhánh Quận 7 (HCM-Q7) ───
+  {
+    id: 'sale-003',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    customerId: 'c-03',
+    customerName: 'Chị Hoàng Bảo Ngọc',
+    invoiceNo: 'HĐ260927-002',
+    date: '2026-09-27',
+    time: '14:20',
+    staffId: 'st-06',
+    staffName: 'BS. Hoàng Văn Đức',
+    items: [
+      { id: 'it-4', type: 'package', refId: 'pkg-01', name: 'Liệu Trình Trị Mụn Chuẩn Y Khoa (10 Buổi)', price: 7500000, qty: 1 }
+    ],
+    subtotal: 7500000,
+    discountPct: 10,
+    discountAmount: 750000,
+    taxPct: 0,
+    taxAmount: 0,
+    tipAmount: 0,
+    total: 6750000,
+    paidAmount: 6750000,
+    debtAmount: 0,
+    paymentMethod: 'card',
+    status: 'completed',
+    notes: 'Quẹt thẻ POS Vietcombank',
+    createdAt: '2026-09-27 14:20:00'
+  },
+
+  // ─── Chi nhánh TP. Thủ Đức (HCM-TD) ───
+  {
+    id: 'sale-004',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    customerId: 'c-04',
+    customerName: 'Cô Nguyễn Thị Hoa',
+    invoiceNo: 'HĐ260927-003',
+    date: '2026-09-27',
+    time: '10:45',
+    staffId: 'st-07',
+    staffName: 'Đặng Kim Chi',
+    items: [
+      { id: 'it-5', type: 'service', refId: 'svc-04', name: 'Cạo Vôi Răng Siêu Âm', price: 350000, qty: 1, staffId: 'st-03' },
+      { id: 'it-6', type: 'product', refId: 'prd-02', name: 'Kem Chống Nắng Broad Spectrum', price: 520000, qty: 1 }
+    ],
+    subtotal: 870000,
+    discountPct: 0,
+    discountAmount: 0,
+    taxPct: 0,
+    taxAmount: 0,
+    tipAmount: 30000,
+    total: 900000,
+    paidAmount: 900000,
+    debtAmount: 0,
+    paymentMethod: 'cash',
+    status: 'completed',
+    notes: 'Thu tiền mặt tại quầy',
+    createdAt: '2026-09-27 10:45:00'
   }
 ];
 
 export const mockPayments: Payment[] = [
   {
     id: 'pay-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-01',
     amount: 1080000,
     paymentMethod: 'bank_transfer',
     paymentType: 'sale',
     receivedByStaffId: 'st-04',
-    date: '2026-09-26',
+    date: '2026-09-27',
     referenceNo: 'MBBANK-883921',
-    createdAt: '2026-09-26 11:15:20'
+    createdAt: '2026-09-27 11:15:20'
   },
   {
     id: 'pay-02',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     customerId: 'c-02',
     amount: 300000,
     paymentMethod: 'cash',
     paymentType: 'sale',
     receivedByStaffId: 'st-04',
-    date: '2026-09-25',
-    createdAt: '2026-09-25 17:30:00'
+    date: '2026-09-26',
+    createdAt: '2026-09-26 17:30:00'
+  },
+  {
+    id: 'pay-03',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    customerId: 'c-03',
+    amount: 6750000,
+    paymentMethod: 'card',
+    paymentType: 'sale',
+    receivedByStaffId: 'st-06',
+    date: '2026-09-27',
+    createdAt: '2026-09-27 14:20:00'
+  },
+  {
+    id: 'pay-04',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    customerId: 'c-04',
+    amount: 900000,
+    paymentMethod: 'cash',
+    paymentType: 'sale',
+    receivedByStaffId: 'st-07',
+    date: '2026-09-27',
+    createdAt: '2026-09-27 10:45:00'
   }
 ];
 
@@ -585,21 +767,21 @@ export const mockPaymentAllocations: PaymentAllocation[] = [
     paymentId: 'pay-01',
     saleId: 'sale-001',
     amountAllocated: 1080000,
-    createdAt: '2026-09-26 11:15:20'
+    createdAt: '2026-09-27 11:15:20'
   },
   {
     id: 'alloc-02',
     paymentId: 'pay-02',
     saleId: 'sale-002',
     amountAllocated: 300000,
-    createdAt: '2026-09-25 17:30:00'
+    createdAt: '2026-09-26 17:30:00'
   }
 ];
 
 export const mockSuppliers: Supplier[] = [
   {
     id: 'sup-01',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Công Ty Dược Mỹ Phẩm Y Khoa MedSkin VN',
     contactName: 'Anh Minh (Trưởng đại diện)',
     phone: '0903888777',
@@ -609,7 +791,7 @@ export const mockSuppliers: Supplier[] = [
   },
   {
     id: 'sup-02',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Vật Tư Y Tế & Nha Khoa DentalPro',
     contactName: 'Chị Lan Anh',
     phone: '0918555666',
@@ -622,8 +804,8 @@ export const mockSuppliers: Supplier[] = [
 export const mockPurchaseOrders: PurchaseOrder[] = [
   {
     id: 'po-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     supplierId: 'sup-01',
     supplierName: 'MedSkin VN',
     poNumber: 'PO-202609-01',
@@ -638,8 +820,8 @@ export const mockPurchaseOrders: PurchaseOrder[] = [
   },
   {
     id: 'po-02',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222222',
     supplierId: 'sup-01',
     supplierName: 'MedSkin VN',
     poNumber: 'PO-202609-02',
@@ -656,8 +838,8 @@ export const mockPurchaseOrders: PurchaseOrder[] = [
 export const mockGoodsReceipts: GoodsReceiptNote[] = [
   {
     id: 'grn-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     poId: 'po-01',
     supplierId: 'sup-01',
     supplierName: 'MedSkin VN',
@@ -675,12 +857,13 @@ export const mockGoodsReceipts: GoodsReceiptNote[] = [
 ];
 
 export const mockExpenses: Expense[] = [
+  // ─── Chi nhánh Quận 1 (HCM-Q1) ───
   {
     id: 'exp-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     category: 'rent',
-    title: 'Tiền thuê mặt bằng Quận 1 - Tháng 09/2026',
+    title: 'Tiền thuê mặt bằng Lê Thánh Tôn, Quận 1',
     amount: 35000000,
     date: '2026-09-05',
     paymentMethod: 'bank_transfer',
@@ -689,10 +872,10 @@ export const mockExpenses: Expense[] = [
   },
   {
     id: 'exp-02',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     category: 'utilities',
-    title: 'Hóa đơn Điện lực EVN & Nước sinh hoạt',
+    title: 'Hóa đơn Điện lực EVN & Nước sinh hoạt Q1',
     amount: 4850000,
     date: '2026-09-15',
     paymentMethod: 'bank_transfer',
@@ -700,21 +883,69 @@ export const mockExpenses: Expense[] = [
   },
   {
     id: 'exp-03',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     category: 'marketing',
-    title: 'Chi phí quảng cáo Facebook Ads & TikTok Ads',
+    title: 'Chi phí quảng cáo Facebook Ads & TikTok Ads Q1',
     amount: 12000000,
     date: '2026-09-20',
     paymentMethod: 'bank_transfer',
     staffId: 'st-01'
+  },
+
+  // ─── Chi nhánh Quận 7 (HCM-Q7) ───
+  {
+    id: 'exp-04',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    category: 'rent',
+    title: 'Tiền thuê mặt bằng Nguyễn Văn Linh, Phú Mỹ Hưng',
+    amount: 28000000,
+    date: '2026-09-05',
+    paymentMethod: 'bank_transfer',
+    staffId: 'st-06'
+  },
+  {
+    id: 'exp-05',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    category: 'supplies',
+    title: 'Vật tư tiêu hao găng tay, cồn sát khuẩn nha khoa',
+    amount: 5600000,
+    date: '2026-09-18',
+    paymentMethod: 'cash',
+    staffId: 'st-06'
+  },
+
+  // ─── Chi nhánh TP. Thủ Đức (HCM-TD) ───
+  {
+    id: 'exp-06',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    category: 'rent',
+    title: 'Tiền thuê mặt bằng Võ Văn Ngân, Thủ Đức',
+    amount: 22000000,
+    date: '2026-09-05',
+    paymentMethod: 'bank_transfer',
+    staffId: 'st-07'
+  },
+  {
+    id: 'exp-07',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222223',
+    category: 'marketing',
+    title: 'Treo băng rôn & phát tờ rơi khai trương Thủ Đức',
+    amount: 8500000,
+    date: '2026-09-12',
+    paymentMethod: 'bank_transfer',
+    staffId: 'st-07'
   }
 ];
 
 export const mockPromotions: Promotion[] = [
   {
     id: 'prm-01',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     code: 'VIPDIAMOND',
     title: 'Giảm 15% Dành Riêng Cho Khách Hàng VIP Diamond',
     discountType: 'pct',
@@ -728,7 +959,7 @@ export const mockPromotions: Promotion[] = [
   },
   {
     id: 'prm-02',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     code: 'WELCOME50K',
     title: 'Tặng 50.000đ Cho Khách Hàng Lần Đầu Trải Nghiệm',
     discountType: 'fixed',
@@ -743,23 +974,32 @@ export const mockPromotions: Promotion[] = [
 ];
 
 export const mockShifts: ShiftRoster[] = [
-  { id: 'sh-01', branchId: 'br-01', staffId: 'st-02', staffName: 'Trần Thị Mai', date: '2026-09-26', shiftType: 'full' },
-  { id: 'sh-02', branchId: 'br-01', staffId: 'st-03', staffName: 'BS. Lê Hoàng Long', date: '2026-09-26', shiftType: 'morning' },
-  { id: 'sh-03', branchId: 'br-01', staffId: 'st-04', staffName: 'Phạm Thu Hà', date: '2026-09-26', shiftType: 'full' },
-  { id: 'sh-04', branchId: 'br-01', staffId: 'st-05', staffName: 'Vũ Ngọc Lan', date: '2026-09-26', shiftType: 'afternoon' }
+  // HCM-Q1
+  { id: 'sh-01', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-02', staffName: 'Trần Thị Mai', date: '2026-09-27', shiftType: 'full' },
+  { id: 'sh-02', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-03', staffName: 'BS. Lê Hoàng Long', date: '2026-09-27', shiftType: 'morning' },
+  { id: 'sh-03', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-04', staffName: 'Phạm Thu Hà', date: '2026-09-27', shiftType: 'full' },
+  { id: 'sh-04', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-05', staffName: 'Vũ Ngọc Lan', date: '2026-09-27', shiftType: 'afternoon' },
+
+  // HCM-Q7
+  { id: 'sh-05', branchId: '22222222-2222-2222-2222-222222222222', staffId: 'st-06', staffName: 'BS. Hoàng Văn Đức', date: '2026-09-27', shiftType: 'full' },
+
+  // HCM-TD
+  { id: 'sh-06', branchId: '22222222-2222-2222-2222-222222222223', staffId: 'st-07', staffName: 'Đặng Kim Chi', date: '2026-09-27', shiftType: 'full' }
 ];
 
 export const mockTimesheets: Timesheet[] = [
-  { id: 'ts-01', branchId: 'br-01', staffId: 'st-02', staffName: 'Trần Thị Mai', date: '2026-09-26', checkIn: '08:00', checkOut: '17:30', workingHours: 8.5, isApproved: true },
-  { id: 'ts-02', branchId: 'br-01', staffId: 'st-03', staffName: 'BS. Lê Hoàng Long', date: '2026-09-26', checkIn: '08:15', workingHours: 6.0, isApproved: false },
-  { id: 'ts-03', branchId: 'br-01', staffId: 'st-04', staffName: 'Phạm Thu Hà', date: '2026-09-26', checkIn: '07:55', workingHours: 8.0, isApproved: true }
+  { id: 'ts-01', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-02', staffName: 'Trần Thị Mai', date: '2026-09-27', checkIn: '08:00', checkOut: '17:30', workingHours: 8.5, isApproved: true },
+  { id: 'ts-02', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-03', staffName: 'BS. Lê Hoàng Long', date: '2026-09-27', checkIn: '08:15', workingHours: 6.0, isApproved: false },
+  { id: 'ts-03', branchId: '22222222-2222-2222-2222-222222222221', staffId: 'st-04', staffName: 'Phạm Thu Hà', date: '2026-09-27', checkIn: '07:55', workingHours: 8.0, isApproved: true },
+  { id: 'ts-04', branchId: '22222222-2222-2222-2222-222222222222', staffId: 'st-06', staffName: 'BS. Hoàng Văn Đức', date: '2026-09-27', checkIn: '08:00', checkOut: '17:00', workingHours: 8.0, isApproved: true },
+  { id: 'ts-05', branchId: '22222222-2222-2222-2222-222222222223', staffId: 'st-07', staffName: 'Đặng Kim Chi', date: '2026-09-27', checkIn: '07:50', checkOut: '17:30', workingHours: 8.5, isApproved: true }
 ];
 
 export const mockCommissions: CommissionRecord[] = [
   {
     id: 'cm-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-03',
     staffName: 'BS. Lê Hoàng Long',
     saleId: 'sale-001',
@@ -767,12 +1007,12 @@ export const mockCommissions: CommissionRecord[] = [
     itemValue: 350000,
     commissionPct: 15,
     commissionAmount: 52500,
-    date: '2026-09-26'
+    date: '2026-09-27'
   },
   {
     id: 'cm-02',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-03',
     staffName: 'BS. Lê Hoàng Long',
     saleId: 'sale-002',
@@ -780,15 +1020,15 @@ export const mockCommissions: CommissionRecord[] = [
     itemValue: 1800000,
     commissionPct: 15,
     commissionAmount: 270000,
-    date: '2026-09-25'
+    date: '2026-09-26'
   }
 ];
 
 export const mockPayrolls: PayrollRecord[] = [
   {
     id: 'pr-01',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-03',
     staffName: 'BS. Lê Hoàng Long',
     month: '2026-08',
@@ -801,8 +1041,8 @@ export const mockPayrolls: PayrollRecord[] = [
   },
   {
     id: 'pr-02',
-    orgId: 'org-01',
-    branchId: 'br-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    branchId: '22222222-2222-2222-2222-222222222221',
     staffId: 'st-04',
     staffName: 'Phạm Thu Hà',
     month: '2026-08',
