@@ -15,12 +15,10 @@
 | Giai đoạn | Trạng thái | Chi tiết nghiệm thu |
 | :--- | :---: | :--- |
 | **P0: Khảo sát, Đặc tả & ERD** | ✅ Hoàn thành | Đã đối chiếu 21 menu mã nguồn cũ, lập ERD, ma trận RBAC 4 vai trò. |
-| **P1: Foundation & Responsive Shell** | ✅ Hoàn tất & Chốt P1.1 | 21 màn hình views, 10 Theme Accent, Dark Mode, Sidebar/Topbar/BottomNav không đè che. |
-| **P2A: Thiết kế Schema SQL & RLS** | ✅ Đã viết Migration | Đã lập 4 migration files + 1 test suite trong `supabase/migrations/` và `supabase/tests/`. |
-| **P2B: Kết nối Auth & Service** | ⏳ Sẵn sàng chờ kết nối | Đã tạo SDK wrapper `src/lib/supabase.ts`, `src/services/authService.ts` có Demo Fallback. |
-| **P2C: Kiểm thử Quyền RLS & Multi-branch** | ⚠️ Chưa kiểm chứng | Đã viết kịch bản test `p2_security_and_rls_test.sql`; cần Database Supabase thật để chạy test. |
-| **P3: Master Data & Catalog** | ⏸ Chờ duyệt P2 | Khách hàng, dịch vụ, bảng giá chi nhánh, tồn kho, NCC. |
-| **P4: Lịch hẹn & Today Hub** | ⏸ Chờ duyệt P3 | Lưới lịch tuần, chống trùng phòng/ghế, 7 bộ lọc Today Hub, sync realtime. |
+| **P1: Foundation & Responsive Shell** | ✅ Hoàn tất P1.1 | 21 màn hình views, 10 Theme Accent, Dark Mode, Sidebar/Topbar/BottomNav chuẩn. |
+| **P2: Database Supabase, Auth, RLS & Audit** | ✅ Hoàn thành & Đã kiểm thử | 23 bảng đã tạo, RLS hoạt động chặn đọc nặc danh (SEC-01), Audit bất biến (ACID-01). |
+| **P3: Master Data & Catalog Live** | 🚀 Đang triển khai | Đã tạo `MasterDataService`, kết nối Supabase nạp Khách hàng, Dịch vụ, Kho, Bác sĩ/KTV. |
+| **P4: Lịch hẹn & Today Hub** | ⏳ Kế tiếp | Lưới lịch tuần 7 ngày, chống trùng lịch phòng/ghế, Today Hub 7 bộ lọc. |
 | **P5: POS Thu ngân, Kho & In Bill** | ⏸ Chờ duyệt P4 | ACID checkout RPC, VietQR, in nhiệt K80/K58, quản lý PO-GRN. |
 | **P6: CRM Nâng cao & Lương/Hoa hồng** | ⏸ Chờ duyệt P5 | Thư viện ảnh Before/After (Signed URL), chấm công, bảng lương tự động. |
 | **P7: Báo cáo Tài chính & Go-Live** | ⏸ Chờ duyệt P6 | Báo cáo 3 trụ cột, công cụ import JSON app cũ (Idempotent), sao lưu & khôi phục. |
