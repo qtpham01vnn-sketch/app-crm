@@ -2,6 +2,9 @@
 
 **Tài liệu tham chiếu chuẩn:** [`docs/PLAN_VUA_APP_ANTIGRAVITY.md`](./docs/PLAN_VUA_APP_ANTIGRAVITY.md)  
 **Ngày cập nhật:** 27/09/2026  
+**GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git)  
+**Supabase Project:** `lskrcerzxltlrcewigrw` (`https://lskrcerzxltlrcewigrw.supabase.co`) — Region: `ap-southeast-1`  
+**Vercel Project:** `qtpham01vnn-sketch/app-crm`  
 **Môi trường chạy thử nghiệm:** Localhost (React 19 + TypeScript + Tailwind CSS v4 + Vite)  
 **Cổng phục vụ Dev:** `http://localhost:5173/`
 
