@@ -26,6 +26,8 @@ import type {
 } from '../types';
 import { APP_THEMES } from '../mock/themes';
 import type { FullThemeConfig } from '../mock/themes';
+import { masterDataService } from '../services/masterDataService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 
 import {
@@ -190,34 +192,86 @@ const initialCart: CartState = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [branches] = useState<Branch[]>(mockBranches);
+  // Data states
+  const [branches, setBranches] = useState<Branch[]>(mockBranches);
   const [currentBranch, setCurrentBranch] = useState<Branch>(mockBranches[0]);
-  const [staffList] = useState<Staff[]>(mockStaff);
+  const [staffList, setStaffList] = useState<Staff[]>(mockStaff);
   const [currentUser, setCurrentUser] = useState<Staff>(mockStaff[0]);
   const [currentRole, setCurrentRoleState] = useState<UserRole>('owner_admin');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Data states
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
-  const [services] = useState<Service[]>(mockServices);
-  const [products] = useState<Product[]>(mockProducts);
+  const [services, setServices] = useState<Service[]>(mockServices);
+  const [products, setProducts] = useState<Product[]>(mockProducts);
   const [branchStocks, setBranchStocks] = useState(mockBranchStocks);
-  const [packages] = useState<PackageCombo[]>(mockPackages);
+  const [packages, setPackages] = useState<PackageCombo[]>(mockPackages);
   const [courses, setCourses] = useState<CustomerCourse[]>(mockCustomerCourses);
   const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [sales, setSales] = useState<Sale[]>(mockSales);
   const [payments, setPayments] = useState<Payment[]>(mockPayments);
-  const [suppliers] = useState<Supplier[]>(mockSuppliers);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers);
   const [purchaseOrders] = useState<PurchaseOrder[]>(mockPurchaseOrders);
   const [goodsReceipts] = useState<GoodsReceiptNote[]>(mockGoodsReceipts);
   const [expenses] = useState<Expense[]>(mockExpenses);
-  const [promotions] = useState<Promotion[]>(mockPromotions);
+  const [promotions, setPromotions] = useState<Promotion[]>(mockPromotions);
   const [shifts] = useState<ShiftRoster[]>(mockShifts);
   const [timesheets] = useState<Timesheet[]>(mockTimesheets);
   const [commissions] = useState<CommissionRecord[]>(mockCommissions);
   const [payrolls] = useState<PayrollRecord[]>(mockPayrolls);
+
+  // Load live Supabase Master Data on Mount
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      const loadLiveMasterData = async () => {
+        try {
+          const [
+            liveBranches,
+            liveServices,
+            liveProducts,
+            livePackages,
+            liveSuppliers,
+            livePromotions,
+            liveStaff,
+            liveCustomers,
+            liveStocks
+          ] = await Promise.all([
+            masterDataService.getBranches(),
+            masterDataService.getServices(),
+            masterDataService.getProducts(),
+            masterDataService.getPackages(),
+            masterDataService.getSuppliers(),
+            masterDataService.getPromotions(),
+            masterDataService.getStaff(),
+            masterDataService.getCustomers(),
+            masterDataService.getInventoryStocks()
+          ]);
+
+          if (liveBranches.length > 0) {
+            setBranches(liveBranches);
+            setCurrentBranch(liveBranches[0]);
+          }
+          if (liveServices.length > 0) setServices(liveServices);
+          if (liveProducts.length > 0) setProducts(liveProducts);
+          if (livePackages.length > 0) setPackages(livePackages);
+          if (liveSuppliers.length > 0) setSuppliers(liveSuppliers);
+          if (livePromotions.length > 0) setPromotions(livePromotions);
+          if (liveStaff.length > 0) {
+            setStaffList(liveStaff);
+            setCurrentUser(liveStaff[0]);
+          }
+          if (liveCustomers.length > 0) setCustomers(liveCustomers);
+          if (Object.keys(liveStocks).length > 0) {
+            setBranchStocks((prev) => ({ ...prev, ...liveStocks }));
+          }
+        } catch (err) {
+          console.error('Lỗi nạp master data từ Supabase:', err);
+        }
+      };
+      loadLiveMasterData();
+    }
+  }, []);
 
   // Theme & Modals
   const [currentTheme, setCurrentThemeState] = useState<FullThemeConfig>(() => {
