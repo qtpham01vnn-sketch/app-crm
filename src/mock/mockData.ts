@@ -26,7 +26,7 @@ import type {
 } from '../types';
 
 export const mockOrg: Organization = {
-  id: 'org-01',
+  id: '11111111-1111-1111-1111-111111111111',
   name: 'Hệ Thống Thẩm Mỹ & Nha Khoa Quốc Tế Phương Nam',
   code: 'PHUONGNAM-MED',
   phone: '1900 8899',
@@ -35,8 +35,8 @@ export const mockOrg: Organization = {
 
 export const mockBranches: Branch[] = [
   {
-    id: 'br-01',
-    orgId: 'org-01',
+    id: '22222222-2222-2222-2222-222222222221',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Chi Nhánh Quận 1 - Hồ Chí Minh',
     code: 'HCM-Q1',
     phone: '028 3822 9999',
@@ -44,20 +44,20 @@ export const mockBranches: Branch[] = [
     isMainBranch: true
   },
   {
-    id: 'br-02',
-    orgId: 'org-01',
-    name: 'Chi Nhánh Hoàn Kiếm - Hà Nội',
-    code: 'HN-HK',
-    phone: '024 3933 8888',
-    address: '45 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội'
+    id: '22222222-2222-2222-2222-222222222222',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    name: 'Chi Nhánh Quận 7 - Phú Mỹ Hưng',
+    code: 'HCM-Q7',
+    phone: '028 5411 2222',
+    address: '456 Nguyễn Văn Linh, Tân Phong, Quận 7, TP.HCM'
   },
   {
-    id: 'br-03',
-    orgId: 'org-01',
-    name: 'Chi Nhánh Hải Châu - Đà Nẵng',
-    code: 'DN-HC',
-    phone: '0236 366 7777',
-    address: '88 Nguyễn Văn Linh, Hải Châu, Đà Nẵng'
+    id: '22222222-2222-2222-2222-222222222223',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    name: 'Chi Nhánh TP. Thủ Đức',
+    code: 'HCM-TD',
+    phone: '028 7300 3333',
+    address: '789 Võ Văn Ngân, TP. Thủ Đức, TP.HCM'
   }
 ];
 
