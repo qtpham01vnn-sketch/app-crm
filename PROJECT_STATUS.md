@@ -2,7 +2,7 @@
 
 **Tài liệu tham chiếu chuẩn:** [`docs/PLAN_VUA_APP_ANTIGRAVITY.md`](./docs/PLAN_VUA_APP_ANTIGRAVITY.md)  
 **Ngày cập nhật:** 27/09/2026  
-**GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git) (Branch: `main`, Commit: `6c9a53e`)  
+**GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git) (Branch: `main`, Commit: `df1bf0d`)  
 **Supabase Project:** `lskrcerzxltlrcewigrw` (`https://lskrcerzxltlrcewigrw.supabase.co`) — Region: `ap-southeast-1`  
 **Vercel Project:** `phuongnam-crm-spa` (`https://phuongnam-crm-spa.vercel.app` / `qtpham01vnn-sketch/app-crm`)  
 **Môi trường chạy thử nghiệm:** Localhost (React 19 + TypeScript + Tailwind CSS v4 + Vite)  
@@ -16,8 +16,8 @@
 | :--- | :---: | :--- |
 | **P0: Khảo sát, Đặc tả & ERD** | ✅ Hoàn thành | Đã đối chiếu 21 menu mã nguồn cũ, lập ERD, ma trận RBAC 4 vai trò. |
 | **P1: Foundation & Responsive Shell** | ✅ Hoàn tất P1.1 | 21 màn hình views, 10 Theme Accent, Dark Mode, Sidebar/Topbar/BottomNav chuẩn. |
-| **P2: Database Supabase, Auth, RLS & Audit** | ✅ Hoàn thành & Đã kiểm thử | 23 bảng đã tạo, RLS hoạt động chặn đọc nặc danh (SEC-01), Audit bất biến (ACID-01). |
-| **P3: Master Data & Catalog Live** | 🚀 Đang triển khai | Đã tạo `MasterDataService`, kết nối Supabase nạp Khách hàng, Dịch vụ, Kho, Bác sĩ/KTV. |
+| **P2: Database Supabase, Auth, RLS & Audit** | 🚀 Đang hoàn thiện Auth | 23 bảng đã tạo, RLS hoạt động chặn nặc danh, đã bổ sung trigger auto-link auth session. |
+| **P3: Master Data & Catalog Live** | 🚀 Đang triển khai | Khắc phục lỗi HTTP 400 tạo khách hàng, kiểm soát trùng SĐT và bảo vệ ghi chú y tế. |
 | **P4: Lịch hẹn & Today Hub** | ⏳ Kế tiếp | Lưới lịch tuần 7 ngày, chống trùng lịch phòng/ghế, Today Hub 7 bộ lọc. |
 | **P5: POS Thu ngân, Kho & In Bill** | ⏸ Chờ duyệt P4 | ACID checkout RPC, VietQR, in nhiệt K80/K58, quản lý PO-GRN. |
 | **P6: CRM Nâng cao & Lương/Hoa hồng** | ⏸ Chờ duyệt P5 | Thư viện ảnh Before/After (Signed URL), chấm công, bảng lương tự động. |
