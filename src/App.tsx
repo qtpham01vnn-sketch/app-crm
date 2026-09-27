@@ -1,0 +1,167 @@
+import React, { useState } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { MockDataBanner } from './components/layout/MockDataBanner';
+import { Sidebar } from './components/layout/Sidebar';
+import { Topbar } from './components/layout/Topbar';
+import { BottomNav } from './components/layout/BottomNav';
+
+// Views
+import { HomeView } from './components/views/HomeView';
+import { PosView } from './components/views/PosView';
+import { ApptsView } from './components/views/ApptsView';
+import { BookView } from './components/views/BookView';
+import { WaitView } from './components/views/WaitView';
+import { CustView } from './components/views/CustView';
+import { CoursesView } from './components/views/CoursesView';
+import { StaffView } from './components/views/StaffView';
+import { RosterView } from './components/views/RosterView';
+import { TimesView } from './components/views/TimesView';
+import { CommView } from './components/views/CommView';
+import { PayrollView } from './components/views/PayrollView';
+import { ProdView } from './components/views/ProdView';
+import { SvcView } from './components/views/SvcView';
+import { PkgView } from './components/views/PkgView';
+import { InvView } from './components/views/InvView';
+import { SuppView } from './components/views/SuppView';
+import { PoView } from './components/views/PoView';
+import { ExpView } from './components/views/ExpView';
+import { PromosView } from './components/views/PromosView';
+import { ReportsView } from './components/views/ReportsView';
+
+// Modals
+import { InvoiceModal } from './components/modals/InvoiceModal';
+import { NewApptModal } from './components/modals/NewApptModal';
+import { SessionDeductModal } from './components/modals/SessionDeductModal';
+import { ThemeModal } from './components/modals/ThemeModal';
+import type { CustomerCourse } from './types';
+
+import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+
+const MainLayout: React.FC = () => {
+  const { activeTab, toasts, isThemeModalOpen, setIsThemeModalOpen } = useApp();
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNewApptModalOpen, setIsNewApptModalOpen] = useState(false);
+  const [deductModalCourse, setDeductModalCourse] = useState<CustomerCourse | null>(null);
+
+  const renderActiveView = () => {
+    switch (activeTab) {
+      case 'home':
+        return <HomeView onOpenNewAppt={() => setIsNewApptModalOpen(true)} />;
+      case 'pos':
+        return <PosView />;
+      case 'appts':
+        return <ApptsView onOpenNewAppt={() => setIsNewApptModalOpen(true)} />;
+      case 'book':
+        return <BookView />;
+      case 'wait':
+        return <WaitView />;
+      case 'cust':
+        return <CustView />;
+      case 'courses':
+        return <CoursesView onOpenDeductModal={(crs) => setDeductModalCourse(crs)} />;
+      case 'staff':
+        return <StaffView />;
+      case 'roster':
+        return <RosterView />;
+      case 'times':
+        return <TimesView />;
+      case 'comm':
+        return <CommView />;
+      case 'payroll':
+        return <PayrollView />;
+      case 'prod':
+        return <ProdView />;
+      case 'svc':
+        return <SvcView />;
+      case 'pkg':
+        return <PkgView />;
+      case 'inv':
+        return <InvView />;
+      case 'supp':
+        return <SuppView />;
+      case 'po':
+        return <PoView />;
+      case 'exp':
+        return <ExpView />;
+      case 'promos':
+        return <PromosView />;
+      case 'reports':
+        return <ReportsView />;
+      default:
+        return <HomeView onOpenNewAppt={() => setIsNewApptModalOpen(true)} />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900">
+      {/* Top Mock Banner */}
+      <MockDataBanner />
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
+          <Topbar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
+
+          <main className="flex-1 p-4 md:p-6 pb-20 lg:pb-6 overflow-y-auto max-w-7xl w-full mx-auto">
+            {renderActiveView()}
+          </main>
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
+
+      {/* Global Modals */}
+      <InvoiceModal />
+      <NewApptModal isOpen={isNewApptModalOpen} onClose={() => setIsNewApptModalOpen(false)} />
+      <SessionDeductModal
+        course={deductModalCourse}
+        isOpen={Boolean(deductModalCourse)}
+        onClose={() => setDeductModalCourse(null)}
+      />
+      <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
+
+
+      {/* Floating Toast Notifications */}
+      <div className="fixed bottom-16 lg:bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto p-3.5 rounded-2xl shadow-xl border flex items-center space-x-2.5 text-xs font-semibold animate-fade-in ${
+              t.type === 'success'
+                ? 'bg-emerald-900 text-white border-emerald-700'
+                : t.type === 'error'
+                ? 'bg-rose-900 text-white border-rose-700'
+                : t.type === 'warning'
+                ? 'bg-amber-900 text-white border-amber-700'
+                : 'bg-slate-900 text-white border-slate-700'
+            }`}
+          >
+            {t.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : t.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <Info className="w-4 h-4 text-sky-400 shrink-0" />
+            )}
+            <span className="flex-1">{t.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export function App() {
+  return (
+    <AppProvider>
+      <MainLayout />
+    </AppProvider>
+  );
+}
+
+export default App;
