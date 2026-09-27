@@ -100,7 +100,7 @@ export const BookView: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block font-bold text-slate-700 mb-1">Ngày Hẹn</label>
             <input

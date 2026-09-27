@@ -23,40 +23,40 @@ export const ApptsView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewAp
     <div className="space-y-5 animate-fade-in">
       {/* Top Filter & Action Header */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0">
             <CalendarIcon className="w-4 h-4 text-sky-600" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent focus:outline-none cursor-pointer"
+              className="bg-transparent focus:outline-none cursor-pointer text-xs"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto max-w-full">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-3 py-1 rounded-lg ${filterStatus === 'all' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600'}`}
+              className={`px-2.5 py-1 rounded-lg shrink-0 ${filterStatus === 'all' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600'}`}
             >
               Tất cả ({appointments.filter((a) => a.branchId === currentBranch.id).length})
             </button>
             <button
               onClick={() => setFilterStatus('in_progress')}
-              className={`px-3 py-1 rounded-lg ${filterStatus === 'in_progress' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600'}`}
+              className={`px-2.5 py-1 rounded-lg shrink-0 ${filterStatus === 'in_progress' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600'}`}
             >
               Đang làm
             </button>
             <button
               onClick={() => setFilterStatus('confirmed')}
-              className={`px-3 py-1 rounded-lg ${filterStatus === 'confirmed' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600'}`}
+              className={`px-2.5 py-1 rounded-lg shrink-0 ${filterStatus === 'confirmed' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600'}`}
             >
               Đã xác nhận
             </button>
             <button
               onClick={() => setFilterStatus('done')}
-              className={`px-3 py-1 rounded-lg ${filterStatus === 'done' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600'}`}
+              className={`px-2.5 py-1 rounded-lg shrink-0 ${filterStatus === 'done' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600'}`}
             >
               Hoàn thành
             </button>
@@ -65,7 +65,7 @@ export const ApptsView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewAp
 
         <button
           onClick={onOpenNewAppt}
-          className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-sky-600/20 flex items-center space-x-1.5 transition-all self-end sm:self-auto"
+          className="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-sky-600/20 flex items-center justify-center space-x-1.5 transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Đặt Lịch Mới</span>

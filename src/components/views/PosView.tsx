@@ -113,10 +113,10 @@ export const PosView: React.FC = () => {
             </div>
 
             {/* Category Tabs */}
-            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl shrink-0 text-xs font-semibold">
+            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl shrink-0 text-xs font-semibold overflow-x-auto max-w-full">
               <button
                 onClick={() => setActiveCategory('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 ${
                   activeCategory === 'all' ? 'bg-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
                 style={activeCategory === 'all' ? { color: currentTheme.primaryColor } : {}}
@@ -125,7 +125,7 @@ export const PosView: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveCategory('svc')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 ${
                   activeCategory === 'svc' ? 'bg-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
                 style={activeCategory === 'svc' ? { color: currentTheme.primaryColor } : {}}
@@ -134,7 +134,7 @@ export const PosView: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveCategory('prod')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 ${
                   activeCategory === 'prod' ? 'bg-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
                 style={activeCategory === 'prod' ? { color: currentTheme.primaryColor } : {}}
@@ -143,7 +143,7 @@ export const PosView: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveCategory('pkg')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 ${
                   activeCategory === 'pkg' ? 'bg-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
                 style={activeCategory === 'pkg' ? { color: currentTheme.primaryColor } : {}}

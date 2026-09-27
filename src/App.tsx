@@ -106,7 +106,7 @@ const MainLayout: React.FC = () => {
         <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
           <Topbar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
 
-          <main className="flex-1 p-4 md:p-6 pb-20 lg:pb-6 overflow-y-auto max-w-7xl w-full mx-auto">
+          <main className="flex-1 p-3 sm:p-4 md:p-6 pb-28 sm:pb-24 lg:pb-8 overflow-y-auto max-w-7xl w-full mx-auto">
             {renderActiveView()}
           </main>
         </div>

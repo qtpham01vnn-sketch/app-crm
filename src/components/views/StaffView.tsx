@@ -15,17 +15,17 @@ export const StaffView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold shrink-0">
             <UserCheck className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="font-bold text-base text-slate-800">Danh Sách Nhân Sự & Phân Quyền RBAC</h3>
+          <div className="min-w-0">
+            <h3 className="font-bold text-sm sm:text-base text-slate-800">Danh Sách Nhân Sự & Phân Quyền RBAC</h3>
             <p className="text-xs text-slate-500">Quản lý nhân viên cấp tổ chức, phân bổ chi nhánh công tác</p>
           </div>
         </div>
-        <button className="text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2 rounded-xl shadow-xs">
+        <button className="w-full sm:w-auto text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs shrink-0 whitespace-nowrap cursor-pointer flex items-center justify-center">
           + Thêm Nhân Viên
         </button>
       </div>

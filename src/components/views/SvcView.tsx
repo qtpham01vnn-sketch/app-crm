@@ -18,14 +18,14 @@ export const SvcView: React.FC = () => {
           </div>
         </div>
 
-        <button className="text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2 rounded-xl shadow-xs flex items-center space-x-1.5">
+        <button className="w-full sm:w-auto text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer">
           <Plus className="w-4 h-4" />
           <span>Thêm Dịch Vụ Mới</span>
         </button>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full text-left text-xs border-collapse min-w-[640px]">
           <thead>
             <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-bold">
               <th className="p-3">Mã Dịch Vụ</th>
