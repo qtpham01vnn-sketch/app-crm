@@ -101,7 +101,7 @@ CREATE OR REPLACE RULE prevent_audit_delete AS ON DELETE TO audit_events DO INST
 -- Hàm lấy organization_id của người dùng hiện tại từ auth.uid()
 CREATE OR REPLACE FUNCTION get_current_user_org_id()
 RETURNS UUID AS $$
-    SELECT organization_id
+    SELECT sp.organization_id
     FROM staff_profiles sp
     JOIN organization_memberships om ON sp.id = om.staff_id
     WHERE sp.auth_user_id = auth.uid()
