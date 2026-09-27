@@ -2,11 +2,72 @@ import React, { useState } from 'react';
 import { Users, Search, Phone, Mail, DollarSign, Sparkles } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { Customer } from '../../types';
+import { masterDataService } from '../../services/masterDataService';
 
 export const CustView: React.FC = () => {
-  const { customers, courses, sales } = useApp();
+  const { customers, courses, sales, currentBranch, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
+
+  // New Customer Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newTier, setNewTier] = useState<Customer['vipTier']>('standard');
+  const [newNotes, setNewNotes] = useState('');
+  const [newGender, setNewGender] = useState<Customer['gender']>('female');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) {
+      showToast('Vui lòng nhập họ và tên khách hàng', 'warning');
+      return;
+    }
+    const cleanPhone = newPhone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 9) {
+      showToast('Số điện thoại không hợp lệ (tối thiểu 9 số)', 'warning');
+      return;
+    }
+
+    // Check duplicate phone locally first
+    const isDuplicate = customers.some((c) => c.phone.replace(/\D/g, '') === cleanPhone);
+    if (isDuplicate) {
+      showToast(`Số điện thoại ${newPhone} đã tồn tại trong hệ thống!`, 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const created = await masterDataService.createCustomer(
+        {
+          name: newName.trim(),
+          phone: newPhone.trim(),
+          vipTier: newTier,
+          notes: newNotes.trim(),
+          gender: newGender
+        },
+        currentBranch.orgId || '11111111-1111-1111-1111-111111111111',
+        currentBranch.id
+      );
+
+      if (created) {
+        setSelectedCust(created);
+        showToast(`✅ Đã thêm khách hàng "${created.name}" lên Supabase`, 'success');
+        setIsCreateModalOpen(false);
+        setNewName('');
+        setNewPhone('');
+        setNewEmail('');
+        setNewNotes('');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(`❌ Lỗi lưu Supabase: ${message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filtered = customers.filter(
     (c) =>
@@ -34,7 +95,10 @@ export const CustView: React.FC = () => {
             <Users className="w-5 h-5 text-sky-600" />
             <h3 className="font-bold text-sm text-slate-800">Khách Hàng Toàn Chuỗi ({customers.length})</h3>
           </div>
-          <button className="text-xs bg-sky-50 text-sky-700 font-bold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-100">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="text-xs bg-sky-50 text-sky-700 font-bold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-100 cursor-pointer transition-all"
+          >
             + Thêm Khách
           </button>
         </div>
@@ -190,6 +254,124 @@ export const CustView: React.FC = () => {
           <div className="py-12 text-center text-slate-400 text-xs">Chọn khách hàng để xem chi tiết hồ sơ.</div>
         )}
       </div>
+
+      {/* CREATE CUSTOMER MODAL */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-fade-in space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5 text-sky-600" />
+                <h3 className="font-bold text-base text-slate-900">Thêm Khách Hàng Mới (Supabase Live)</h3>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm p-1 rounded-lg hover:bg-slate-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCustomer} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Họ và tên <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Chị Nguyễn Phương Thảo"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Số điện thoại <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ví dụ: 0918123456"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Giới tính</label>
+                  <select
+                    value={newGender}
+                    onChange={(e) => setNewGender(e.target.value as Customer['gender'])}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="female">Nữ</option>
+                    <option value="male">Nam</option>
+                    <option value="other">Khác</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Hạng thành viên</label>
+                  <select
+                    value={newTier}
+                    onChange={(e) => setNewTier(e.target.value as Customer['vipTier'])}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="standard">Thành viên chuẩn</option>
+                    <option value="silver">Bạc (Silver)</option>
+                    <option value="gold">Vàng (Gold)</option>
+                    <option value="diamond">Kim Cương (VIP)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Ghi chú y tế & Dị ứng mỹ phẩm</label>
+                <textarea
+                  rows={2}
+                  placeholder="Tiền sử da nhạy cảm, dị ứng hoạt chất, tình trạng răng..."
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Đang lưu Supabase...' : 'Lưu Khách Hàng'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
