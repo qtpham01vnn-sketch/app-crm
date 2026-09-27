@@ -1,30 +1,62 @@
 -- =============================================================================
 -- MIGRATION 006: AUTH SECURITY HARDENING & POSTGREST SCHEMA CACHE REFRESH
+-- Target Supabase Project: lskrcerzxltlrcewigrw
 -- Date: 2026-09-27
--- Purpose: 
---   1. One-time link existing test auth accounts to staff_profiles
---   2. Drop unsafe dynamic auto-link triggers
---   3. Replace session RPC with read-only get_staff_session()
---   4. Set search_path on all SECURITY DEFINER functions
---   5. Add RLS SELECT policies for staff_profiles & organization_memberships
---   6. Send reload schema notification to PostgREST
+-- Purpose:
+--   1. Strict mapping of 4 identified test accounts (No mass email linking)
+--   2. Drop unsafe triggers & legacy sync RPC
+--   3. Create read-only get_staff_session() with search_path = public
+--   4. Hardened helper functions: cross-check organization on branches & staff
+--   5. Granular RLS policies for staff_profiles & organization_memberships
+--   6. Admin-only account linking RPC
+--   7. Notify PostgREST to reload schema cache
 -- =============================================================================
 
--- ─── 1. LINK EXISTING SEED STAFF TO AUTH USERS (ONE-TIME) ───────────────────
--- Safely associates the 4 test accounts if they exist in auth.users
-UPDATE public.staff_profiles sp
-SET auth_user_id = au.id
-FROM auth.users au
-WHERE sp.email = au.email
-  AND (sp.auth_user_id IS NULL OR sp.auth_user_id != au.id);
+-- ─── 1. SAFE EXPLICIT LINKING OF THE 4 IDENTIFIED TEST ACCOUNTS ─────────────
+-- Strictly matches exact Staff ID, Org ID and Email.
+-- Never overwrites existing third-party links or arbitrary users.
+DO $$
+DECLARE
+    r RECORD;
+    v_auth_uid UUID;
+    v_existing_staff_id UUID;
+BEGIN
+    FOR r IN 
+        SELECT * FROM (VALUES
+            ('11111111-1111-1111-1111-111111111111'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'admin@phuongnam.vn'),
+            ('11111111-1111-1111-1111-111111111112'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'huong.nguyen@phuongnam.vn'),
+            ('11111111-1111-1111-1111-111111111113'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'thao.le@phuongnam.vn'),
+            ('11111111-1111-1111-1111-111111111114'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'tuan.pham@phuongnam.vn')
+        ) AS t(staff_id, org_id, email)
+    LOOP
+        SELECT id INTO v_auth_uid FROM auth.users WHERE email = r.email LIMIT 1;
+        
+        IF v_auth_uid IS NOT NULL THEN
+            -- Check if this auth user is already linked to another staff
+            SELECT id INTO v_existing_staff_id 
+            FROM public.staff_profiles 
+            WHERE auth_user_id = v_auth_uid AND id != r.staff_id;
+            
+            IF v_existing_staff_id IS NOT NULL THEN
+                RAISE EXCEPTION 'Xung đột liên kết: Auth UID % (%) đã được liên kết với nhân sự ID %', v_auth_uid, r.email, v_existing_staff_id;
+            END IF;
 
--- ─── 2. DROP UNSAFE TRIGGER ─────────────────────────────────────────────────
+            -- Only link if not already linked to another user
+            UPDATE public.staff_profiles
+            SET auth_user_id = v_auth_uid, updated_at = NOW()
+            WHERE id = r.staff_id 
+              AND organization_id = r.org_id
+              AND (auth_user_id IS NULL OR auth_user_id = v_auth_uid);
+        END IF;
+    END LOOP;
+END $$;
+
+-- ─── 2. DROP UNSAFE TRIGGERS & OLD FUNCTIONS ────────────────────────────────
 DROP TRIGGER IF EXISTS on_auth_user_created_link_staff ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_auth_user_linked_to_staff();
-
--- ─── 3. DROP OLD RPC AND REPLACE WITH READ-ONLY VERSION ──────────────────────
 DROP FUNCTION IF EXISTS public.claim_or_sync_staff_session();
 
+-- ─── 3. CREATE READ-ONLY get_staff_session() ────────────────────────────────
 CREATE OR REPLACE FUNCTION public.get_staff_session()
 RETURNS JSONB AS $$
 DECLARE
@@ -37,7 +69,7 @@ DECLARE
     v_staff_code TEXT;
     v_is_active BOOLEAN;
 BEGIN
-    -- Reject anonymous callers
+    -- Reject anonymous callers immediately
     IF v_user_id IS NULL THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -59,7 +91,6 @@ BEGIN
         );
     END IF;
 
-    -- Check staff is still active
     IF NOT v_is_active THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -67,7 +98,7 @@ BEGIN
         );
     END IF;
 
-    -- Fetch active membership
+    -- Fetch active membership matching organization
     SELECT om.role, om.assigned_branch_ids
     INTO v_role, v_branch_ids
     FROM public.organization_memberships om
@@ -97,17 +128,20 @@ END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Grant ONLY to authenticated
+-- Strict permission: authenticated only
 GRANT EXECUTE ON FUNCTION public.get_staff_session() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM PUBLIC;
 
--- ─── 4. ADD search_path TO SECURITY DEFINER FUNCTIONS ─────────────────────────
+-- ─── 4. HARDEN RLS HELPER FUNCTIONS ─────────────────────────────────────────
+-- Helper 1: get_current_user_org_id (cross-checks sp & om organization_id)
 CREATE OR REPLACE FUNCTION get_current_user_org_id()
 RETURNS UUID AS $$
     SELECT sp.organization_id
     FROM staff_profiles sp
-    JOIN organization_memberships om ON sp.id = om.staff_id
+    JOIN organization_memberships om 
+      ON sp.id = om.staff_id 
+     AND sp.organization_id = om.organization_id
     WHERE sp.auth_user_id = auth.uid()
       AND om.is_active = TRUE
       AND sp.is_active = TRUE
@@ -115,11 +149,14 @@ RETURNS UUID AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
+-- Helper 2: get_current_user_role (cross-checks sp & om organization_id)
 CREATE OR REPLACE FUNCTION get_current_user_role()
 RETURNS user_role_enum AS $$
     SELECT om.role
     FROM staff_profiles sp
-    JOIN organization_memberships om ON sp.id = om.staff_id
+    JOIN organization_memberships om 
+      ON sp.id = om.staff_id 
+     AND sp.organization_id = om.organization_id
     WHERE sp.auth_user_id = auth.uid()
       AND om.is_active = TRUE
       AND sp.is_active = TRUE
@@ -127,12 +164,18 @@ RETURNS user_role_enum AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
+-- Helper 3: has_branch_access (validates target branch belongs to caller's org)
 CREATE OR REPLACE FUNCTION has_branch_access(target_branch_id UUID)
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1
         FROM staff_profiles sp
-        JOIN organization_memberships om ON sp.id = om.staff_id
+        JOIN organization_memberships om 
+          ON sp.id = om.staff_id 
+         AND sp.organization_id = om.organization_id
+        JOIN branches b 
+          ON b.id = target_branch_id 
+         AND b.organization_id = sp.organization_id
         WHERE sp.auth_user_id = auth.uid()
           AND om.is_active = TRUE
           AND sp.is_active = TRUE
@@ -144,7 +187,7 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Revoke helper functions from anon/PUBLIC
+-- Restrict helper execute permissions
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM anon;
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_current_user_org_id() TO authenticated;
@@ -172,7 +215,9 @@ BEGIN
     SELECT om.role, sp.organization_id
     INTO v_caller_role, v_caller_org_id
     FROM staff_profiles sp
-    JOIN organization_memberships om ON sp.id = om.staff_id
+    JOIN organization_memberships om 
+      ON sp.id = om.staff_id 
+     AND sp.organization_id = om.organization_id
     WHERE sp.auth_user_id = auth.uid()
       AND om.is_active = TRUE
       AND sp.is_active = TRUE
@@ -210,21 +255,23 @@ GRANT EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) TO au
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM PUBLIC;
 
--- ─── 6. RLS POLICIES FOR STAFF & MEMBERSHIPS ─────────────────────────────────
+-- ─── 6. RLS POLICIES FOR STAFF PROFILES & MEMBERSHIPS ────────────────────────
+-- Read policies: Staff can only see profiles/memberships in their own org
 DROP POLICY IF EXISTS staff_profiles_org_read_policy ON staff_profiles;
 CREATE POLICY staff_profiles_org_read_policy ON staff_profiles
     FOR SELECT USING (organization_id = get_current_user_org_id());
 
+DROP POLICY IF EXISTS memberships_org_read_policy ON organization_memberships;
+CREATE POLICY memberships_org_read_policy ON organization_memberships
+    FOR SELECT USING (organization_id = get_current_user_org_id());
+
+-- Write policies: ONLY owner_admin can modify staff/memberships
 DROP POLICY IF EXISTS staff_profiles_admin_write_policy ON staff_profiles;
 CREATE POLICY staff_profiles_admin_write_policy ON staff_profiles
     FOR ALL USING (
         organization_id = get_current_user_org_id()
         AND get_current_user_role() = 'owner_admin'
     );
-
-DROP POLICY IF EXISTS memberships_org_read_policy ON organization_memberships;
-CREATE POLICY memberships_org_read_policy ON organization_memberships
-    FOR SELECT USING (organization_id = get_current_user_org_id());
 
 DROP POLICY IF EXISTS memberships_admin_write_policy ON organization_memberships;
 CREATE POLICY memberships_admin_write_policy ON organization_memberships
