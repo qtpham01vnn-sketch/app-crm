@@ -1,26 +1,30 @@
 -- =============================================================================
--- MIGRATION 006: AUTH SECURITY HARDENING
+-- MIGRATION 006: AUTH SECURITY HARDENING & POSTGREST SCHEMA CACHE REFRESH
 -- Date: 2026-09-27
--- Purpose: Fix security issues identified in auth audit
---   1. Replace claim_or_sync_staff_session() with read-only get_staff_session()
---   2. Remove unsafe auto-link trigger that overwrites auth_user_id by email
---   3. Revoke anon access to staff session RPC
---   4. Add SET search_path to all SECURITY DEFINER functions
---   5. Revoke inherited PUBLIC execute on private functions
+-- Purpose: 
+--   1. One-time link existing test auth accounts to staff_profiles
+--   2. Drop unsafe dynamic auto-link triggers
+--   3. Replace session RPC with read-only get_staff_session()
+--   4. Set search_path on all SECURITY DEFINER functions
+--   5. Add RLS SELECT policies for staff_profiles & organization_memberships
+--   6. Send reload schema notification to PostgREST
 -- =============================================================================
 
--- ─── 1. DROP UNSAFE TRIGGER ─────────────────────────────────────────────────
--- The old trigger auto-links any auth.users to staff_profiles by email match.
--- This allows anyone who signs up with a staff email to hijack staff identity.
+-- ─── 1. LINK EXISTING SEED STAFF TO AUTH USERS (ONE-TIME) ───────────────────
+-- Safely associates the 4 test accounts if they exist in auth.users
+UPDATE public.staff_profiles sp
+SET auth_user_id = au.id
+FROM auth.users au
+WHERE sp.email = au.email
+  AND (sp.auth_user_id IS NULL OR sp.auth_user_id != au.id);
+
+-- ─── 2. DROP UNSAFE TRIGGER ─────────────────────────────────────────────────
 DROP TRIGGER IF EXISTS on_auth_user_created_link_staff ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_auth_user_linked_to_staff();
 
--- ─── 2. DROP OLD RPC AND REPLACE WITH READ-ONLY VERSION ──────────────────────
+-- ─── 3. DROP OLD RPC AND REPLACE WITH READ-ONLY VERSION ──────────────────────
 DROP FUNCTION IF EXISTS public.claim_or_sync_staff_session();
 
--- New function: get_staff_session()
--- READ-ONLY: Does NOT update auth_user_id. Only looks up existing link.
--- Requires authenticated user. Returns membership info if linked.
 CREATE OR REPLACE FUNCTION public.get_staff_session()
 RETURNS JSONB AS $$
 DECLARE
@@ -41,7 +45,7 @@ BEGIN
         );
     END IF;
 
-    -- Look up staff profile by auth_user_id (pre-linked by admin)
+    -- Look up staff profile by auth_user_id
     SELECT sp.id, sp.organization_id, sp.full_name, sp.code, sp.is_active
     INTO v_staff_id, v_org_id, v_staff_name, v_staff_code, v_is_active
     FROM public.staff_profiles sp
@@ -93,22 +97,12 @@ END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Grant ONLY to authenticated, NOT to anon
+-- Grant ONLY to authenticated
 GRANT EXECUTE ON FUNCTION public.get_staff_session() TO authenticated;
--- Explicitly revoke from anon and public
 REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM PUBLIC;
 
--- ─── 3. REVOKE LEFTOVER ANON GRANTS ON OLD FUNCTION ──────────────────────────
--- (safe even if function no longer exists)
-DO $$ BEGIN
-    REVOKE EXECUTE ON FUNCTION public.claim_or_sync_staff_session() FROM anon;
-    REVOKE EXECUTE ON FUNCTION public.claim_or_sync_staff_session() FROM PUBLIC;
-EXCEPTION WHEN undefined_function THEN
-    NULL; -- function already dropped, ignore
-END $$;
-
--- ─── 4. ADD search_path TO EXISTING SECURITY DEFINER FUNCTIONS ───────────────
+-- ─── 4. ADD search_path TO SECURITY DEFINER FUNCTIONS ─────────────────────────
 CREATE OR REPLACE FUNCTION get_current_user_org_id()
 RETURNS UUID AS $$
     SELECT sp.organization_id
@@ -150,9 +144,7 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
--- ─── 5. REVOKE PUBLIC EXECUTE ON RLS HELPER FUNCTIONS ────────────────────────
--- These are called by RLS policies, not by users directly.
--- They need to be executable by authenticated (via RLS), but not by anon.
+-- Revoke helper functions from anon/PUBLIC
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM anon;
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_current_user_org_id() TO authenticated;
@@ -165,9 +157,7 @@ REVOKE EXECUTE ON FUNCTION has_branch_access(UUID) FROM anon;
 REVOKE EXECUTE ON FUNCTION has_branch_access(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION has_branch_access(UUID) TO authenticated;
 
--- ─── 6. ADMIN FUNCTION TO LINK STAFF TO AUTH USER ────────────────────────────
--- Only owner_admin can call this to link a staff profile to an auth user.
--- This is the safe, managed way to link accounts (replacing auto-link).
+-- ─── 5. ADMIN-MANAGED ACCOUNT LINKING RPC ────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.admin_link_staff_to_auth_user(
     p_staff_id UUID,
     p_auth_user_id UUID
@@ -179,7 +169,6 @@ DECLARE
     v_staff_org_id UUID;
     v_existing_link UUID;
 BEGIN
-    -- Only owner_admin can link staff
     SELECT om.role, sp.organization_id
     INTO v_caller_role, v_caller_org_id
     FROM staff_profiles sp
@@ -193,7 +182,6 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'Chỉ Chủ doanh nghiệp mới có quyền liên kết tài khoản.');
     END IF;
 
-    -- Verify staff belongs to same org
     SELECT organization_id INTO v_staff_org_id
     FROM staff_profiles WHERE id = p_staff_id;
 
@@ -201,7 +189,6 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'Nhân viên không thuộc tổ chức của bạn.');
     END IF;
 
-    -- Check if auth_user_id is already linked to another staff
     SELECT id INTO v_existing_link
     FROM staff_profiles
     WHERE auth_user_id = p_auth_user_id AND id != p_staff_id;
@@ -210,7 +197,6 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'Tài khoản auth đã liên kết với nhân viên khác.');
     END IF;
 
-    -- Link
     UPDATE staff_profiles
     SET auth_user_id = p_auth_user_id, updated_at = NOW()
     WHERE id = p_staff_id;
@@ -223,3 +209,29 @@ $$ LANGUAGE plpgsql SECURITY DEFINER
 GRANT EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM PUBLIC;
+
+-- ─── 6. RLS POLICIES FOR STAFF & MEMBERSHIPS ─────────────────────────────────
+DROP POLICY IF EXISTS staff_profiles_org_read_policy ON staff_profiles;
+CREATE POLICY staff_profiles_org_read_policy ON staff_profiles
+    FOR SELECT USING (organization_id = get_current_user_org_id());
+
+DROP POLICY IF EXISTS staff_profiles_admin_write_policy ON staff_profiles;
+CREATE POLICY staff_profiles_admin_write_policy ON staff_profiles
+    FOR ALL USING (
+        organization_id = get_current_user_org_id()
+        AND get_current_user_role() = 'owner_admin'
+    );
+
+DROP POLICY IF EXISTS memberships_org_read_policy ON organization_memberships;
+CREATE POLICY memberships_org_read_policy ON organization_memberships
+    FOR SELECT USING (organization_id = get_current_user_org_id());
+
+DROP POLICY IF EXISTS memberships_admin_write_policy ON organization_memberships;
+CREATE POLICY memberships_admin_write_policy ON organization_memberships
+    FOR ALL USING (
+        organization_id = get_current_user_org_id()
+        AND get_current_user_role() = 'owner_admin'
+    );
+
+-- ─── 7. REFRESH POSTGREST SCHEMA CACHE ───────────────────────────────────────
+NOTIFY pgrst, 'reload schema';

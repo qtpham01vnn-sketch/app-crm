@@ -648,4 +648,30 @@ GRANT EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) TO au
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM PUBLIC;
 
+-- -----------------------------------------------------------------------------
+-- 9. RLS POLICIES FOR STAFF & MEMBERSHIPS
+-- -----------------------------------------------------------------------------
+DROP POLICY IF EXISTS staff_profiles_org_read_policy ON staff_profiles;
+CREATE POLICY staff_profiles_org_read_policy ON staff_profiles
+    FOR SELECT USING (organization_id = get_current_user_org_id());
+
+DROP POLICY IF EXISTS staff_profiles_admin_write_policy ON staff_profiles;
+CREATE POLICY staff_profiles_admin_write_policy ON staff_profiles
+    FOR ALL USING (
+        organization_id = get_current_user_org_id()
+        AND get_current_user_role() = 'owner_admin'
+    );
+
+DROP POLICY IF EXISTS memberships_org_read_policy ON organization_memberships;
+CREATE POLICY memberships_org_read_policy ON organization_memberships
+    FOR SELECT USING (organization_id = get_current_user_org_id());
+
+DROP POLICY IF EXISTS memberships_admin_write_policy ON organization_memberships;
+CREATE POLICY memberships_admin_write_policy ON organization_memberships
+    FOR ALL USING (
+        organization_id = get_current_user_org_id()
+        AND get_current_user_role() = 'owner_admin'
+    );
+
+
 
