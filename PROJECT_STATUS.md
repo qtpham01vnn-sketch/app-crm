@@ -1,97 +1,107 @@
 # 📊 BÁO CÁO TIẾN ĐỘ DỰ ÁN — APP CRM SPA & NHA KHOA ĐA CHI NHÁNH
 
 **Tài liệu tham chiếu chuẩn:** [`docs/PLAN_VUA_APP_ANTIGRAVITY.md`](./docs/PLAN_VUA_APP_ANTIGRAVITY.md)  
-**Ngày cập nhật:** 27/09/2026  
-**GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git) (Branch: `main`, Commit: `df1bf0d`)  
+**Ngày cập nhật:** 27/09/2026 (Bàn giao Đợt 1: Bảo mật Auth, Tách Mock/Live & Chuẩn bị P3/P4)  
+**GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git) (Branch: `main`)  
 **Supabase Project:** `lskrcerzxltlrcewigrw` (`https://lskrcerzxltlrcewigrw.supabase.co`) — Region: `ap-southeast-1`  
-**Vercel Project:** `phuongnam-crm-spa` (`https://phuongnam-crm-spa.vercel.app` / `qtpham01vnn-sketch/app-crm`)  
-**Môi trường chạy thử nghiệm:** Localhost (React 19 + TypeScript + Tailwind CSS v4 + Vite)  
-**Cổng phục vụ Dev:** `http://localhost:5173/`
+**Vercel URL Kiểm Thử:** [`https://phuongnam-crm.vercel.app`](https://phuongnam-crm.vercel.app)  
 
 ---
 
-## 1. BẢNG TIẾN ĐỘ TỔNG THỂ (PHASE 0 ➔ PHASE 7)
+## 1. TỔNG QUAN TIẾN ĐỘ & TRẠNG THÁI TỪNG PHASE
 
-| Giai đoạn | Trạng thái | Chi tiết nghiệm thu |
+| Giai đoạn | Trạng thái | Đánh giá thực tế |
 | :--- | :---: | :--- |
-| **P0: Khảo sát, Đặc tả & ERD** | ✅ Hoàn thành | Đã đối chiếu 21 menu mã nguồn cũ, lập ERD, ma trận RBAC 4 vai trò. |
-| **P1: Foundation & Responsive Shell** | ✅ Hoàn tất P1.1 | 21 màn hình views, 10 Theme Accent, Dark Mode, Sidebar/Topbar/BottomNav chuẩn. |
-| **P2: Database Supabase, Auth, RLS & Audit** | 🚀 Đang hoàn thiện Auth | 23 bảng đã tạo, RLS hoạt động chặn nặc danh, đã bổ sung trigger auto-link auth session. |
-| **P3: Master Data & Catalog Live** | 🚀 Đang triển khai | Khắc phục lỗi HTTP 400 tạo khách hàng, kiểm soát trùng SĐT và bảo vệ ghi chú y tế. |
-| **P4: Lịch hẹn & Today Hub** | ⏳ Kế tiếp | Lưới lịch tuần 7 ngày, chống trùng lịch phòng/ghế, Today Hub 7 bộ lọc. |
+| **P0: Khảo sát & ERD** | ✅ Hoàn thành | ERD 23 bảng, RBAC 4 vai trò, ma trận phân quyền hoàn chỉnh. |
+| **P1: Shell Responsive & Theme** | ✅ Hoàn thành | 21 màn hình, 10 Theme Accent, Topbar & BottomNav đáp ứng đa thiết bị. |
+| **P2: Auth, Multi-tenant, RLS & Audit** | 🛡️ Đã siết bảo mật | Đã loại bỏ hoàn toàn auto-login/hardcoded credentials, chặn auto-link email tùy tiện, áp dụng `006_auth_security_hardening.sql`. RLS cô lập tổ chức & chi nhánh. |
+| **P3: Master Data & Catalog Live** | 🚀 Đang hoàn thiện | Tạo/sửa Khách hàng đã ghi vào Supabase thật, đọc Master Data từ Supabase (Chi nhánh, Dịch vụ, Sản phẩm, Combo, Nhà cung cấp, Khuyến mãi, Nhân sự). Các phân hệ chưa có backend ghi rõ trạng thái mô phỏng. |
+| **P4: Lịch hẹn & Today Hub** | ⏳ Chốt đặc tả | Đã chỉnh đặc tả kỹ thuật: Chống chồng chéo khoảng thời gian (PostgreSQL Range Exclusion), máy trạng thái hữu hạn (State Machine) chuyển hợp lệ, tra cứu hồ sơ có xác thực. |
 | **P5: POS Thu ngân, Kho & In Bill** | ⏸ Chờ duyệt P4 | ACID checkout RPC, VietQR, in nhiệt K80/K58, quản lý PO-GRN. |
 | **P6: CRM Nâng cao & Lương/Hoa hồng** | ⏸ Chờ duyệt P5 | Thư viện ảnh Before/After (Signed URL), chấm công, bảng lương tự động. |
 | **P7: Báo cáo Tài chính & Go-Live** | ⏸ Chờ duyệt P6 | Báo cáo 3 trụ cột, công cụ import JSON app cũ (Idempotent), sao lưu & khôi phục. |
 
 ---
 
-## 2. CHỐT NGHIỆM THU CHI TIẾT P1.1 (CHECKLIST GIAO DIỆN & CHỨC NĂNG)
+## 2. BẢNG TRẠNG THÁI KẾT NỐI TỪNG MODULE (LIVE vs MOCK)
 
-### 2.1. Đã khắc phục & Kiểm tra Bố cục (Layout Fixes)
-- [x] **Banner Mock Data:** Đã điều chỉnh `z-index` và vị trí Top để không bị Sidebar Desktop che khuất thanh thông báo.
-- [x] **Sidebar Desktop:** Chiều rộng cố định 256px (`w-64`), tự động co giãn từ dưới thanh Banner, không che lấp Topbar.
-- [x] **Tràn ngang (Horizontal Overflow):** Toàn bộ container chính và các bảng dữ liệu đều được bao bọc trong `overflow-x-auto` và `min-w-0`, không gây hiện tượng thanh cuộn ngang toàn trang.
-- [x] **Hỗ trợ Đa Thiết Bị:**
-  - **Desktop (> 1024px):** Sidebar 21 menu phân nhóm rõ ràng, Topbar có 10 Theme Swatches bấm đổi tức thì, tìm kiếm nhanh và chọn chi nhánh/vai trò.
-  - **iPad / Tablet (768px - 1024px):** Lưới chạm tối ưu 2 cột, hỗ trợ xoay ngang/dọc, mở Drawer trượt khi cần xem toàn bộ 21 menu.
-  - **Mobile (< 768px):** Bottom Navigation Bar 5 tác vụ cốt lõi (Tổng quan, Thu ngân, Lịch hẹn, Đặt chỗ, Khách hàng) + Drawer phụ.
-
-### 2.2. Đối chiếu Đầy đủ Nghiệp vụ trên Giao diện Hiện tại
-1. **Tổng quan / Today Hub (`HomeView`):** Đã có widget KPI doanh thu ngày, lịch hẹn hôm nay, cảnh báo tồn kho sắp hết, nhắc sinh nhật khách. (P4 sẽ bổ sung thanh 7 tab lọc chuyên sâu).
-2. **Thu ngân POS (`PosView`):** Giao diện 2 cột chuẩn quầy thu ngân, tìm kiếm món, chọn KTV thực hiện, nhập chiết khấu %, VAT, Tip, tính tiền khách đưa và tiền thối lại, nút mở popup in hóa đơn.
-3. **Quản lý Lịch hẹn (`ApptsView`):** Lưới danh sách theo ngày/chi nhánh, phân loại trạng thái bằng màu sắc, cập nhật trạng thái nhanh.
-4. **Đặt chỗ nhanh (`BookView`):** Form chọn khách hàng, chọn dịch vụ, chọn nhân viên và giờ phục vụ.
-5. **Danh sách chờ (`WaitView`):** Hàng đợi khách vãng lai (walk-in), bộ đếm thời gian chờ, chuyển nhanh sang POS.
-6. **Hồ sơ Khách hàng (`CustView`):** Xem chi tiết thông tin, hạng thẻ VIP, lịch sử mua hàng và ghi chú y tế/dị ứng (`medical_notes`).
-7. **Gói Liệu trình (`CoursesView`):** Danh sách thẻ liệu trình, số buổi tổng / đã làm / còn lại, nút mở popup trừ buổi kèm chữ ký xác nhận (`SessionDeductModal`).
-8. **Nhân sự & Phân ca (`StaffView`, `RosterView`, `TimesView`, `CommView`, `PayrollView`):** Quản lý bác sĩ/KTV, xếp ca tuần, chấm công vào/ra, bảng hoa hồng dịch vụ, bảng tính lương.
-9. **Kho & Nhà cung cấp (`ProdView`, `SvcView`, `PkgView`, `InvView`, `SuppView`, `PoView`):** Danh mục sản phẩm, dịch vụ, combo, kiểm kê kho, nhà cung cấp, đơn đặt hàng PO và phiếu nhập kho GRN.
-10. **Tài chính & Khuyến mãi (`ExpView`, `PromosView`, `ReportsView`):** Sổ chi phí vận hành, mã giảm giá, báo cáo doanh thu & công nợ.
-11. **Cài đặt Giao diện (`ThemeModal`):** Xem danh sách và đổi ngay 10 bộ màu giao diện thương hiệu.
-
-### 2.3. Đính chính Về Snapshot Giá trong Mã Nguồn Cũ
-- **Thực tế mã nguồn `vua-app`:** App cũ **CÓ LƯU SNAPSHOT** chi tiết mặt hàng trong mảng `items` của bản ghi `sales` (`name`, `price`, `qty`).
-- **Điểm hạn chế cần khắc phục ở hệ thống mới:** App cũ chưa lưu chi tiết `line_discount` từng dòng, và tỷ lệ hoa hồng KTV đọc động từ bảng dịch vụ hiện tại tại thời điểm thanh toán (`sv = get('services', it.refId)`) thay vì cố định tỷ lệ lúc giao việc.
-- **Giải pháp trong Migration P2/P5:** Bảng `sale_items` đã được thiết kế đầy đủ các trường snapshot bất biến: `item_name`, `unit_price`, `quantity`, `line_discount`, `line_total`, `performer_staff_id`, `commission_pct`, `commission_amount`.
+| Phân hệ / Màn hình | Đọc Dữ Liệu | Ghi Dữ Liệu | Trạng Thái Backend |
+| :--- | :---: | :---: | :--- |
+| **Xác thực (Auth / Login)** | Supabase Auth + RPC | Supabase Auth (`signInWithPassword`) | ✅ LIVE THẬT (Chặn nặc danh, không fallback) |
+| **Chi nhánh (`branches`)** | Supabase DB | Read-only | ✅ LIVE THẬT |
+| **Khách hàng (`customers`)** | Supabase DB | Supabase DB (`INSERT`) | ✅ LIVE THẬT (Đã fix UUID & lỗi 400, F5 vẫn còn) |
+| **Dịch vụ (`services`)** | Supabase DB | Form UI P3 | ✅ Đọc LIVE THẬT, Ghi đang hoàn thiện |
+| **Sản phẩm & Tồn kho (`products`, `inventory_stocks`)** | Supabase DB | React State | ✅ Đọc LIVE THẬT (Tách biệt tồn kho thật, không merge mock) |
+| **Combo / Gói (`packages`)** | Supabase DB | Form UI P3 | ✅ Đọc LIVE THẬT |
+| **Nhà cung cấp (`suppliers`)** | Supabase DB | Form UI P3 | ✅ Đọc LIVE THẬT |
+| **Khuyến mãi (`promotions`)** | Supabase DB | Form UI P3 | ✅ Đọc LIVE THẬT |
+| **Hồ sơ Nhân sự (`staff_profiles`, `memberships`)** | Supabase DB | Read-only | ✅ LIVE THẬT (Quyền đọc từ membership) |
+| **Lịch hẹn (`appointments`)** | React State | React State | ⚠️ MÔ PHỎNG (Chờ P4 kết nối Database + Exclusion Constraint) |
+| **Gói liệu trình & Trừ buổi (`customer_courses`, `deductions`)** | React State | React State | ⚠️ MÔ PHỎNG (Giao diện P1/P3, chưa nối RPC trừ buổi) |
+| **POS & Hóa đơn (`sales`, `payments`)** | React State | React State | ⚠️ MÔ PHỎNG (Chờ P5 ACID Checkout RPC) |
+| **Phiếu PO / Nhập kho GRN** | React State | React State | ⚠️ MÔ PHỎNG (Chờ P5) |
+| **Sổ quỹ & Chi phí (`expenses`)** | React State | React State | ⚠️ MÔ PHỎNG |
+| **Phân ca, Chấm công, Hoa hồng, Bảng lương** | React State | React State | ⚠️ MÔ PHỎNG (Chờ P6) |
 
 ---
 
-## 3. TIẾN ĐỘ GIAI ĐOẠN PHASE 2 (DATABASE, AUTH & RLS)
+## 3. CÁC BIỆN PHÁP BẢO MẬT ĐÃ TRIỂN KHAI (ĐỢT 1)
 
-### 3.1. P2A — Schema SQL & Thứ Tự Migrations
-Đã tạo trọn bộ các tệp Migration SQL chuẩn trong thư mục `supabase/migrations/`:
-1. `001_core_organization_membership_rls.sql`: Tạo `organizations`, `branches`, `staff_profiles`, `organization_memberships`, `audit_events` và các hàm RLS helper (`get_current_user_org_id`, `get_current_user_role`, `has_branch_access`).
-2. `002_master_data_and_catalogs.sql`: Tạo `customers`, `services`, `branch_service_prices`, `packages`, `products`, `inventory_stocks` (chặn tồn âm), `suppliers`, `promotions`.
-3. `003_operations_pos_and_courses.sql`: Tạo `appointments`, `sales`, `sale_items` (snapshot giá/hoa hồng), `payments`, `payment_allocations`, `customer_courses`, `session_deductions` (Ledger bất biến), `purchase_orders`, `goods_receipt_notes`, `expenses`.
-4. `004_rls_security_policies.sql`: Thiết lập Row Level Security trên toàn bộ 22 bảng dữ liệu, bảo vệ cô lập dữ liệu giữa các Chi nhánh và Tổ chức.
+1. **Xóa bỏ hoàn toàn Hardcoded Credentials & Demo Role Switcher khỏi Frontend:**
+   - Đã xóa đối tượng `TEST_ROLE_CREDENTIALS` và logic tự động `signUp` / `switchRole` khỏi `authService.ts`.
+   - Bộ chọn vai trò tự do trên Topbar đã chuyển thành **Role Badge chỉ đọc** (Hiển thị vai trò thực tế lấy từ `organization_memberships`).
+   - Cổng xác thực `AuthGate` bắt buộc: Khi chưa đăng nhập hoặc không có membership hợp lệ, hệ thống từ chối quyền truy cập và hiển thị màn hình Đăng nhập.
 
-### 3.2. P2B — Client Integration & Auth Service
-- Cài đặt thư viện `@supabase/supabase-js`.
-- Tạo file wrapper [`src/lib/supabase.ts`](./src/lib/supabase.ts) có cơ chế tự phát hiện biến môi trường: nếu chưa có Supabase URL/Key, hệ thống tự động chạy ở chế độ **Demo Mock Data** an toàn, không gây crash ứng dụng.
-- Tạo dịch vụ xác thực [`src/services/authService.ts`](./src/services/authService.ts) hỗ trợ `signInWithEmail`, `signOut` (xóa sạch token/cache), `fetchCurrentMembership`.
-- Bộ chọn vai trò tự do trên Topbar được thiết kế riêng cho môi trường Preview/Demo.
+2. **Migration Bảo Mật `006_auth_security_hardening.sql`:**
+   - **Xóa Trigger nguy hiểm:** Đã gỡ bỏ trigger `on_auth_user_created_link_staff` (vốn tự động gán `auth_user_id` khi trùng email).
+   - **Thay thế RPC:** Thay `claim_or_sync_staff_session()` bằng `get_staff_session()` ở chế độ **CHỈ ĐỌC** (`STABLE SECURITY DEFINER SET search_path = public`).
+   - **Thu hồi quyền PUBLIC / anon:** `REVOKE EXECUTE` toàn bộ hàm helper (`get_staff_session`, `get_current_user_org_id`, `get_current_user_role`, `has_branch_access`) khỏi `anon` và `PUBLIC`, chỉ cấp cho `authenticated`.
+   - **Quy trình Liên kết Tài khoản an toàn:** Cung cấp hàm `admin_link_staff_to_auth_user()` chỉ cho phép `owner_admin` liên kết tài khoản sau khi đã kiểm tra tổ chức.
 
-### 3.3. P2C — Bộ Kịch Bản Kiểm Thử Quyền (Database Test Suite)
-- Đã tạo tệp [`supabase/tests/p2_security_and_rls_test.sql`](./supabase/tests/p2_security_and_rls_test.sql) tự động kiểm tra:
-  - `SEC-01`: Cô lập đa tổ chức và đa chi nhánh.
-  - `ACID-01`: Tính bất biến của bảng nhật ký kiểm toán `audit_events` (chặn lệnh UPDATE/DELETE).
-- **Trạng thái:** ⚠️ **CHƯA KIỂM CHỨNG TRÊN DATABASE THẬT** (do chưa kết nối tới dự án Supabase thực tế).
+3. **Cập nhật Schema Gốc:** Đồng bộ `supabase/full_schema_setup.sql` với toàn bộ cải tiến của Migration 006.
 
 ---
 
-## 4. HƯỚNG DẪN ANH NGHIỆM THU VÀ BƯỚC TIẾP THEO
+## 4. HƯỚNG DẪN THAO TÁC TRÊN SUPABASE DASHBOARD DÀNH CHO ANH
 
-### Các bước anh kiểm tra trên Localhost (`http://localhost:5173/`):
-1. **Kiểm tra Giao diện Đa thiết bị:**
-   - Mở trình duyệt trên Desktop: Xem thanh Banner Mock Data màu cam ở trên cùng, Sidebar bên trái không che đè banner, Topbar có nút đổi 10 Theme bấm đổi màu tức thì.
-   - Thử thu nhỏ màn hình (hoặc bấm F12 chọn chế độ iPad / iPhone): Thanh Sidebar thu vào Drawer trượt, xuất hiện thanh BottomNav 5 nút ở đáy màn hình.
-2. **Kiểm tra 21 Màn hình:** Bấm chuyển từng menu từ Vận hành ➔ Khách hàng ➔ Kho ➔ Nhân sự ➔ Báo cáo để xác nhận không có màn hình nào bị lỗi trắng trang.
-3. **Chuẩn bị Kết nối Supabase (Khi anh sẵn sàng):**
-   - Tạo 1 project Supabase mới trên [supabase.com](https://supabase.com).
-   - Copy mã SQL trong thư mục `supabase/migrations/` dán vào mục SQL Editor của Supabase để chạy tạo bảng.
-   - Điền 2 biến môi trường vào file `.env.local` trong dự án:
-     ```env
-     VITE_SUPABASE_URL=https://your-project.supabase.co
-     VITE_SUPABASE_ANON_KEY=your-anon-key
+Để đảm bảo an toàn tuyệt đối cho 4 tài khoản thử nghiệm đã xác định bị lộ thông tin trước đây:
+
+1. **Đăng nhập Supabase Dashboard:** Truy cập [https://supabase.com/dashboard/project/lskrcerzxltlrcewigrw](https://supabase.com/dashboard/project/lskrcerzxltlrcewigrw).
+2. **Đổi Mật Khẩu (Reset Password):**
+   - Vào mục **Authentication** ➔ **Users**.
+   - Tìm lần lượt 4 tài khoản test (`admin@phuongnam.vn`, `manager.q1@phuongnam.vn`, `reception.q1@phuongnam.vn`, `doctor.lan@phuongnam.vn`).
+   - Bấm vào menu ba chấm `...` ở bên phải từng tài khoản ➔ Chọn **Send Password Reset Email** (hoặc **Change Password** và tự nhập mật khẩu mới riêng của anh).
+   - *Lưu ý:* Không gửi mật khẩu mới vào kênh chat.
+3. **Thu hồi phiên đăng nhập cũ (Revoke Session):**
+   - Tại dòng của từng tài khoản ➔ Chọn **Log out user** (hoặc **Delete User Sessions**) để hủy bỏ token/phiên đăng nhập cũ còn lưu trên các trình duyệt khác.
+4. **Chạy Migration 006 (nếu chưa chạy qua CLI):**
+   - Vào mục **SQL Editor** ➔ Mở tệp `supabase/migrations/006_auth_security_hardening.sql` ➔ Bấm **Run** để áp dụng các thiết lập bảo mật.
+
+---
+
+## 5. ĐẶC TẢ CHI TIẾT PHASE 4 (LỊCH HẸN & TODAY HUB)
+
+Trước khi bắt tay vào triển khai P4, các quy chuẩn kỹ thuật đã được thống nhất và hoàn thiện:
+
+1. **Chống trùng lịch (Anti Double-Booking) tại cấp độ Database:**
+   - Không chỉ dựa vào kiểm tra ở frontend hoặc `UNIQUE (start_time)`.
+   - Sử dụng kiểu dữ liệu dải thời gian `tstzrange` kết hợp **PostgreSQL Exclusion Constraint (`EXCLUDE USING gist`)** để chặn triệt để tình trạng 2 lịch hẹn trùng khoảng thời gian trên cùng 1 Nhân viên hoặc 1 Nguồn lực (Phòng/Ghế) ngay cả khi có request đồng thời:
+     ```sql
+     ALTER TABLE appointments ADD CONSTRAINT no_overlapping_staff_booking
+     EXCLUDE USING gist (
+       staff_id WITH =,
+       tstzrange(start_time, end_time) WITH &&
+     ) WHERE (status NOT IN ('cancelled', 'no_show'));
      ```
-   - *Lưu ý:* Tuyệt đối không gửi khóa bí mật (Service Role Key) vào chat. Chỉ dùng Anon Key an toàn.
+2. **Máy trạng thái Hữu hạn (State Machine) cho Lịch hẹn:**
+   - Trạng thái lịch là các nhánh chuyển tiếp có điều kiện hợp lệ:
+     - `pending` (Chờ duyệt) ➔ `confirmed` (Đã xác nhận) ➔ `in_service` (Đang phục vụ) ➔ `completed` (Hoàn thành) ➔ `billed` (Đã thanh toán POS).
+     - Hủy/Vắng mặt: `pending`/`confirmed` ➔ `cancelled` (Hủy hẹn kèm lý do) hoặc `no_show` (Khách vắng).
+     - Không cho phép chuỗi chuyển vô lý như `completed` ➔ `cancelled` ➔ `no_show`.
+3. **Tra cứu Hồ sơ Cá nhân có Xác thực:**
+   - Tuyệt đối không dùng cơ chế "Mã khách + Số điện thoại" để cấp quyền đọc toàn bộ bệnh án/lịch sử.
+   - Tra cứu cần qua phiên đăng nhập được phân quyền hoặc cơ chế mã OTP gửi qua tin nhắn.
+   - Mã QR khách hàng đóng vai trò là **Mã nhận diện (Identifier Token)** để quét nhanh tại quầy lễ tân, không phải là Auth Token mở toàn bộ hồ sơ bí mật.
+4. **Tích hợp Google Calendar:**
+   - Chốt mô hình đồng bộ 2 chiều qua Webhook/OAuth2 riêng biệt cho từng KTV/Bác sĩ.
+   - Khi chưa kết nối hoặc chưa cấu hình OAuth, giao diện hiển thị trạng thái *"Chưa cấu hình tích hợp Google Calendar"*, không sử dụng stub giả lập để báo đã hoàn thành.

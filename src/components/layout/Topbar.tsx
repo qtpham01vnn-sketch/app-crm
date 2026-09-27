@@ -3,9 +3,10 @@ import {
   Menu,
   Search,
   MapPin,
-  Shield,
   Palette,
-  Sparkles
+  Sparkles,
+  LogOut,
+  User
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APP_THEMES } from '../../mock/themes';
@@ -17,7 +18,6 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
     setCurrentBranch,
     branches,
     currentRole,
-    setCurrentRole,
     currentUser,
     currentTheme,
     setCurrentTheme,
@@ -25,7 +25,10 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
     searchQuery,
     setSearchQuery,
     activeTab,
-    showToast
+    showToast,
+    handleLogout,
+    authSession,
+    isLiveMode
   } = useApp();
 
   const tabTitles: Record<string, string> = {
@@ -59,6 +62,12 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
     technician_doctor: 'Bác Sĩ/KTV'
   };
 
+  const displayName = isLiveMode
+    ? (authSession?.staffName || authSession?.email || 'Người dùng')
+    : (currentUser?.name || 'Demo');
+
+  const displayRole = roleDisplayNames[currentRole] || currentRole;
+
   return (
     <div className="sticky top-0 z-30 flex flex-col bg-white shadow-xs w-full max-w-full overflow-hidden">
       {/* Main Header Bar */}
@@ -88,7 +97,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                 borderColor: currentTheme.primaryColor
               }}
             >
-              <Sparkles className="w-3 h-3 mr-0.5" /> P2
+              <Sparkles className="w-3 h-3 mr-0.5" /> {isLiveMode ? 'Live' : 'Demo'}
             </span>
           </div>
         </div>
@@ -97,7 +106,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
         <div className="hidden lg:flex items-center bg-slate-100/90 hover:bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shadow-xs space-x-1.5 transition-all shrink-0">
           <div className="flex items-center px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 gap-1">
             <Palette className="w-3.5 h-3.5" style={{ color: currentTheme.primaryColor }} />
-            <span>10 Theme:</span>
+            <span>Theme:</span>
           </div>
           <div className="flex items-center space-x-1.5">
             {APP_THEMES.map((th) => {
@@ -116,7 +125,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                     backgroundColor: th.previewColor,
                     boxShadow: isSelected ? `0 0 0 2px #ffffff, 0 0 0 4px ${th.primaryColor}` : undefined
                   }}
-                  title={`${th.name} (${th.primaryColor}) - Bấm chuyển ngay lập tức`}
+                  title={`${th.name}`}
                 >
                   {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs" />}
                 </button>
@@ -126,7 +135,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           <button
             onClick={() => setIsThemeModalOpen(true)}
             className="ml-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded hover:bg-slate-200/70 cursor-pointer transition-colors"
-            title="Xem danh sách chi tiết 10 Theme"
+            title="Xem danh sách chi tiết Theme"
           >
             Chi tiết ▾
           </button>
@@ -149,52 +158,53 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
         {/* Right Desktop/Tablet Controls */}
         <div className="hidden md:flex items-center space-x-2 shrink-0">
           {/* Branch Switcher Desktop */}
-          <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200/80 rounded-xl px-2 py-1">
-            <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-            <select
-              value={currentBranch.id}
-              onChange={(e) => {
-                const selected = branches.find((b) => b.id === e.target.value);
-                if (selected) setCurrentBranch(selected);
-              }}
-              className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer pr-1"
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.code} - {b.name.replace('Chi Nhánh ', '')}
-                </option>
-              ))}
-            </select>
-          </div>
+          {branches.length > 0 && (
+            <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200/80 rounded-xl px-2 py-1">
+              <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <select
+                value={currentBranch?.id || ''}
+                onChange={(e) => {
+                  const selected = branches.find((b) => b.id === e.target.value);
+                  if (selected) setCurrentBranch(selected);
+                }}
+                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer pr-1"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.code} - {b.name.replace('Chi Nhánh ', '')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Role Switcher Desktop */}
+          {/* Role Badge (read-only — role comes from membership, not user choice) */}
           <div className="flex items-center space-x-1 bg-amber-50 border border-amber-200/80 rounded-xl px-2 py-1">
-            <Shield className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <select
-              value={currentRole}
-              onChange={(e) => setCurrentRole(e.target.value as UserRole)}
-              className="bg-transparent text-xs font-semibold text-amber-900 focus:outline-none cursor-pointer pr-1"
-              title="Chuyển vai trò thử nghiệm RBAC"
-            >
-              <option value="owner_admin">👑 Chủ Admin</option>
-              <option value="branch_manager">👔 Quản Lý CN</option>
-              <option value="cashier_receptionist">💼 Lễ Tân/Thu Ngân</option>
-              <option value="technician_doctor">🩺 Bác Sĩ/KTV</option>
-            </select>
+            <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="text-xs font-semibold text-amber-900">{displayRole}</span>
           </div>
 
-          {/* Staff Pill Desktop */}
+          {/* Staff Pill Desktop + Logout */}
           <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
             <div
               className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0"
               style={{ background: currentTheme.heroGradient }}
             >
-              {currentUser.name.slice(0, 2).toUpperCase()}
+              {displayName.slice(0, 2).toUpperCase()}
             </div>
             <div className="hidden xl:block text-left">
-              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">{currentUser.name}</p>
-              <p className="text-[10px] text-slate-500">{roleDisplayNames[currentRole]}</p>
+              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">{displayName}</p>
+              <p className="text-[10px] text-slate-500">{displayRole}</p>
             </div>
+            {isLiveMode && (
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Đăng xuất"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -214,47 +224,50 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           <div
             className="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-[11px] shadow-sm shrink-0"
             style={{ background: currentTheme.heroGradient }}
-            title={`${currentUser.name} (${roleDisplayNames[currentRole]})`}
+            title={`${displayName} (${displayRole})`}
           >
-            {currentUser.name.slice(0, 2).toUpperCase()}
+            {displayName.slice(0, 2).toUpperCase()}
           </div>
         </div>
       </header>
 
-      {/* Mobile Sub-Toolbar: Dedicated row on phones (< 768px) with 0 cut-off */}
+      {/* Mobile Sub-Toolbar: Branch selector + user info */}
       <div className="md:hidden px-3 py-1.5 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between gap-2 text-xs w-full box-border">
         {/* Branch Selector Mobile */}
-        <div className="flex-1 min-w-0 flex items-center space-x-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-2xs">
-          <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-          <select
-            value={currentBranch.id}
-            onChange={(e) => {
-              const selected = branches.find((b) => b.id === e.target.value);
-              if (selected) setCurrentBranch(selected);
-            }}
-            className="w-full bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer truncate"
-          >
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.code} - {b.name.replace('Chi Nhánh ', '')}
-              </option>
-            ))}
-          </select>
-        </div>
+        {branches.length > 0 && (
+          <div className="flex-1 min-w-0 flex items-center space-x-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-2xs">
+            <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            <select
+              value={currentBranch?.id || ''}
+              onChange={(e) => {
+                const selected = branches.find((b) => b.id === e.target.value);
+                if (selected) setCurrentBranch(selected);
+              }}
+              className="w-full bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer truncate"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.code} - {b.name.replace('Chi Nhánh ', '')}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        {/* Role Selector Mobile */}
-        <div className="flex items-center space-x-1 bg-amber-50/90 border border-amber-200 rounded-lg px-2 py-1 shadow-2xs shrink-0">
-          <Shield className="w-3 h-3 text-amber-600 shrink-0" />
-          <select
-            value={currentRole}
-            onChange={(e) => setCurrentRole(e.target.value as UserRole)}
-            className="bg-transparent text-[11px] font-semibold text-amber-900 focus:outline-none cursor-pointer"
-          >
-            <option value="owner_admin">👑 Chủ</option>
-            <option value="branch_manager">👔 QL</option>
-            <option value="cashier_receptionist">💼 Lễ tân</option>
-            <option value="technician_doctor">🩺 Bác sĩ</option>
-          </select>
+        {/* Role Display (read-only) + Logout */}
+        <div className="flex items-center space-x-1 shrink-0">
+          <span className="text-[11px] font-semibold text-amber-900 bg-amber-50/90 border border-amber-200 rounded-lg px-2 py-1">
+            {displayRole}
+          </span>
+          {isLiveMode && (
+            <button
+              onClick={handleLogout}
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Đăng xuất"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>

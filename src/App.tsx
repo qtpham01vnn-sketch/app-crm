@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { LoginPage } from './components/auth/LoginPage';
 import { MockDataBanner } from './components/layout/MockDataBanner';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -35,7 +36,65 @@ import { SessionDeductModal } from './components/modals/SessionDeductModal';
 import { ThemeModal } from './components/modals/ThemeModal';
 import type { CustomerCourse } from './types';
 
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Loader2, ShieldOff } from 'lucide-react';
+
+/**
+ * Auth gate: Shows login or loading state based on auth status.
+ * Only renders the main layout when properly authenticated.
+ */
+const AuthGate: React.FC = () => {
+  const { authState, authErrorMessage, handleLoginSuccess, isLiveMode } = useApp();
+
+  // In demo mode (no Supabase), skip auth entirely
+  if (!isLiveMode) {
+    return <MainLayout />;
+  }
+
+  switch (authState) {
+    case 'loading':
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-slate-400 font-medium">Đang kiểm tra phiên đăng nhập...</p>
+          </div>
+        </div>
+      );
+
+    case 'unauthenticated':
+      return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+
+    case 'no_membership':
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-rose-900/50 flex items-center justify-center">
+              <ShieldOff className="w-8 h-8 text-rose-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Không có quyền truy cập</h2>
+            <p className="text-sm text-slate-400 mb-6">
+              {authErrorMessage || 'Tài khoản chưa được cấp quyền vào hệ thống. Vui lòng liên hệ quản trị viên.'}
+            </p>
+            <LoginPage onLoginSuccess={handleLoginSuccess} errorMessage={authErrorMessage || undefined} />
+          </div>
+        </div>
+      );
+
+    case 'error':
+      return (
+        <LoginPage
+          onLoginSuccess={handleLoginSuccess}
+          errorMessage={authErrorMessage || 'Lỗi kết nối máy chủ xác thực.'}
+        />
+      );
+
+    case 'authenticated':
+      return <MainLayout />;
+
+    default:
+      return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+};
 
 const MainLayout: React.FC = () => {
   const { activeTab, toasts, isThemeModalOpen, setIsThemeModalOpen } = useApp();
@@ -125,7 +184,6 @@ const MainLayout: React.FC = () => {
       />
       <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
 
-
       {/* Floating Toast Notifications */}
       <div className="fixed bottom-16 lg:bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
         {toasts.map((t) => (
@@ -159,7 +217,7 @@ const MainLayout: React.FC = () => {
 export function App() {
   return (
     <AppProvider>
-      <MainLayout />
+      <AuthGate />
     </AppProvider>
   );
 }

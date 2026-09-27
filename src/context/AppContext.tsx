@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 
 import type {
   Branch,
@@ -28,8 +28,8 @@ import { APP_THEMES } from '../mock/themes';
 import type { FullThemeConfig } from '../mock/themes';
 import { masterDataService } from '../services/masterDataService';
 import { authService } from '../services/authService';
+import type { AuthSessionInfo } from '../services/authService';
 import { isSupabaseConfigured } from '../lib/supabase';
-
 
 import {
   mockOrg,
@@ -98,7 +98,28 @@ interface Toast {
   message: string;
 }
 
+/**
+ * Auth loading states:
+ * - 'loading': Initial auth check in progress
+ * - 'authenticated': User has valid session + membership
+ * - 'unauthenticated': No session
+ * - 'no_membership': Authenticated but no valid membership
+ * - 'error': Auth check failed
+ */
+type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'no_membership' | 'error';
+
+/** Whether the app is running in live mode (Supabase configured) or demo mode */
+const isLiveMode = isSupabaseConfigured;
+
 interface AppContextType {
+  // Auth state
+  authState: AuthState;
+  authSession: AuthSessionInfo | null;
+  authErrorMessage: string | null;
+  handleLoginSuccess: () => Promise<void>;
+  handleLogout: () => Promise<void>;
+  isLiveMode: boolean;
+
   org: typeof mockOrg;
   branches: Branch[];
   currentBranch: Branch;
@@ -106,7 +127,6 @@ interface AppContextType {
   staffList: Staff[];
   currentUser: Staff;
   currentRole: UserRole;
-  setCurrentRole: (role: UserRole) => void;
   activeTab: NavTab;
   setActiveTab: (tab: NavTab) => void;
   searchQuery: string;
@@ -154,7 +174,7 @@ interface AppContextType {
   // Treatments
   deductSession: (courseId: string, staffId: string, notes: string) => void;
 
-  // Appointments
+  // Appointments — React State only (P4 will move to Supabase)
   addAppointment: (appt: Omit<Appointment, 'id'>) => void;
   updateApptStatus: (id: string, status: Appointment['status']) => void;
 
@@ -168,140 +188,69 @@ interface AppContextType {
   isThemeModalOpen: boolean;
   setIsThemeModalOpen: (open: boolean) => void;
 
-
   // Invoice Modal
   activeInvoiceSaleId: string | null;
   setActiveInvoiceSaleId: (id: string | null) => void;
-
 }
 
-const initialCart: CartState = {
-  customerId: 'c-01',
-  staffId: 'st-04',
-  items: [
-    { id: 'cart-1', type: 'service', refId: 'svc-01', name: 'Chăm Sóc & Trẻ Hóa Da Oxy Jet', price: 650000, qty: 1, staffId: 'st-05' },
-    { id: 'cart-2', type: 'product', refId: 'prd-01', name: 'Serum Phục Hồi B5 Booster 50ml', price: 680000, qty: 1 }
-  ],
+const emptyCart: CartState = {
+  customerId: '',
+  staffId: '',
+  items: [],
   discountPct: 0,
   promoCode: '',
   taxPct: 0,
   tipAmount: 0,
-  paidAmount: 1330000,
-  paymentMethod: 'bank_transfer',
+  paidAmount: 0,
+  paymentMethod: 'cash',
   notes: ''
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Data states
-  const [branches, setBranches] = useState<Branch[]>(mockBranches);
-  const [currentBranch, setCurrentBranch] = useState<Branch>(mockBranches[0]);
-  const [staffList, setStaffList] = useState<Staff[]>(mockStaff);
-  const [currentUser, setCurrentUser] = useState<Staff>(mockStaff[0]);
-  const [currentRole, setCurrentRoleState] = useState<UserRole>('owner_admin');
+  // ─── Auth State ───
+  const [authState, setAuthState] = useState<AuthState>('loading');
+  const [authSession, setAuthSession] = useState<AuthSessionInfo | null>(null);
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+
+  // ─── Data states ───
+  // In live mode: populated from Supabase after auth.
+  // In demo mode: populated from mock data.
+  const [branches, setBranches] = useState<Branch[]>(isLiveMode ? [] : mockBranches);
+  const [currentBranch, setCurrentBranch] = useState<Branch>(isLiveMode ? ({} as Branch) : mockBranches[0]);
+  const [staffList, setStaffList] = useState<Staff[]>(isLiveMode ? [] : mockStaff);
+  const [currentUser, setCurrentUser] = useState<Staff>(isLiveMode ? ({} as Staff) : mockStaff[0]);
+  const [currentRole, setCurrentRole] = useState<UserRole>('technician_doctor');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
-  const [services, setServices] = useState<Service[]>(mockServices);
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [branchStocks, setBranchStocks] = useState(mockBranchStocks);
-  const [packages, setPackages] = useState<PackageCombo[]>(mockPackages);
-  const [courses, setCourses] = useState<CustomerCourse[]>(mockCustomerCourses);
-  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
-  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
-  const [sales, setSales] = useState<Sale[]>(mockSales);
-  const [payments, setPayments] = useState<Payment[]>(mockPayments);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers);
-  const [purchaseOrders] = useState<PurchaseOrder[]>(mockPurchaseOrders);
-  const [goodsReceipts] = useState<GoodsReceiptNote[]>(mockGoodsReceipts);
-  const [expenses] = useState<Expense[]>(mockExpenses);
-  const [promotions, setPromotions] = useState<Promotion[]>(mockPromotions);
-  const [shifts] = useState<ShiftRoster[]>(mockShifts);
-  const [timesheets] = useState<Timesheet[]>(mockTimesheets);
-  const [commissions] = useState<CommissionRecord[]>(mockCommissions);
-  const [payrolls] = useState<PayrollRecord[]>(mockPayrolls);
+  const [customers, setCustomers] = useState<Customer[]>(isLiveMode ? [] : mockCustomers);
+  const [services, setServices] = useState<Service[]>(isLiveMode ? [] : mockServices);
+  const [products, setProducts] = useState<Product[]>(isLiveMode ? [] : mockProducts);
+  const [branchStocks, setBranchStocks] = useState(isLiveMode ? [] as typeof mockBranchStocks : mockBranchStocks);
+  const [packages, setPackages] = useState<PackageCombo[]>(isLiveMode ? [] : mockPackages);
+  const [courses, setCourses] = useState<CustomerCourse[]>(isLiveMode ? [] : mockCustomerCourses);
+  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(isLiveMode ? [] : mockSessionDeductions);
+  // Appointments: React State only. P4 will migrate to Supabase.
+  const [appointments, setAppointments] = useState<Appointment[]>(isLiveMode ? [] : mockAppointments);
+  const [sales, setSales] = useState<Sale[]>(isLiveMode ? [] : mockSales);
+  const [payments, setPayments] = useState<Payment[]>(isLiveMode ? [] : mockPayments);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(isLiveMode ? [] : mockSuppliers);
+  const [purchaseOrders] = useState<PurchaseOrder[]>(isLiveMode ? [] : mockPurchaseOrders);
+  const [goodsReceipts] = useState<GoodsReceiptNote[]>(isLiveMode ? [] : mockGoodsReceipts);
+  const [expenses] = useState<Expense[]>(isLiveMode ? [] : mockExpenses);
+  const [promotions, setPromotions] = useState<Promotion[]>(isLiveMode ? [] : mockPromotions);
+  const [shifts] = useState<ShiftRoster[]>(isLiveMode ? [] : mockShifts);
+  const [timesheets] = useState<Timesheet[]>(isLiveMode ? [] : mockTimesheets);
+  const [commissions] = useState<CommissionRecord[]>(isLiveMode ? [] : mockCommissions);
+  const [payrolls] = useState<PayrollRecord[]>(isLiveMode ? [] : mockPayrolls);
 
-  // Load live Supabase Master Data on Mount
-  const reloadMasterData = async () => {
-    try {
-      const [
-        liveBranches,
-        liveServices,
-        liveProducts,
-        livePackages,
-        liveSuppliers,
-        livePromotions,
-        liveStaff,
-        liveCustomers,
-        liveStocks
-      ] = await Promise.all([
-        masterDataService.getBranches(),
-        masterDataService.getServices(),
-        masterDataService.getProducts(),
-        masterDataService.getPackages(),
-        masterDataService.getSuppliers(),
-        masterDataService.getPromotions(),
-        masterDataService.getStaff(),
-        masterDataService.getCustomers(),
-        masterDataService.getInventoryStocks()
-      ]);
+  // ─── Toast, Cart, Theme ───
+  const [cart, setCart] = useState<CartState>(emptyCart);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [activeInvoiceSaleId, setActiveInvoiceSaleId] = useState<string | null>(null);
 
-      if (liveBranches.length > 0) {
-        setBranches(liveBranches);
-        setCurrentBranch((prev) => liveBranches.find((b) => b.id === prev.id) || liveBranches[0]);
-      }
-      if (liveServices.length > 0) setServices(liveServices);
-      if (liveProducts.length > 0) setProducts(liveProducts);
-      if (livePackages.length > 0) setPackages(livePackages);
-      if (liveSuppliers.length > 0) setSuppliers(liveSuppliers);
-      if (livePromotions.length > 0) setPromotions(livePromotions);
-      if (liveStaff.length > 0) {
-        setStaffList(liveStaff);
-        setCurrentUser((prev) => liveStaff.find((s) => s.id === prev.id) || liveStaff[0]);
-      }
-      if (liveCustomers.length > 0) setCustomers(liveCustomers);
-      if (Object.keys(liveStocks).length > 0) {
-        setBranchStocks((prev) => ({ ...prev, ...liveStocks }));
-      }
-    } catch (err) {
-      console.error('Lỗi nạp master data từ Supabase:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (isSupabaseConfigured) {
-      const initAuthAndData = async () => {
-        try {
-          const session = await authService.getCurrentSession();
-          if (!session.isAuthenticated) {
-            // Auto sign in as owner_admin for preview session
-            await authService.switchRole('owner_admin');
-          }
-          await reloadMasterData();
-        } catch (err) {
-          console.error('Lỗi khởi tạo Auth & Master Data:', err);
-        }
-      };
-      initAuthAndData();
-    }
-  }, []);
-
-  const setCurrentRole = async (role: UserRole) => {
-    setCurrentRoleState(role);
-    if (isSupabaseConfigured) {
-      const res = await authService.switchRole(role);
-      if (res.success && res.sessionInfo) {
-        showToast(`Đã chuyển vai trò: ${res.sessionInfo.staffName || role}`, 'info');
-        await reloadMasterData();
-      } else {
-        showToast(`Chuyển vai trò sang ${role}`, 'info');
-      }
-    }
-  };
-
-  // Theme & Modals
   const [currentTheme, setCurrentThemeState] = useState<FullThemeConfig>(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('vua_app_theme') : null;
     const found = APP_THEMES.find((t) => t.id === saved);
@@ -309,6 +258,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
+  const showToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  // ─── Theme Application ───
   const applyThemeToDOM = (theme: FullThemeConfig) => {
     if (typeof document !== 'undefined') {
       const root = document.documentElement;
@@ -332,28 +290,147 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setCurrentTheme = (theme: FullThemeConfig) => {
     setCurrentThemeState(theme);
     applyThemeToDOM(theme);
+    try { localStorage.setItem('vua_app_theme', theme.id); } catch { /* ignore */ }
+  };
+
+  // ─── Load live data from Supabase (only in live mode, after auth) ───
+  const reloadMasterData = useCallback(async () => {
+    if (!isLiveMode) return;
     try {
-      localStorage.setItem('vua_app_theme', theme.id);
-    } catch {
-      // ignore
+      const [
+        liveBranches,
+        liveServices,
+        liveProducts,
+        livePackages,
+        liveSuppliers,
+        livePromotions,
+        liveStaff,
+        liveCustomers,
+        liveStocks
+      ] = await Promise.all([
+        masterDataService.getBranches(),
+        masterDataService.getServices(),
+        masterDataService.getProducts(),
+        masterDataService.getPackages(),
+        masterDataService.getSuppliers(),
+        masterDataService.getPromotions(),
+        masterDataService.getStaff(),
+        masterDataService.getCustomers(),
+        masterDataService.getInventoryStocks()
+      ]);
+
+      // In live mode: set data as-is from Supabase. NO fallback to mock.
+      setBranches(liveBranches);
+      if (liveBranches.length > 0) {
+        setCurrentBranch((prev) => liveBranches.find((b) => b.id === prev?.id) || liveBranches[0]);
+      }
+      setServices(liveServices);
+      setProducts(liveProducts);
+      setPackages(livePackages);
+      setSuppliers(liveSuppliers);
+      setPromotions(livePromotions);
+      setStaffList(liveStaff);
+      if (liveStaff.length > 0) {
+        setCurrentUser((prev) => liveStaff.find((s) => s.id === prev?.id) || liveStaff[0]);
+      }
+      setCustomers(liveCustomers);
+      // Live stocks only — no merge with mock
+      const stockArray = Object.entries(liveStocks).flatMap(([branchId, products]) =>
+        Object.entries(products).map(([productId, qty]) => ({
+          branchId,
+          productId,
+          stockOnHand: qty
+        }))
+      );
+      setBranchStocks(stockArray as typeof mockBranchStocks);
+    } catch (err) {
+      console.error('Lỗi nạp dữ liệu từ Supabase:', err);
+      showToast('Lỗi tải dữ liệu. Vui lòng tải lại trang.', 'error');
+    }
+  }, [showToast]);
+
+  // ─── Auth initialization ───
+  useEffect(() => {
+    const initAuth = async () => {
+      if (!isLiveMode) {
+        // Demo mode: no auth needed, use mock data
+        setAuthState('authenticated');
+        setCurrentRole('owner_admin');
+        return;
+      }
+
+      try {
+        const session = await authService.getCurrentSession();
+        setAuthSession(session);
+
+        if (!session.isAuthenticated) {
+          setAuthState('unauthenticated');
+          return;
+        }
+
+        if (session.noMembership) {
+          setAuthState('no_membership');
+          setAuthErrorMessage(session.errorMessage || 'Không có quyền truy cập.');
+          return;
+        }
+
+        // Valid session with membership
+        if (session.role) {
+          setCurrentRole(session.role);
+        }
+        setAuthState('authenticated');
+        // Load data after successful auth
+        await reloadMasterData();
+      } catch (err) {
+        console.error('Lỗi khởi tạo Auth:', err);
+        setAuthState('error');
+        setAuthErrorMessage('Không thể kết nối máy chủ xác thực.');
+      }
+    };
+
+    initAuth();
+  }, [reloadMasterData]);
+
+  // ─── Auth handlers ───
+  const handleLoginSuccess = async () => {
+    setAuthState('loading');
+    const session = await authService.getCurrentSession();
+    setAuthSession(session);
+
+    if (session.isAuthenticated && !session.noMembership && session.role) {
+      setCurrentRole(session.role);
+      setAuthState('authenticated');
+      await reloadMasterData();
+      showToast(`Đăng nhập thành công: ${session.staffName || session.email}`, 'success');
+    } else {
+      setAuthState('no_membership');
+      setAuthErrorMessage(session.errorMessage || 'Tài khoản không có quyền truy cập.');
     }
   };
 
-
-  // Cart
-  const [cart, setCart] = useState<CartState>(initialCart);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [activeInvoiceSaleId, setActiveInvoiceSaleId] = useState<string | null>(null);
-
-
-  const showToast = (message: string, type: Toast['type'] = 'info') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+  const handleLogout = async () => {
+    await authService.signOut();
+    setAuthSession(null);
+    setAuthState('unauthenticated');
+    setAuthErrorMessage(null);
+    // Clear data in live mode
+    if (isLiveMode) {
+      setBranches([]);
+      setStaffList([]);
+      setCustomers([]);
+      setServices([]);
+      setProducts([]);
+      setPackages([]);
+      setSuppliers([]);
+      setPromotions([]);
+      setAppointments([]);
+      setSales([]);
+      setPayments([]);
+    }
+    showToast('Đã đăng xuất.', 'info');
   };
 
+  // ─── Cart Actions ───
   const addToCart = (item: Omit<CartItem, 'id'>) => {
     setCart((prev) => {
       const existingIndex = prev.items.findIndex((i) => i.type === item.type && i.refId === item.refId);
@@ -406,7 +483,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearCart = () => {
     setCart({
       customerId: '',
-      staffId: currentUser.id,
+      staffId: currentUser?.id || '',
       items: [],
       discountPct: 0,
       promoCode: '',
@@ -418,7 +495,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  /**
+   * Checkout — currently React State only.
+   * ⚠️ P5 will replace this with ACID RPC transaction on Supabase.
+   */
   const checkoutCart = () => {
+    if (isLiveMode) {
+      showToast('⚠️ Chức năng thanh toán chưa kết nối backend (P5). Dữ liệu chỉ lưu tạm trên trình duyệt.', 'warning');
+    }
+
     if (!cart.items.length) {
       showToast('Giỏ hàng đang trống!', 'warning');
       return { success: false, message: 'Giỏ hàng trống' };
@@ -438,14 +523,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newSale: Sale = {
       id: saleId,
       orgId: mockOrg.id,
-      branchId: currentBranch.id,
+      branchId: currentBranch?.id || '',
       customerId: cart.customerId || 'c-walkin',
       customerName: targetCustomer ? targetCustomer.name : 'Khách Vãng Lai',
       invoiceNo,
       date: new Date().toISOString().slice(0, 10),
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      staffId: cart.staffId || currentUser.id,
-      staffName: staffList.find((s) => s.id === (cart.staffId || currentUser.id))?.name || 'Thu Ngân',
+      staffId: cart.staffId || currentUser?.id || '',
+      staffName: staffList.find((s) => s.id === (cart.staffId || currentUser?.id))?.name || 'Thu Ngân',
       items: [...cart.items],
       subtotal,
       discountPct: cart.discountPct,
@@ -465,25 +550,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSales((prev) => [newSale, ...prev]);
 
-    // Handle payment allocation
     if (cart.paidAmount > 0) {
       const paymentId = 'pay-' + Date.now().toString().slice(-6);
       const newPayment: Payment = {
         id: paymentId,
         orgId: mockOrg.id,
-        branchId: currentBranch.id,
+        branchId: currentBranch?.id || '',
         customerId: cart.customerId,
         amount: cart.paidAmount,
         paymentMethod: cart.paymentMethod === 'debt' ? 'cash' : (cart.paymentMethod as any),
         paymentType: 'sale',
-        receivedByStaffId: currentUser.id,
+        receivedByStaffId: currentUser?.id || '',
         date: new Date().toISOString().slice(0, 10),
         createdAt: new Date().toISOString()
       };
       setPayments((prev) => [newPayment, ...prev]);
     }
 
-    // Update customer debt and spent
     if (targetCustomer) {
       setCustomers((prev) =>
         prev.map((c) =>
@@ -498,26 +581,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    // Deduct stock for products
-    cart.items.forEach((it) => {
-      if (it.type === 'product') {
-        setBranchStocks((prev) =>
-          prev.map((stk) =>
-            stk.branchId === currentBranch.id && stk.productId === it.refId
-              ? { ...stk, stockOnHand: Math.max(0, stk.stockOnHand - it.qty) }
-              : stk
-          )
-        );
-      }
-    });
-
     clearCart();
     setActiveInvoiceSaleId(saleId);
-    showToast(`Thanh toán thành công hóa đơn ${invoiceNo}`, 'success');
+
+    const prefix = isLiveMode ? '⚠️ [Tạm] ' : '';
+    showToast(`${prefix}Thanh toán hóa đơn ${invoiceNo}`, isLiveMode ? 'warning' : 'success');
     return { success: true, saleId };
   };
 
+  /**
+   * ⚠️ React State only — P5 will migrate to Supabase RPC
+   */
   const deductSession = (courseId: string, staffId: string, notes: string) => {
+    if (isLiveMode) {
+      showToast('⚠️ Trừ buổi chưa kết nối backend (P5). Dữ liệu chỉ lưu tạm.', 'warning');
+    }
+
     const course = courses.find((c) => c.id === courseId);
     if (!course) return;
     if (course.usedSessions >= course.totalSessions) {
@@ -545,7 +624,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newDed: SessionDeduction = {
       id: deductionId,
       courseId,
-      branchId: currentBranch.id,
+      branchId: currentBranch?.id || '',
       staffId,
       sessionsDeducted: 1,
       performedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
@@ -557,7 +636,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Đã trừ 1 buổi của gói "${course.name}" (Còn ${course.totalSessions - newUsed} buổi)`, 'success');
   };
 
+  /**
+   * ⚠️ React State only — P4 will migrate to Supabase
+   */
   const addAppointment = (appt: Omit<Appointment, 'id'>) => {
+    if (isLiveMode) {
+      showToast('⚠️ Lịch hẹn chưa kết nối backend (P4). Dữ liệu chỉ lưu tạm trên trình duyệt.', 'warning');
+    }
+
     const newId = 'apt-' + Date.now().toString().slice(-6);
     const targetCust = customers.find((c) => c.id === appt.customerId);
     const targetSvc = services.find((s) => s.id === appt.serviceId);
@@ -573,17 +659,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAppointments((prev) => [newAppt, ...prev]);
-    showToast(`Đã đặt lịch hẹn thành công cho ${newAppt.customerName}`, 'success');
+    showToast(`Đã đặt lịch hẹn cho ${newAppt.customerName}`, isLiveMode ? 'warning' : 'success');
   };
 
   const updateApptStatus = (id: string, status: Appointment['status']) => {
+    if (isLiveMode) {
+      showToast('⚠️ Cập nhật trạng thái chưa kết nối backend (P4).', 'warning');
+    }
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-    showToast(`Đã cập nhật trạng thái lịch hẹn`, 'info');
   };
 
   return (
     <AppContext.Provider
       value={{
+        authState,
+        authSession,
+        authErrorMessage,
+        handleLoginSuccess,
+        handleLogout,
+        isLiveMode,
+
         org: mockOrg,
         branches,
         currentBranch,
@@ -591,7 +686,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         staffList,
         currentUser,
         currentRole,
-        setCurrentRole,
         activeTab,
         setActiveTab,
         searchQuery,
@@ -643,7 +737,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeInvoiceSaleId,
         setActiveInvoiceSaleId
       }}
-
     >
       {children}
     </AppContext.Provider>
@@ -653,4 +746,3 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 export { AppContext };
 // oxlint-disable-next-line react/only-export-components
 export { useApp } from './useApp';
-

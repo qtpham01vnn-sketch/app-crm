@@ -519,73 +519,63 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
--- 8. AUTH SYNC & AUTO-LINK TRIGGER & RPC
+-- 8. AUTH SESSION RPC & ADMIN LINKING (HARDENED)
 -- -----------------------------------------------------------------------------
-UPDATE auth.users SET email_confirmed_at = NOW() WHERE email_confirmed_at IS NULL;
 
-UPDATE public.staff_profiles sp
-SET auth_user_id = au.id
-FROM auth.users au
-WHERE sp.email = au.email
-  AND (sp.auth_user_id IS NULL OR sp.auth_user_id != au.id);
-
-CREATE OR REPLACE FUNCTION public.handle_auth_user_linked_to_staff()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE public.staff_profiles
-    SET auth_user_id = NEW.id
-    WHERE email = NEW.email;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created_link_staff ON auth.users;
-CREATE TRIGGER on_auth_user_created_link_staff
-    AFTER INSERT OR UPDATE OF email ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_auth_user_linked_to_staff();
-
-CREATE OR REPLACE FUNCTION public.claim_or_sync_staff_session()
+-- Read-only session inspection for authenticated users
+CREATE OR REPLACE FUNCTION public.get_staff_session()
 RETURNS JSONB AS $$
 DECLARE
     v_user_id UUID := auth.uid();
-    v_email TEXT;
     v_staff_id UUID;
     v_org_id UUID;
     v_role user_role_enum;
     v_branch_ids UUID[];
     v_staff_name TEXT;
     v_staff_code TEXT;
+    v_is_active BOOLEAN;
 BEGIN
     IF v_user_id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'message', 'Chưa có phiên xác thực Supabase Auth');
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Phiên xác thực không hợp lệ.'
+        );
     END IF;
 
-    SELECT email INTO v_email FROM auth.users WHERE id = v_user_id;
-
-    UPDATE public.staff_profiles
-    SET auth_user_id = v_user_id
-    WHERE email = v_email
-    RETURNING id, organization_id, full_name, code
-    INTO v_staff_id, v_org_id, v_staff_name, v_staff_code;
+    SELECT sp.id, sp.organization_id, sp.full_name, sp.code, sp.is_active
+    INTO v_staff_id, v_org_id, v_staff_name, v_staff_code, v_is_active
+    FROM public.staff_profiles sp
+    WHERE sp.auth_user_id = v_user_id
+    LIMIT 1;
 
     IF v_staff_id IS NULL THEN
-        SELECT id, organization_id, full_name, code
-        INTO v_staff_id, v_org_id, v_staff_name, v_staff_code
-        FROM public.staff_profiles
-        WHERE auth_user_id = v_user_id
-        LIMIT 1;
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Tài khoản chưa được liên kết hồ sơ nhân sự. Vui lòng liên hệ quản trị viên.'
+        );
     END IF;
 
-    IF v_staff_id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'message', 'Không tìm thấy hồ sơ nhân sự liên kết');
+    IF NOT v_is_active THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Hồ sơ nhân sự đã bị vô hiệu hóa.'
+        );
     END IF;
 
     SELECT om.role, om.assigned_branch_ids
     INTO v_role, v_branch_ids
     FROM public.organization_memberships om
-    WHERE om.staff_id = v_staff_id AND om.organization_id = v_org_id AND om.is_active = TRUE
+    WHERE om.staff_id = v_staff_id
+      AND om.organization_id = v_org_id
+      AND om.is_active = TRUE
     LIMIT 1;
+
+    IF v_role IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Tài khoản không có membership hoạt động. Vui lòng liên hệ quản trị viên.'
+        );
+    END IF;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -598,8 +588,64 @@ BEGIN
         'assigned_branch_ids', v_branch_ids
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+   SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION public.claim_or_sync_staff_session() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_or_sync_staff_session() TO anon;
+GRANT EXECUTE ON FUNCTION public.get_staff_session() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM PUBLIC;
+
+-- Admin-managed account linking
+CREATE OR REPLACE FUNCTION public.admin_link_staff_to_auth_user(
+    p_staff_id UUID,
+    p_auth_user_id UUID
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_caller_role user_role_enum;
+    v_caller_org_id UUID;
+    v_staff_org_id UUID;
+    v_existing_link UUID;
+BEGIN
+    SELECT om.role, sp.organization_id
+    INTO v_caller_role, v_caller_org_id
+    FROM staff_profiles sp
+    JOIN organization_memberships om ON sp.id = om.staff_id
+    WHERE sp.auth_user_id = auth.uid()
+      AND om.is_active = TRUE
+      AND sp.is_active = TRUE
+    LIMIT 1;
+
+    IF v_caller_role IS NULL OR v_caller_role != 'owner_admin' THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Chỉ Chủ doanh nghiệp mới có quyền liên kết tài khoản.');
+    END IF;
+
+    SELECT organization_id INTO v_staff_org_id
+    FROM staff_profiles WHERE id = p_staff_id;
+
+    IF v_staff_org_id IS NULL OR v_staff_org_id != v_caller_org_id THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Nhân viên không thuộc tổ chức của bạn.');
+    END IF;
+
+    SELECT id INTO v_existing_link
+    FROM staff_profiles
+    WHERE auth_user_id = p_auth_user_id AND id != p_staff_id;
+
+    IF v_existing_link IS NOT NULL THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Tài khoản auth đã liên kết với nhân viên khác.');
+    END IF;
+
+    UPDATE staff_profiles
+    SET auth_user_id = p_auth_user_id, updated_at = NOW()
+    WHERE id = p_staff_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Đã liên kết thành công.');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM PUBLIC;
+
 

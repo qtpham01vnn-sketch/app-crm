@@ -43,7 +43,7 @@ export const MockDataBanner: React.FC = () => {
       <div className="flex items-center space-x-2 text-[11px] sm:text-xs">
         <div className="bg-black/25 px-2 py-0.5 rounded-md flex items-center space-x-1 shrink-0">
           <span className="text-amber-200 font-normal">CN:</span>
-          <span className="font-semibold text-white">{currentBranch.code}</span>
+          <span className="font-semibold text-white">{currentBranch?.code || '---'}</span>
         </div>
         <div className="bg-black/25 px-2 py-0.5 rounded-md flex items-center space-x-1 min-w-0 truncate">
           <span className="text-amber-200 font-normal">Quyền:</span>
