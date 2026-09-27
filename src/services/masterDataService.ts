@@ -51,20 +51,28 @@ export const masterDataService = {
   },
 
   async createCustomer(
-    cust: { name: string; phone: string; vipTier?: Customer['vipTier']; notes?: string; gender?: Customer['gender'] },
+    cust: { name: string; phone: string; email?: string; vipTier?: Customer['vipTier']; notes?: string; gender?: Customer['gender'] },
     orgId: string,
     branchId: string
   ): Promise<Customer | null> {
     if (!isSupabaseConfigured || !supabase) return null;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(orgId) || !uuidRegex.test(branchId)) {
+      throw new Error(`Định dạng ID chi nhánh hoặc tổ chức không hợp lệ (${branchId}). Vui lòng đảm bảo đã kết nối dữ liệu thật.`);
+    }
+
     const { data, error } = await supabase
       .from('customers')
       .insert({
         organization_id: orgId,
         primary_branch_id: branchId,
-        full_name: cust.name,
-        phone: cust.phone,
+        full_name: cust.name.trim(),
+        phone: cust.phone.trim(),
+        email: cust.email?.trim() || null,
         tier: cust.vipTier || 'standard',
-        medical_notes: cust.notes || '',
+        medical_notes: cust.notes?.trim() || null,
         gender: cust.gender || 'female',
         total_spent: 0,
         debt_balance: 0
@@ -85,8 +93,8 @@ export const masterDataService = {
       gender: (data.gender || 'female') as Customer['gender'],
       primaryBranchId: data.primary_branch_id,
       vipTier: (data.tier || 'standard') as Customer['vipTier'],
-      totalSpent: Number(data.total_spent),
-      debt: Number(data.debt_balance),
+      totalSpent: Number(data.total_spent || 0),
+      debt: Number(data.debt_balance || 0),
       creditBalance: 0,
       notes: data.medical_notes || undefined,
       createdAt: data.created_at ? data.created_at.split('T')[0] : '2026-09-27'

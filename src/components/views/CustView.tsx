@@ -5,7 +5,7 @@ import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 
 export const CustView: React.FC = () => {
-  const { customers, courses, sales, currentBranch, showToast } = useApp();
+  const { customers, setCustomers, courses, sales, currentBranch, branches, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
 
@@ -18,41 +18,55 @@ export const CustView: React.FC = () => {
   const [newNotes, setNewNotes] = useState('');
   const [newGender, setNewGender] = useState<Customer['gender']>('female');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ existingCust: Customer } | null>(null);
 
-  const handleCreateCustomer = async (e: React.FormEvent) => {
+  const handleCreateCustomer = async (e: React.FormEvent, forceDuplicate: boolean = false) => {
     e.preventDefault();
-    if (!newName.trim()) {
+    if (isSubmitting) return;
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
       showToast('Vui lòng nhập họ và tên khách hàng', 'warning');
       return;
     }
+
     const cleanPhone = newPhone.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 9) {
       showToast('Số điện thoại không hợp lệ (tối thiểu 9 số)', 'warning');
       return;
     }
 
-    // Check duplicate phone locally first
-    const isDuplicate = customers.some((c) => c.phone.replace(/\D/g, '') === cleanPhone);
-    if (isDuplicate) {
-      showToast(`Số điện thoại ${newPhone} đã tồn tại trong hệ thống!`, 'error');
+    // Check duplicate phone locally
+    const existingCust = customers.find((c) => c.phone.replace(/\D/g, '') === cleanPhone);
+    if (existingCust && !forceDuplicate) {
+      setDuplicateWarning({ existingCust });
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const orgId = currentBranch?.orgId || (branches.length > 0 ? branches[0].orgId : '');
+      const branchId = currentBranch?.id || (branches.length > 0 ? branches[0].id : '');
+
+      if (!orgId || !branchId || orgId.startsWith('org-') || branchId.startsWith('br-')) {
+        throw new Error('Chưa đồng bộ ID tổ chức/chi nhánh từ máy chủ Supabase. Vui lòng kiểm tra kết nối mạng và thử lại.');
+      }
+
       const created = await masterDataService.createCustomer(
         {
-          name: newName.trim(),
-          phone: newPhone.trim(),
+          name: trimmedName,
+          phone: cleanPhone,
+          email: newEmail.trim() || undefined,
           vipTier: newTier,
-          notes: newNotes.trim(),
+          notes: newNotes.trim() || undefined,
           gender: newGender
         },
-        currentBranch.orgId || '11111111-1111-1111-1111-111111111111',
-        currentBranch.id
+        orgId,
+        branchId
       );
 
       if (created) {
+        setCustomers((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
         setSelectedCust(created);
         showToast(`✅ Đã thêm khách hàng "${created.name}" lên Supabase`, 'success');
         setIsCreateModalOpen(false);
@@ -60,10 +74,17 @@ export const CustView: React.FC = () => {
         setNewPhone('');
         setNewEmail('');
         setNewNotes('');
+        setDuplicateWarning(null);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      showToast(`❌ Lỗi lưu Supabase: ${message}`, 'error');
+      let errorMessage = 'Không thể lưu khách hàng lên máy chủ';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'object' && err !== null) {
+        const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        errorMessage = anyErr.message || anyErr.details || anyErr.hint || `Lỗi Supabase (Mã: ${anyErr.code || 'UNKNOWN'})`;
+      }
+      showToast(`❌ ${errorMessage}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -257,22 +278,58 @@ export const CustView: React.FC = () => {
 
       {/* CREATE CUSTOMER MODAL */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-fade-in space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col p-5 sm:p-6 shadow-2xl border border-slate-200 animate-fade-in my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center space-x-2">
                 <Users className="w-5 h-5 text-sky-600" />
                 <h3 className="font-bold text-base text-slate-900">Thêm Khách Hàng Mới (Supabase Live)</h3>
               </div>
               <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-sm p-1 rounded-lg hover:bg-slate-100"
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setDuplicateWarning(null);
+                }}
+                className="text-slate-400 hover:text-slate-700 text-sm p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} className="space-y-3.5 text-xs">
+            {/* Duplicate Phone Notice if detected */}
+            {duplicateWarning && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2 shrink-0">
+                <p className="font-bold text-amber-900">
+                  ⚠️ Phát hiện số điện thoại trùng lặp:
+                </p>
+                <p className="text-amber-800">
+                  Số <b>{newPhone}</b> đã thuộc về khách hàng <b>"{duplicateWarning.existingCust.name}"</b>.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCust(duplicateWarning.existingCust);
+                      setIsCreateModalOpen(false);
+                      setDuplicateWarning(null);
+                      showToast(`Đã chuyển sang hồ sơ của "${duplicateWarning.existingCust.name}"`, 'info');
+                    }}
+                    className="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 font-bold rounded-lg hover:bg-amber-100 text-[11px] cursor-pointer"
+                  >
+                    Xem Hồ Sơ Đã Có
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreateCustomer(e, true)}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+                  >
+                    Vẫn Tạo Mới (Dùng chung số)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={(e) => handleCreateCustomer(e, false)} className="space-y-3.5 text-xs overflow-y-auto pt-3 flex-1">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">
                   Họ và tên <span className="text-rose-500">*</span>
@@ -287,7 +344,7 @@ export const CustView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">
                     Số điện thoại <span className="text-rose-500">*</span>
@@ -297,7 +354,10 @@ export const CustView: React.FC = () => {
                     required
                     placeholder="Ví dụ: 0918123456"
                     value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
+                    onChange={(e) => {
+                      setNewPhone(e.target.value);
+                      if (duplicateWarning) setDuplicateWarning(null);
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 font-mono"
                   />
                 </div>

@@ -27,6 +27,7 @@ import type {
 import { APP_THEMES } from '../mock/themes';
 import type { FullThemeConfig } from '../mock/themes';
 import { masterDataService } from '../services/masterDataService';
+import { authService } from '../services/authService';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 
@@ -113,6 +114,7 @@ interface AppContextType {
 
   // Data states
   customers: Customer[];
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   services: Service[];
   products: Product[];
   packages: PackageCombo[];
@@ -222,56 +224,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [payrolls] = useState<PayrollRecord[]>(mockPayrolls);
 
   // Load live Supabase Master Data on Mount
+  const reloadMasterData = async () => {
+    try {
+      const [
+        liveBranches,
+        liveServices,
+        liveProducts,
+        livePackages,
+        liveSuppliers,
+        livePromotions,
+        liveStaff,
+        liveCustomers,
+        liveStocks
+      ] = await Promise.all([
+        masterDataService.getBranches(),
+        masterDataService.getServices(),
+        masterDataService.getProducts(),
+        masterDataService.getPackages(),
+        masterDataService.getSuppliers(),
+        masterDataService.getPromotions(),
+        masterDataService.getStaff(),
+        masterDataService.getCustomers(),
+        masterDataService.getInventoryStocks()
+      ]);
+
+      if (liveBranches.length > 0) {
+        setBranches(liveBranches);
+        setCurrentBranch((prev) => liveBranches.find((b) => b.id === prev.id) || liveBranches[0]);
+      }
+      if (liveServices.length > 0) setServices(liveServices);
+      if (liveProducts.length > 0) setProducts(liveProducts);
+      if (livePackages.length > 0) setPackages(livePackages);
+      if (liveSuppliers.length > 0) setSuppliers(liveSuppliers);
+      if (livePromotions.length > 0) setPromotions(livePromotions);
+      if (liveStaff.length > 0) {
+        setStaffList(liveStaff);
+        setCurrentUser((prev) => liveStaff.find((s) => s.id === prev.id) || liveStaff[0]);
+      }
+      if (liveCustomers.length > 0) setCustomers(liveCustomers);
+      if (Object.keys(liveStocks).length > 0) {
+        setBranchStocks((prev) => ({ ...prev, ...liveStocks }));
+      }
+    } catch (err) {
+      console.error('Lỗi nạp master data từ Supabase:', err);
+    }
+  };
+
   useEffect(() => {
     if (isSupabaseConfigured) {
-      const loadLiveMasterData = async () => {
+      const initAuthAndData = async () => {
         try {
-          const [
-            liveBranches,
-            liveServices,
-            liveProducts,
-            livePackages,
-            liveSuppliers,
-            livePromotions,
-            liveStaff,
-            liveCustomers,
-            liveStocks
-          ] = await Promise.all([
-            masterDataService.getBranches(),
-            masterDataService.getServices(),
-            masterDataService.getProducts(),
-            masterDataService.getPackages(),
-            masterDataService.getSuppliers(),
-            masterDataService.getPromotions(),
-            masterDataService.getStaff(),
-            masterDataService.getCustomers(),
-            masterDataService.getInventoryStocks()
-          ]);
-
-          if (liveBranches.length > 0) {
-            setBranches(liveBranches);
-            setCurrentBranch(liveBranches[0]);
+          const session = await authService.getCurrentSession();
+          if (!session.isAuthenticated) {
+            // Auto sign in as owner_admin for preview session
+            await authService.switchRole('owner_admin');
           }
-          if (liveServices.length > 0) setServices(liveServices);
-          if (liveProducts.length > 0) setProducts(liveProducts);
-          if (livePackages.length > 0) setPackages(livePackages);
-          if (liveSuppliers.length > 0) setSuppliers(liveSuppliers);
-          if (livePromotions.length > 0) setPromotions(livePromotions);
-          if (liveStaff.length > 0) {
-            setStaffList(liveStaff);
-            setCurrentUser(liveStaff[0]);
-          }
-          if (liveCustomers.length > 0) setCustomers(liveCustomers);
-          if (Object.keys(liveStocks).length > 0) {
-            setBranchStocks((prev) => ({ ...prev, ...liveStocks }));
-          }
+          await reloadMasterData();
         } catch (err) {
-          console.error('Lỗi nạp master data từ Supabase:', err);
+          console.error('Lỗi khởi tạo Auth & Master Data:', err);
         }
       };
-      loadLiveMasterData();
+      initAuthAndData();
     }
   }, []);
+
+  const setCurrentRole = async (role: UserRole) => {
+    setCurrentRoleState(role);
+    if (isSupabaseConfigured) {
+      const res = await authService.switchRole(role);
+      if (res.success && res.sessionInfo) {
+        showToast(`Đã chuyển vai trò: ${res.sessionInfo.staffName || role}`, 'info');
+        await reloadMasterData();
+      } else {
+        showToast(`Chuyển vai trò sang ${role}`, 'info');
+      }
+    }
+  };
 
   // Theme & Modals
   const [currentTheme, setCurrentThemeState] = useState<FullThemeConfig>(() => {
@@ -324,13 +352,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
-  };
-
-  const setCurrentRole = (role: UserRole) => {
-    setCurrentRoleState(role);
-    const matchedStaff = staffList.find((s) => s.role === role) || staffList[0];
-    setCurrentUser(matchedStaff);
-    showToast(`Đã chuyển sang vai trò: ${role}`, 'info');
   };
 
   const addToCart = (item: Omit<CartItem, 'id'>) => {
@@ -576,6 +597,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         searchQuery,
         setSearchQuery,
         customers,
+        setCustomers,
         services,
         products,
         packages,
