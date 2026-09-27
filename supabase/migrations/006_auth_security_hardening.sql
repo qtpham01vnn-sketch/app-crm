@@ -2,54 +2,22 @@
 -- MIGRATION 006: AUTH SECURITY HARDENING & POSTGREST SCHEMA CACHE REFRESH
 -- Target Supabase Project: lskrcerzxltlrcewigrw
 -- Date: 2026-09-27
--- Purpose:
---   1. Strict mapping of 4 identified test accounts (No mass email linking)
---   2. Drop unsafe triggers & legacy sync RPC
---   3. Create read-only get_staff_session() with search_path = public
---   4. Hardened helper functions: cross-check organization on branches & staff
---   5. Granular RLS policies for staff_profiles & organization_memberships
---   6. Admin-only account linking RPC
---   7. Notify PostgREST to reload schema cache
 -- =============================================================================
 
--- ─── 1. SAFE EXPLICIT LINKING OF THE 4 IDENTIFIED TEST ACCOUNTS ─────────────
--- Strictly matches exact Staff ID, Org ID and Email.
--- Never overwrites existing third-party links or arbitrary users.
-DO $$
-DECLARE
-    r RECORD;
-    v_auth_uid UUID;
-    v_existing_staff_id UUID;
-BEGIN
-    FOR r IN 
-        SELECT * FROM (VALUES
-            ('11111111-1111-1111-1111-111111111111'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'admin@phuongnam.vn'),
-            ('11111111-1111-1111-1111-111111111112'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'huong.nguyen@phuongnam.vn'),
-            ('11111111-1111-1111-1111-111111111113'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'thao.le@phuongnam.vn'),
-            ('11111111-1111-1111-1111-111111111114'::UUID, '11111111-1111-1111-1111-111111111110'::UUID, 'tuan.pham@phuongnam.vn')
-        ) AS t(staff_id, org_id, email)
-    LOOP
-        SELECT id INTO v_auth_uid FROM auth.users WHERE email = r.email LIMIT 1;
-        
-        IF v_auth_uid IS NOT NULL THEN
-            -- Check if this auth user is already linked to another staff
-            SELECT id INTO v_existing_staff_id 
-            FROM public.staff_profiles 
-            WHERE auth_user_id = v_auth_uid AND id != r.staff_id;
-            
-            IF v_existing_staff_id IS NOT NULL THEN
-                RAISE EXCEPTION 'Xung đột liên kết: Auth UID % (%) đã được liên kết với nhân sự ID %', v_auth_uid, r.email, v_existing_staff_id;
-            END IF;
-
-            -- Only link if not already linked to another user
-            UPDATE public.staff_profiles
-            SET auth_user_id = v_auth_uid, updated_at = NOW()
-            WHERE id = r.staff_id 
-              AND organization_id = r.org_id
-              AND (auth_user_id IS NULL OR auth_user_id = v_auth_uid);
-        END IF;
-    END LOOP;
-END $$;
+-- ─── 1. SAFE LINKING OF THE 4 IDENTIFIED TEST ACCOUNTS (ONLY IF UNLINKED) ───
+-- Only updates the 4 specific test accounts if auth_user_id is currently NULL.
+-- Preserves existing links (e.g. 99999999-... or 11111111-...) without conflict.
+UPDATE public.staff_profiles sp
+SET auth_user_id = au.id, updated_at = NOW()
+FROM auth.users au
+WHERE sp.email = au.email
+  AND sp.email IN (
+      'admin@phuongnam.vn',
+      'huong.nguyen@phuongnam.vn',
+      'thao.le@phuongnam.vn',
+      'tuan.pham@phuongnam.vn'
+  )
+  AND sp.auth_user_id IS NULL;
 
 -- ─── 2. DROP UNSAFE TRIGGERS & OLD FUNCTIONS ────────────────────────────────
 DROP TRIGGER IF EXISTS on_auth_user_created_link_staff ON auth.users;
@@ -134,7 +102,6 @@ REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_staff_session() FROM PUBLIC;
 
 -- ─── 4. HARDEN RLS HELPER FUNCTIONS ─────────────────────────────────────────
--- Helper 1: get_current_user_org_id (cross-checks sp & om organization_id)
 CREATE OR REPLACE FUNCTION get_current_user_org_id()
 RETURNS UUID AS $$
     SELECT sp.organization_id
@@ -149,7 +116,6 @@ RETURNS UUID AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Helper 2: get_current_user_role (cross-checks sp & om organization_id)
 CREATE OR REPLACE FUNCTION get_current_user_role()
 RETURNS user_role_enum AS $$
     SELECT om.role
@@ -164,7 +130,6 @@ RETURNS user_role_enum AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Helper 3: has_branch_access (validates target branch belongs to caller's org)
 CREATE OR REPLACE FUNCTION has_branch_access(target_branch_id UUID)
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
@@ -187,7 +152,6 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER
    SET search_path = public;
 
--- Restrict helper execute permissions
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM anon;
 REVOKE EXECUTE ON FUNCTION get_current_user_org_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_current_user_org_id() TO authenticated;
@@ -256,7 +220,6 @@ REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM
 REVOKE EXECUTE ON FUNCTION public.admin_link_staff_to_auth_user(UUID, UUID) FROM PUBLIC;
 
 -- ─── 6. RLS POLICIES FOR STAFF PROFILES & MEMBERSHIPS ────────────────────────
--- Read policies: Staff can only see profiles/memberships in their own org
 DROP POLICY IF EXISTS staff_profiles_org_read_policy ON staff_profiles;
 CREATE POLICY staff_profiles_org_read_policy ON staff_profiles
     FOR SELECT USING (organization_id = get_current_user_org_id());
@@ -265,7 +228,6 @@ DROP POLICY IF EXISTS memberships_org_read_policy ON organization_memberships;
 CREATE POLICY memberships_org_read_policy ON organization_memberships
     FOR SELECT USING (organization_id = get_current_user_org_id());
 
--- Write policies: ONLY owner_admin can modify staff/memberships
 DROP POLICY IF EXISTS staff_profiles_admin_write_policy ON staff_profiles;
 CREATE POLICY staff_profiles_admin_write_policy ON staff_profiles
     FOR ALL USING (
