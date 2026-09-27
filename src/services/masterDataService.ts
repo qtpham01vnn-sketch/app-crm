@@ -124,6 +124,44 @@ export const masterDataService = {
     }));
   },
 
+  async createService(
+    svc: { code: string; name: string; category: string; basePrice: number; durationMinutes: number; commissionPct: number },
+    orgId: string
+  ): Promise<Service | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('services')
+      .insert({
+        organization_id: orgId,
+        code: svc.code.trim().toUpperCase(),
+        name: svc.name.trim(),
+        category: svc.category.trim(),
+        base_price: svc.basePrice,
+        duration_minutes: svc.durationMinutes,
+        default_commission_pct: svc.commissionPct,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating service in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      code: data.code,
+      name: data.name,
+      category: data.category,
+      basePrice: Number(data.base_price),
+      durationMinutes: data.duration_minutes,
+      commissionPct: Number(data.default_commission_pct),
+      isActive: data.is_active
+    };
+  },
+
   /**
    * 3. PRODUCTS & INVENTORY STOCKS
    */
@@ -147,6 +185,47 @@ export const masterDataService = {
       minStockAlert: p.min_stock_alert,
       isActive: p.is_active
     }));
+  },
+
+  async createProduct(
+    prod: { code: string; name: string; category: string; unit: string; retailPrice: number; costPrice: number; minStockAlert: number },
+    orgId: string
+  ): Promise<Product | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('products')
+      .insert({
+        organization_id: orgId,
+        code: prod.code.trim().toUpperCase(),
+        name: prod.name.trim(),
+        category: prod.category.trim(),
+        unit: prod.unit.trim(),
+        retail_price: prod.retailPrice,
+        cost_price: prod.costPrice,
+        min_stock_alert: prod.minStockAlert,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating product in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      code: data.code,
+      name: data.name,
+      category: data.category,
+      unit: data.unit,
+      retailPrice: Number(data.retail_price),
+      costPrice: Number(data.cost_price),
+      commissionPct: 5,
+      minStockAlert: data.min_stock_alert,
+      isActive: data.is_active
+    };
   },
 
   async getInventoryStocks(): Promise<Record<string, Record<string, number>>> {
@@ -187,6 +266,44 @@ export const masterDataService = {
     }));
   },
 
+  async createPackage(
+    pkg: { code: string; name: string; serviceId: string; sessions: number; price: number; validityDays: number },
+    orgId: string
+  ): Promise<PackageCombo | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('packages')
+      .insert({
+        organization_id: orgId,
+        service_id: pkg.serviceId,
+        code: pkg.code.trim().toUpperCase(),
+        name: pkg.name.trim(),
+        total_sessions: pkg.sessions,
+        package_price: pkg.price,
+        validity_days: pkg.validityDays,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating package in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      code: data.code,
+      name: data.name,
+      serviceId: data.service_id,
+      sessions: data.total_sessions,
+      price: Number(data.package_price),
+      validityDays: data.validity_days,
+      isActive: data.is_active
+    };
+  },
+
   /**
    * 5. SUPPLIERS CRUD
    */
@@ -205,6 +322,38 @@ export const masterDataService = {
       phone: s.phone,
       debt: Number(s.debt_balance || 0)
     }));
+  },
+
+  async createSupplier(
+    sup: { name: string; contactPerson?: string; phone: string },
+    orgId: string
+  ): Promise<Supplier | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert({
+        organization_id: orgId,
+        name: sup.name.trim(),
+        contact_person: sup.contactPerson?.trim() || null,
+        phone: sup.phone.trim(),
+        debt_balance: 0
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating supplier in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      name: data.name,
+      contactName: data.contact_person || '',
+      phone: data.phone,
+      debt: Number(data.debt_balance || 0)
+    };
   },
 
   /**
@@ -231,6 +380,50 @@ export const masterDataService = {
       endDate: p.end_date || '2026-12-31',
       isActive: p.is_active
     }));
+  },
+
+  async createPromotion(
+    promo: { code: string; title: string; discountType: 'pct' | 'fixed'; discountValue: number; minOrderValue: number; usageLimit?: number; startDate: string; endDate: string },
+    orgId: string
+  ): Promise<Promotion | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('promotions')
+      .insert({
+        organization_id: orgId,
+        code: promo.code.trim().toUpperCase(),
+        description: promo.title.trim(),
+        discount_type: promo.discountType === 'pct' ? 'percentage' : 'fixed_amount',
+        discount_value: promo.discountValue,
+        min_order_value: promo.minOrderValue,
+        usage_limit: promo.usageLimit || 100,
+        used_count: 0,
+        start_date: promo.startDate,
+        end_date: promo.endDate,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating promotion in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      code: data.code,
+      title: data.description || data.code,
+      discountType: data.discount_type === 'percentage' ? 'pct' : 'fixed',
+      discountValue: Number(data.discount_value),
+      minOrderValue: Number(data.min_order_value || 0),
+      usageLimit: data.usage_limit || 100,
+      usedCount: data.used_count || 0,
+      startDate: data.start_date || promo.startDate,
+      endDate: data.end_date || promo.endDate,
+      isActive: data.is_active
+    };
   },
 
   /**

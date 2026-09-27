@@ -136,18 +136,23 @@ interface AppContextType {
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   services: Service[];
+  setServices: React.Dispatch<React.SetStateAction<Service[]>>;
   products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   packages: PackageCombo[];
+  setPackages: React.Dispatch<React.SetStateAction<PackageCombo[]>>;
   courses: CustomerCourse[];
   sessionDeductions: SessionDeduction[];
   appointments: Appointment[];
   sales: Sale[];
   payments: Payment[];
   suppliers: Supplier[];
+  setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   purchaseOrders: PurchaseOrder[];
   goodsReceipts: GoodsReceiptNote[];
   expenses: Expense[];
   promotions: Promotion[];
+  setPromotions: React.Dispatch<React.SetStateAction<Promotion[]>>;
   shifts: ShiftRoster[];
   timesheets: Timesheet[];
   commissions: CommissionRecord[];
@@ -693,18 +698,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customers,
         setCustomers,
         services,
+        setServices,
         products,
+        setProducts,
         packages,
+        setPackages,
         courses,
         sessionDeductions,
         appointments,
         sales,
         payments,
         suppliers,
+        setSuppliers,
         purchaseOrders,
         goodsReceipts,
         expenses,
         promotions,
+        setPromotions,
         shifts,
         timesheets,
         commissions,
