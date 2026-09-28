@@ -25,6 +25,7 @@ import {
   Palette
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { APP_THEMES } from '../../mock/themes';
 import type { NavTab } from '../../context/AppContext';
 
 interface NavItem {
@@ -41,6 +42,8 @@ interface NavGroup {
 
 export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { activeTab, setActiveTab, appointments, courses, cart, currentBranch, currentTheme, setIsThemeModalOpen } = useApp();
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   const pendingApptsCount = appointments.filter(
     (a) => (!currentBranch?.id || a.branchId === currentBranch.id || !a.branchId) && (a.status === 'booked' || a.status === 'confirmed')
@@ -108,32 +111,61 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 lg:top-[37px] left-0 bottom-0 z-40 lg:z-30 w-64 bg-slate-900 text-slate-300 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 ${
+        className={`fixed top-0 lg:top-[37px] left-0 bottom-0 z-40 lg:z-30 w-64 flex flex-col transition-all duration-300 ease-in-out border-r relative ${
           isOpen ? 'translate-x-0 !top-0 !z-50' : '-translate-x-full lg:translate-x-0'
+        } ${
+          isSoftLight
+            ? 'bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+            : 'bg-slate-900 text-slate-300 border-slate-800'
         }`}
       >
+        {/* Subtle Decorative Botanical Motif in soft light theme */}
+        {isSoftLight && (
+          <div className="absolute -bottom-6 -right-6 pointer-events-none opacity-[0.07] overflow-hidden">
+            <svg width="180" height="180" viewBox="0 0 100 100" fill="currentColor" className="text-[#234737]">
+              <path d="M50 0 C60 25 75 40 100 50 C75 60 60 75 50 100 C40 75 25 60 0 50 C25 40 40 25 50 0 Z" />
+            </svg>
+          </div>
+        )}
+
         {/* Brand Header */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40">
+        <div
+          className={`h-16 px-4 flex items-center justify-between border-b ${
+            isSoftLight
+              ? 'border-[#E8E3D8] bg-[#EFE9DD]/70'
+              : 'border-slate-800/80 bg-slate-950/40'
+          }`}
+        >
           <div className="flex items-center space-x-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black shadow-lg transition-all"
               style={{
-                background: `linear-gradient(135deg, ${currentTheme.primaryColor} 0%, #1e1b4b 100%)`,
+                background: currentTheme.heroGradient,
                 boxShadow: `0 4px 14px ${currentTheme.ringColor}`
               }}
             >
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-sm text-white tracking-wide">PHUONG NAM</h1>
-              <p className="text-[10px] font-medium" style={{ color: currentTheme.primaryColor }}>
+              <h1
+                className={`font-bold text-sm tracking-wide ${
+                  isSoftLight ? 'text-[#234737]' : 'text-white'
+                }`}
+              >
+                PHUONG NAM
+              </h1>
+              <p className="text-[10px] font-bold" style={{ color: currentTheme.primaryColor }}>
                 SPA & DENTAL CRM
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className={`lg:hidden p-1.5 rounded-lg cursor-pointer ${
+              isSoftLight
+                ? 'text-[#70776F] hover:text-[#234737] hover:bg-[#EAE4D6]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
           >
             ✕
           </button>
@@ -143,7 +175,11 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
           {navGroups.map((group, gIdx) => (
             <div key={gIdx}>
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">
+              <p
+                className={`px-3 text-[10px] font-bold tracking-wider uppercase mb-2 ${
+                  isSoftLight ? 'text-[#70776F]' : 'text-slate-400'
+                }`}
+              >
                 {group.title}
               </p>
               <div className="space-y-0.5">
@@ -157,9 +193,11 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                         setActiveTab(item.id);
                         onClose();
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                         isActive
-                          ? 'font-semibold text-white'
+                          ? 'text-white shadow-md'
+                          : isSoftLight
+                          ? 'text-[#303833] hover:bg-[#EAE4D6] hover:text-[#234737]'
                           : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
                       }`}
                       style={
@@ -172,7 +210,15 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                       }
                     >
                       <div className="flex items-center space-x-2.5">
-                        <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <Icon
+                          className={`w-4 h-4 ${
+                            isActive
+                              ? 'text-white'
+                              : isSoftLight
+                              ? 'text-[#70776F]'
+                              : 'text-slate-400'
+                          }`}
+                        />
                         <span>{item.label}</span>
                       </div>
                       {item.badge !== undefined && (
@@ -181,6 +227,8 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                           style={
                             isActive
                               ? { backgroundColor: '#ffffff', color: currentTheme.primaryColor }
+                              : isSoftLight
+                              ? { backgroundColor: currentTheme.badgeBg, color: currentTheme.badgeText, border: `1px solid ${currentTheme.borderColor || '#E8E3D8'}` }
                               : { backgroundColor: '#1e293b', color: currentTheme.primaryColor, border: '1px solid #334155' }
                           }
                         >
@@ -196,18 +244,24 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
         </div>
 
         {/* Footer Info & Theme Switcher */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/30 space-y-2">
+        <div
+          className={`p-3 border-t space-y-2 ${
+            isSoftLight
+              ? 'border-[#E8E3D8] bg-[#EFE9DD]/50'
+              : 'border-slate-800/80 bg-slate-950/30'
+          }`}
+        >
           <button
             onClick={() => setIsThemeModalOpen(true)}
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-white text-xs font-bold border shadow-sm transition-all hover:opacity-90 cursor-pointer"
             style={{
-              background: `linear-gradient(135deg, ${currentTheme.primaryColor} 0%, #1e1b4b 100%)`,
+              background: currentTheme.heroGradient,
               borderColor: currentTheme.primaryColor
             }}
           >
             <div className="flex items-center space-x-2">
               <Palette className="w-4 h-4 text-white" />
-              <span>Đổi 10 Giao Diện</span>
+              <span>Đổi {APP_THEMES.length} Giao Diện</span>
             </div>
             <div
               className="w-3.5 h-3.5 rounded-full border border-white/80 shadow-xs"
@@ -215,7 +269,11 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
             />
           </button>
 
-          <div className="text-[10px] text-slate-400 text-center">
+          <div
+            className={`text-[10px] text-center ${
+              isSoftLight ? 'text-[#70776F]' : 'text-slate-400'
+            }`}
+          >
             <span>Phiên bản v2.0 • Phase 1 UI</span>
           </div>
         </div>

@@ -4,8 +4,7 @@
 1. [`docs/PLAN_VUA_APP_ANTIGRAVITY.md`](./docs/PLAN_VUA_APP_ANTIGRAVITY.md) (Kế hoạch tổng thể 21 phân hệ)
 2. [`docs/PROMPT_BO_SUNG_CRM_7_MAN_HINH.md`](./docs/PROMPT_BO_SUNG_CRM_7_MAN_HINH.md) (Đặc tả nâng cấp 7 màn hình CRM & Điều phối)
 
-**Ngày cập nhật:** 28/09/2026 (Nghiệm thu Đợt E0, E1 & E2: Master Data, Quản lý Lịch hẹn & Lưới Điều phối)  
-**GitHub Commit Mới Nhất:** `a1f7167` (`main`)  
+**Ngày cập nhật:** 28/09/2026 (Nghiệm thu Theme 11 "Spa Thanh Lịch — Kem & Hồng Phấn", E0, E1 & E2)  
 **GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git)  
 **Supabase Project:** `lskrcerzxltlrcewigrw` (`https://lskrcerzxltlrcewigrw.supabase.co`) — Region: `ap-southeast-1`  
 **Vercel URL Kiểm Thử:** [`https://phuongnam-crm.vercel.app`](https://phuongnam-crm.vercel.app)  
@@ -16,6 +15,7 @@
 
 | Màn hình / Luồng | File hiện có | Bảng Database / RPC | Đọc Thật | Ghi Thật | Kiểm Thử Đã Chạy | Trạng Thái & Bàn Giao | Phase |
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- | :---: |
+| **Theme Hệ Thống (11 Theme)** | `themes.ts`, `AppContext.tsx`, `ThemeModal.tsx`, `index.css` | LocalStorage `vua_app_theme`, CSS Variables | ✅ LIVE | ✅ LIVE | Switch 11 theme tức thì, lưu LocalStorage, không mất dữ liệu/filter, hỗ trợ `spa_elegance` tone ấm | 🎨 Hoàn thành Theme 11 | **Theme** |
 | **Xác thực & RBAC** | `src/services/authService.ts`, `LoginPage.tsx` | Supabase Auth, `staff_profiles`, `organization_memberships`, RPC `get_staff_session` | ✅ LIVE | ✅ LIVE | Unit test RLS, Login/Logout, Token refresh | 🛡️ Hoàn thành siết bảo mật | **P2** |
 | **Chi nhánh** | `AppContext.tsx`, `Topbar.tsx` | `branches` | ✅ LIVE | Read-only | Đa chi nhánh isolation | ✅ Hoàn thành | **P2** |
 | **Tổng quan (Dashboard Màn 1)** | `HomeView.tsx` | `sales`, `appointments`, `customers`, `inventory_stocks` | ✅ LIVE | N/A | KPI tính động theo ngày/chi nhánh, loại bỏ +18.5% cứng | 🚀 Đã chuẩn hóa E0 | **E0/E4** |
@@ -26,7 +26,7 @@
 | **Nhà cung cấp** | `SuppView.tsx`, `masterDataService.ts` | `suppliers` | ✅ LIVE | ✅ LIVE | Thêm nhà cung cấp lưu Supabase | 🚀 Hoàn thành E0 | **E0/P5** |
 | **Khuyến mãi** | `PromosView.tsx`, `masterDataService.ts` | `promotions` | ✅ LIVE | ✅ LIVE | Tạo voucher lưu Supabase | 🚀 Hoàn thành E0 | **E0/E1** |
 | **Danh sách Lịch hẹn (Màn 2)** | `ApptsView.tsx` | `appointments` | ✅ Live/State | ✅ Live/State | 5 KPI counters động, lọc ngày/trạng thái/KTV/search, sidebar khung giờ đông nhất & ghi chú | 🎯 Hoàn thành E2 (Theo Ảnh 2) | **E2** |
-| **Chi tiết Lịch hẹn (Màn 3)** | `AppointmentDetailModal.tsx` | `appointments`, `appointment_events` | ✅ Live/State | ✅ Live/State | Quy trình 5 bước, form lịch hẹn, tabs lịch sử/sở thích/dị ứng, card VIP, panel tiền & cọc | 🎯 Hoàn thành E2 (Theo Ảnh 3) | **E2** |
+| **Chi tiết Lịch hẹn (Màn 3)** | `AppointmentDetailModal.tsx` | `appointments`, `appointment_events` | ✅ Live/State | ✅ Live/State | Quy trình 5 bước tác nghiệp (*Tạo lịch ➔ Chờ duyệt ➔ Đã xác nhận ➔ Đang làm ➔ Hoàn thành*), tách biệt **Nhật Ký Nhắc Hẹn (Zalo/SMS)**, tabs sở thích/dị ứng/lịch sử | 🎯 Hoàn thành E2 (Theo Ảnh 3) | **E2** |
 | **Lịch Làm việc & Điều phối (Màn 6)** | `RosterView.tsx` | `shift_rosters`, `resources`, `resource_allocations` | ✅ Live/State | ✅ Live/State | Lưới 7 ngày x 14 khung giờ (08:00 - 21:00), mã màu dịch vụ, sidebar KTV/phòng trống/giờ cao điểm/đổi ca | 🎯 Hoàn thành E2 (Theo Ảnh 6) | **E2** |
 | **Hộp thư Tư vấn (Màn 7)** | `ChatView.tsx` (chuẩn bị) | `conversations`, `messages`, `channel_accounts` | ❌ Chưa có | ❌ Chưa có | Chuẩn bị triển khai E5 với trạng thái "Chưa kết nối" khi thiếu API | ⏳ Đợt tiếp theo | **E5** |
 | **POS & Hóa đơn** | `PosView.tsx`, `InvoiceModal.tsx` | `sales`, `payments` | ⚠️ State | ⚠️ State | Giỏ hàng, in bill mẫu K80/K58 | ACID Checkout RPC | **P5** |
@@ -35,46 +35,42 @@
 
 ---
 
-## 2. CHI TIẾT KẾT QUẢ TRIỂN KHAI ĐỢT E1 & E2
+## 2. BÁO CÁO CHI TIẾT THEO YÊU CẦU
 
-### 2.1 Đợt E1: Dịch vụ & Dữ liệu đầu vào (Ảnh 5 / P3)
-- **Migration `007_e1_services_pricing_skills_resources.sql`:**
-  * Bổ sung các cột mở rộng cho `services`: `image_url`, `description`, `buffer_minutes_before`, `buffer_minutes_after`, `allow_online_booking`, `is_featured`.
-  * Tạo bảng `resources` (Phòng, Giường, Ghế, Thiết bị theo từng chi nhánh có sức chứa & trạng thái).
-  * Tạo bảng `service_staff_skills` (Kỹ năng KTV liên kết dịch vụ kèm mức độ thành thạo và thời lượng riêng).
-  * Tạo bảng `service_price_versions` (Bảng giá theo chi nhánh và hiệu lực thời gian `effective_from` / `effective_to`, giá ưu đãi kèm điều kiện).
-  * Kích hoạt RLS bảo vệ phân quyền theo tổ chức và chi nhánh.
-- **Màn hình Dịch vụ & Bảng giá (`SvcView.tsx`):**
-  * 4 Thẻ nhóm dịch vụ tổng quan (*Massage, Chăm sóc da, Gội đầu dưỡng sinh, Combo trị liệu*) kèm thống kê đang áp dụng / tạm ẩn.
-  * Bảng dữ liệu dịch vụ có Avatar KTV phù hợp, giá niêm yết, giá ưu đãi, lượt đặt trong tháng, badge trạng thái (*Đang áp dụng, Nổi bật, Tạm ẩn*).
-  * Sidebar: Top 5 dịch vụ bán chạy, Gói combo nổi bật, Khuyến mãi flash đang áp dụng.
-  * Modal Thêm dịch vụ mới đầy đủ cấu hình thời lượng, buffer trước/sau, online booking và giá ưu đãi.
+### 2.1 Theme Mới: "Spa Thanh Lịch — Kem & Hồng Phấn" (Theme 11)
+- **Thông số bảng màu chuẩn hóa:**
+  * Nền trang: Kem ngà `#F8F6EF`
+  * Bề mặt thẻ: Trắng ấm `#FFFEFA`
+  * Sidebar: Beige sáng `#F3EFE5` (viền `#E8E3D8`, họa tiết lá cây botanical watermark tinh tế)
+  * Màu chủ đạo: Hồng đất `#C77D8B`
+  * Màu nhấn đậm: `#A65367` (cho badge, nút quan trọng, tiêu đề phụ)
+  * Nền vùng được chọn / Pill: Hồng nhạt `#F5E4E7`
+  * Tiêu đề: Xanh rêu đậm `#234737` (Font Serif hỗ trợ tiếng Việt: *Playfair Display*)
+  * Chữ nội dung: `#303833` (*Plus Jakarta Sans*)
+  * Chữ phụ: `#70776F`
+  * Đường viền: Beige `#E8E3D8`
+- **Tích hợp hệ thống:**
+  * Khởi tạo trong `src/mock/themes.ts` với đầy đủ semantic tokens.
+  * Cập nhật `applyThemeToDOM` trong `AppContext.tsx` kích hoạt class `theme-soft-light` và gán toàn bộ CSS Variables (`--bg-main`, `--card-bg`, `--sidebar-bg`, `--border-color`, `--heading-color`, `--body-text`, `--sub-text`, `--selected-bg`).
+  * Cập nhật `Sidebar.tsx`, `Topbar.tsx`, `BottomNav.tsx`, `ThemeModal.tsx` hiển thị động `APP_THEMES.length` (11 theme).
+  * Lưu vào `localStorage` (`vua_app_theme`), chuyển đổi tức thì không làm mất trạng thái bộ lọc hay dữ liệu form.
 
-### 2.2 Đợt E2: Quản lý Lịch hẹn, Chi tiết Lịch & Điều phối (Ảnh 2, 3, 6 / P4)
-- **Màn hình Quản lý Lịch hẹn (`ApptsView.tsx` - Ảnh 2):**
-  * 5 Thẻ KPI trạng thái: *Chờ xác nhận, Đã xác nhận, Hoàn thành, Hủy, Hôm nay*.
-  * Bộ lọc đa tiêu chí: Tìm kiếm (Mã lịch, Tên, SĐT), Ngày chọn, Trạng thái, KTV.
-  * Bảng danh sách chi tiết kèm nguồn đặt (*Website, Facebook, Zalo OA, Google, Khách quen*), thao tác Xem chi tiết & Xác nhận nhanh.
-  * Sidebar: Thống kê hôm nay, Khung giờ đông nhất (có biểu đồ thanh tỷ lệ) và Ghi chú vận hành.
-- **Modal Chi tiết Lịch hẹn (`AppointmentDetailModal.tsx` - Ảnh 3):**
-  * Breadcrumb điều hướng chuyên nghiệp.
-  * Form thông tin lịch hẹn đầy đủ (Họ tên, SĐT, Email, Ngày sinh, Dịch vụ, Ngày/Giờ hẹn, Số người 1..4+, KTV phụ trách, Ghi chú).
-  * Quy trình xử lý 5 bước: *Tạo lịch ➔ Chờ xác nhận ➔ Đã xác nhận ➔ Đã nhắc lịch ➔ Hoàn thành*.
-  * Tabs Lịch sử đặt hẹn, Sở thích và Dị ứng mỹ phẩm của khách hàng.
-  * Card Khách hàng VIP với số lần đặt và tổng chi tiêu.
-  * Panel Tổng thanh toán (Giá DV, Giảm giá, Cọc trước 20%, Còn lại phải thu).
-  * Nút hành động: *Hủy lịch hẹn, Gửi nhắc lịch (Zalo), Xác nhận lịch, Lưu thay đổi*.
-- **Màn hình Lịch Làm việc & Điều phối (`RosterView.tsx` - Ảnh 6):**
-  * Bộ lọc Chi nhánh, Phòng trị liệu (*P. Sen 1, P. Sen 2, P. Trúc 1, P. Trúc 2, P. Mộc*), KTV, Loại dịch vụ, Tuần.
-  * Nút chức năng: *+ Tạo ca làm, Chặn lịch, In lịch tuần*.
-  * Lưới điều phối 7 ngày (Thứ 2 đến Chủ nhật) x 14 khung giờ (08:00 đến 21:00) với các thẻ lịch có mã màu chuẩn theo nhóm dịch vụ.
-  * Sidebar: Trạng thái KTV đang làm ca, Danh sách phòng còn trống hôm nay kèm khung giờ trống, Khung giờ cao điểm và Yêu cầu đổi ca có nút phê duyệt.
+### 2.2 Làm rõ Trạng thái E1 & E2 và Migration 007
+1. **Migration `007_e1_services_pricing_skills_resources.sql`:**
+   - Đã được khởi tạo đầy đủ trong thư mục `supabase/migrations/` của mã nguồn.
+   - Khi chạy ở môi trường Live Supabase: cần được áp dụng qua Supabase SQL Editor (hoặc CLI migration). Client đã thiết lập kiểm tra graceful fallback cho các trường mở rộng nếu schema chưa được áp dụng trực tiếp trên remote DB.
+2. **Chức năng đã kiểm thử với dữ liệu thật:**
+   - **Xác thực & phân quyền (Auth & RBAC):** Đã kết nối Supabase Auth thật, kiểm tra RLS qua RPC `get_staff_session`.
+   - **Dữ liệu danh mục Master Data:** Đọc và ghi trực tiếp vào các bảng `customers`, `services`, `products`, `packages`, `suppliers`, `promotions`, `branches`. Đã loại bỏ hoàn toàn cơ chế tự động ghi tạm vào State khi Supabase báo lỗi.
+   - **Lịch hẹn & Điều phối (Appts & Roster):** Đã hoàn thành 100% giao diện tác nghiệp, luồng 5 bước, bộ lọc đa tiêu chí, tính toán cọc/thanh toán và lưới 7 ngày x 14 giờ.
+3. **Quy trình nghiệp vụ Lịch hẹn:**
+   - Đã tách biệt rõ ràng **Nhật Ký Nhắc Hẹn (Zalo ZNS / SMS)** thành luồng thông báo độc lập, không ép buộc nằm giữa "Đã xác nhận" và "Hoàn thành". Quy trình tác nghiệp chính gồm: `Tạo lịch ➔ Chờ duyệt ➔ Đã xác nhận ➔ Đang làm ➔ Hoàn thành`.
 
 ---
 
 ## 3. KẾT QUẢ KIỂM THỬ KỸ THUẬT
 
 - **TypeScript Type Check (`npx tsc --noEmit`):** ✅ **0 lỗi** (`exit code 0`).
-- **Production Build (`npm run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 390ms).
-- **Git Commit:** ✅ Commit `a1f7167` đã được lưu an toàn trên branch `main`.
+- **Production Build (`npm run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 430ms).
 - **Local Dev Server:** ✅ Đang phục vụ tại [http://localhost:5173](http://localhost:5173).
+

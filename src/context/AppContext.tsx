@@ -284,6 +284,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       root.style.setProperty('--theme-badge-text', theme.badgeText);
       root.style.setProperty('--theme-ring', theme.ringColor);
       root.style.setProperty('--theme-icon-bg', theme.iconBg);
+      root.style.setProperty('--bg-main', theme.pageBg || '#f8fafc');
+      root.style.setProperty('--card-bg', theme.surfaceBg || '#ffffff');
+      root.style.setProperty('--sidebar-bg', theme.sidebarBg || '#0f172a');
+      root.style.setProperty('--border-color', theme.borderColor || '#e2e8f0');
+      root.style.setProperty('--heading-color', theme.headingColor || '#0f172a');
+      root.style.setProperty('--body-text', theme.bodyTextColor || '#334155');
+      root.style.setProperty('--sub-text', theme.subTextColor || '#64748b');
+      root.style.setProperty('--selected-bg', theme.selectedBg || '#f1f5f9');
+
+      if (theme.isSoftLight) {
+        root.classList.add('theme-soft-light');
+      } else {
+        root.classList.remove('theme-soft-light');
+      }
     }
   };
 

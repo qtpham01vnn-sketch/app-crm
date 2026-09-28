@@ -40,13 +40,14 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [partySize, setPartySize] = useState<'1' | '2' | '3' | '4+'>('1');
   const [notes, setNotes] = useState(appt.notes || 'Khách thích không gian yên tĩnh, hương oải hương.');
   const [isReminderSent, setIsReminderSent] = useState(false);
+  const [reminderTime, setReminderTime] = useState<string | null>(null);
 
-  // Workflow steps
+  // Operational workflow steps (independent of notification logs)
   const steps = [
     { key: 'booked', label: 'Tạo lịch', time: `${appt.date} 09:15` },
-    { key: 'pending', label: 'Chờ xác nhận', time: `${appt.date} 09:20` },
+    { key: 'pending', label: 'Chờ duyệt', time: `${appt.date} 09:20` },
     { key: 'confirmed', label: 'Đã xác nhận', time: `${appt.date} 09:30` },
-    { key: 'reminded', label: 'Đã nhắc lịch', time: isReminderSent ? 'Đã gửi Zalo' : 'Chưa gửi' },
+    { key: 'in_progress', label: 'Đang làm', time: 'Trong ca' },
     { key: 'done', label: 'Hoàn thành', time: 'Dự kiến' }
   ];
 
@@ -54,8 +55,8 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     if (stepKey === 'booked') return 'completed';
     if (stepKey === 'pending') return currentStatus === 'booked' ? 'current' : 'completed';
     if (stepKey === 'confirmed') return currentStatus === 'confirmed' || currentStatus === 'in_progress' || currentStatus === 'done' ? 'completed' : 'upcoming';
-    if (stepKey === 'reminded') return isReminderSent ? 'completed' : 'upcoming';
-    if (stepKey === 'done') return currentStatus === 'done' ? 'completed' : currentStatus === 'in_progress' ? 'current' : 'upcoming';
+    if (stepKey === 'in_progress') return currentStatus === 'in_progress' ? 'current' : currentStatus === 'done' ? 'completed' : 'upcoming';
+    if (stepKey === 'done') return currentStatus === 'done' ? 'completed' : 'upcoming';
     return 'upcoming';
   };
 
@@ -66,6 +67,8 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
   const handleRemind = () => {
     setIsReminderSent(true);
+    const now = new Date();
+    setReminderTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} hôm nay`);
   };
 
   const handleCancel = () => {
@@ -349,6 +352,27 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   <b className="text-white">18/05/2025</b>
                 </div>
               </div>
+            </div>
+
+            {/* Notification & Reminder History Card */}
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1">
+                  <BellRing className="w-3.5 h-3.5 text-sky-600" /> Nhật Ký Nhắc Hẹn
+                </span>
+                <span
+                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isReminderSent ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {isReminderSent ? 'Đã thông báo' : 'Chưa gửi'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-600 leading-normal">
+                {isReminderSent
+                  ? `✅ Đã gửi tin nhắn nhắc tự động qua Zalo ZNS lúc ${reminderTime}.`
+                  : 'ℹ️ Hệ thống sẵn sàng gửi tin nhắc Zalo ZNS / SMS trước 2 giờ.'}
+              </p>
             </div>
 
             {/* Total Billing & Deposit Card */}

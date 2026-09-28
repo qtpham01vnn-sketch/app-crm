@@ -10,9 +10,44 @@ export interface FullThemeConfig extends ThemeConfig {
   textColor: string;
   ringColor: string;
   iconBg: string;
+  pageBg?: string;
+  surfaceBg?: string;
+  sidebarBg?: string;
+  borderColor?: string;
+  headingColor?: string;
+  bodyTextColor?: string;
+  subTextColor?: string;
+  selectedBg?: string;
+  isSoftLight?: boolean;
 }
 
 export const APP_THEMES: FullThemeConfig[] = [
+  {
+    id: 'spa_elegance',
+    name: 'Spa Thanh Lịch — Kem & Hồng Phấn',
+    primaryColor: '#C77D8B',
+    secondaryColor: '#A65367',
+    gradient: 'from-[#A65367] via-[#8F4356] to-[#234737]',
+    heroGradient: 'linear-gradient(135deg, #C77D8B 0%, #A65367 50%, #234737 100%)',
+    buttonBg: '#C77D8B',
+    buttonHover: '#A65367',
+    activeSidebarBg: '#C77D8B',
+    badgeBg: '#F5E4E7',
+    badgeText: '#A65367',
+    textColor: '#234737',
+    ringColor: 'rgba(199, 125, 139, 0.4)',
+    iconBg: '#F5E4E7',
+    previewColor: '#C77D8B',
+    pageBg: '#F8F6EF',
+    surfaceBg: '#FFFEFA',
+    sidebarBg: '#F3EFE5',
+    borderColor: '#E8E3D8',
+    headingColor: '#234737',
+    bodyTextColor: '#303833',
+    subTextColor: '#70776F',
+    selectedBg: '#F5E4E7',
+    isSoftLight: true
+  },
   {
     id: 'ocean',
     name: 'Xanh Đại Dương',

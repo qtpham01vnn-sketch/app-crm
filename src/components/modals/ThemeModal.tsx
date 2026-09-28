@@ -19,7 +19,7 @@ export const ThemeModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
             <Palette className="w-5 h-5 text-white" />
             <div>
               <h3 className="font-bold text-base flex items-center gap-1.5 text-white">
-                <span>Bộ Sưu Tập 10 Giao Diện & Ngành Hàng</span>
+                <span>Bộ Sưu Tập {APP_THEMES.length} Giao Diện & Ngành Hàng</span>
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               </h3>
               <p className="text-[11px] text-slate-200">
