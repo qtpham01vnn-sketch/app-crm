@@ -17,11 +17,25 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
   const { currentBranch, sales, appointments, customers, branchStocks, products, setActiveTab, currentTheme } = useApp();
 
 
-  // Branch-specific filters
-  const branchSales = sales.filter((s) => s.branchId === currentBranch.id);
-  const branchAppts = appointments.filter((a) => a.branchId === currentBranch.id);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Branch-specific filters & Date calculations
+  const branchSales = sales.filter((s) => !currentBranch?.id || s.branchId === currentBranch.id);
+  const todaySales = branchSales.filter((s) => s.createdAt && s.createdAt.startsWith(todayStr));
+  const todayRevenue = todaySales.reduce((sum, s) => sum + s.paidAmount, 0);
   const totalRevenue = branchSales.reduce((sum, s) => sum + s.paidAmount, 0);
   const totalDebt = branchSales.reduce((sum, s) => sum + s.debtAmount, 0);
+
+  // Today's appointments for current branch
+  const todayBranchAppts = appointments.filter(
+    (a) => (!currentBranch?.id || a.branchId === currentBranch.id || !a.branchId) && (a.date === todayStr || !a.date)
+  );
+
+  // New customers (created this month or today)
+  const currentMonthPrefix = todayStr.slice(0, 7);
+  const newCustomersThisMonth = customers.filter(
+    (c) => c.createdAt && c.createdAt.startsWith(currentMonthPrefix)
+  ).length;
 
   const lowStockItems = branchStocks
     .filter((stk) => stk.branchId === currentBranch.id && stk.stockOnHand <= stk.minStock)
@@ -48,7 +62,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             Xin chào! Chúc một ngày làm việc hiệu quả ✨
           </h1>
           <p className="text-slate-200 text-xs mt-1">
-            Giao diện đang dùng: <b className="text-white underline">{currentTheme.name}</b> • Hệ thống đang phục vụ {branchAppts.length} lượt hẹn hôm nay.
+            Giao diện đang dùng: <b className="text-white underline">{currentTheme.name}</b> • Hệ thống đang phục vụ {todayBranchAppts.length} lượt hẹn hôm nay.
           </p>
         </div>
 
@@ -86,10 +100,16 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
           </div>
           <div className="mt-3">
             <p className="text-2xl font-black text-slate-900 tracking-tight">
-              {totalRevenue.toLocaleString('vi-VN')}đ
+              {todayRevenue > 0 ? todayRevenue.toLocaleString('vi-VN') + 'đ' : totalRevenue.toLocaleString('vi-VN') + 'đ'}
             </p>
-            <p className="text-[11px] font-semibold mt-1 flex items-center" style={{ color: currentTheme.primaryColor }}>
-              <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> +18.5% so với hôm qua
+            <p className="text-[11px] font-semibold mt-1 flex items-center text-slate-500">
+              {todayRevenue > 0 ? (
+                <span className="text-emerald-600 font-bold flex items-center">
+                  <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> Hôm nay ({todaySales.length} hóa đơn)
+                </span>
+              ) : (
+                <span>Lũy kế toàn thời gian ({branchSales.length} hóa đơn)</span>
+              )}
             </p>
           </div>
         </div>
@@ -106,9 +126,9 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-black text-slate-900 tracking-tight">{branchAppts.length} Lượt</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{todayBranchAppts.length} Lượt</p>
             <p className="text-[11px] font-semibold mt-1" style={{ color: currentTheme.primaryColor }}>
-              {branchAppts.filter((a) => a.status === 'in_progress').length} đang điều trị • {branchAppts.filter((a) => a.status === 'done').length} hoàn thành
+              {todayBranchAppts.filter((a) => a.status === 'in_progress').length} đang điều trị • {todayBranchAppts.filter((a) => a.status === 'done').length} hoàn thành
             </p>
           </div>
         </div>
@@ -127,7 +147,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
           <div className="mt-3">
             <p className="text-2xl font-black text-slate-900 tracking-tight">{customers.length} Khách</p>
             <p className="text-[11px] font-semibold mt-1 text-slate-500">
-              Ghi nợ đang theo dõi: {totalDebt.toLocaleString('vi-VN')}đ
+              {newCustomersThisMonth > 0 ? `+${newCustomersThisMonth} khách mới tháng này` : `Nợ cần thu: ${totalDebt.toLocaleString('vi-VN')}đ`}
             </p>
           </div>
         </div>
@@ -170,7 +190,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
           </div>
 
           <div className="space-y-3">
-            {branchAppts.map((appt) => {
+            {todayBranchAppts.map((appt) => {
               const statusBadges: Record<string, { label: string; bg: string; text: string }> = {
                 booked: { label: 'Đã đặt', bg: 'bg-slate-100', text: 'text-slate-700' },
                 confirmed: { label: 'Đã xác nhận', bg: 'bg-blue-50', text: 'text-blue-700' },

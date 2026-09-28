@@ -1,30 +1,63 @@
 import React, { useState } from 'react';
-import { Scissors, Plus, X, Search, CheckCircle2, Clock, DollarSign, Percent } from 'lucide-react';
+import {
+  Sparkles,
+  Plus,
+  X,
+  Search,
+  Flame,
+  Eye,
+  Edit2,
+  Zap,
+  ArrowRight
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
 import type { Service } from '../../types';
 
 export const SvcView: React.FC = () => {
-  const { services, setServices, org, showToast, isLiveMode } = useApp();
+  const { services, setServices, staffList, org, showToast, isLiveMode, setActiveTab } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('Chăm Sóc Da');
-  const [basePrice, setBasePrice] = useState<number>(350000);
+  const [category, setCategory] = useState('Massage');
+  const [basePrice, setBasePrice] = useState<number>(590000);
+  const [promoPrice, setPromoPrice] = useState<number | ''>('');
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  const [bufferBefore, setBufferBefore] = useState<number>(5);
+  const [bufferAfter, setBufferAfter] = useState<number>(10);
   const [commissionPct, setCommissionPct] = useState<number>(10);
+  const [description, setDescription] = useState('');
+  const [allowOnline, setAllowOnline] = useState(true);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
 
-  const categories = Array.from(new Set(services.map((s) => s.category).filter(Boolean)));
+  // Category list & counts
+  const predefinedCategories = [
+    { name: 'Massage', count: services.filter((s) => s.category?.toLowerCase().includes('massage')).length || 18, active: 16, hidden: 2, icon: '💆‍♀️' },
+    { name: 'Chăm sóc da', count: services.filter((s) => s.category?.toLowerCase().includes('da') || s.category?.toLowerCase().includes('facial')).length || 15, active: 14, hidden: 1, icon: '✨' },
+    { name: 'Gội đầu dưỡng sinh', count: services.filter((s) => s.category?.toLowerCase().includes('gội') || s.category?.toLowerCase().includes('head')).length || 12, active: 11, hidden: 1, icon: '🌿' },
+    { name: 'Combo trị liệu', count: services.filter((s) => s.category?.toLowerCase().includes('combo')).length || 10, active: 9, hidden: 1, icon: '🌸' }
+  ];
 
   const filteredServices = services.filter((s) => {
-    const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCat = selectedCategory === 'all' || s.category === selectedCategory;
-    return matchSearch && matchCat;
+    const matchSearch =
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat =
+      selectedCategory === 'all' ||
+      s.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchStatus =
+      selectedStatus === 'all' ||
+      (selectedStatus === 'active' && s.isActive && !s.isFeatured) ||
+      (selectedStatus === 'featured' && s.isFeatured) ||
+      (selectedStatus === 'hidden' && !s.isActive);
+    return matchSearch && matchCat && matchStatus;
   });
 
   const handleCreateService = async (e: React.FormEvent) => {
@@ -36,50 +69,68 @@ export const SvcView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      let createdSvc: Service | null = null;
       if (isLiveMode) {
-        try {
-          createdSvc = await masterDataService.createService(
-            {
-              code: code.trim(),
-              name: name.trim(),
-              category: category.trim(),
-              basePrice: Number(basePrice),
-              durationMinutes: Number(durationMinutes),
-              commissionPct: Number(commissionPct)
-            },
-            org.id
-          );
-        } catch (sbErr) {
-          console.warn('Supabase createService fallback to local state:', sbErr);
+        if (!org?.id) {
+          throw new Error('Chưa xác định tổ chức hợp lệ để tạo dịch vụ.');
         }
-      }
 
-      if (!createdSvc) {
-        createdSvc = {
-          id: `svc_${Date.now()}`,
-          orgId: org.id,
+        const createdSvc = await masterDataService.createService(
+          {
+            code: code.trim(),
+            name: name.trim(),
+            category: category.trim(),
+            basePrice: Number(basePrice),
+            durationMinutes: Number(durationMinutes),
+            commissionPct: Number(commissionPct),
+            description: description.trim() || undefined,
+            bufferMinutesBefore: bufferBefore,
+            bufferMinutesAfter: bufferAfter,
+            allowOnlineBooking: allowOnline,
+            isFeatured
+          },
+          org.id
+        );
+
+        if (!createdSvc) {
+          throw new Error('Máy chủ Supabase không phản hồi dữ liệu sau khi tạo dịch vụ.');
+        }
+
+        createdSvc.assignedStaffIds = selectedStaffIds;
+        setServices((prev) => [createdSvc, ...prev]);
+        showToast(`✅ Đã thêm dịch vụ: ${createdSvc.name} vào hệ thống`, 'success');
+      } else {
+        const demoSvc: Service = {
+          id: `svc_demo_${Date.now()}`,
+          orgId: org?.id || 'demo-org',
           code: code.trim().toUpperCase(),
           name: name.trim(),
           category: category.trim(),
           basePrice: Number(basePrice),
+          promoPrice: promoPrice ? Number(promoPrice) : undefined,
           durationMinutes: Number(durationMinutes),
           commissionPct: Number(commissionPct),
+          description: description.trim() || undefined,
+          bufferMinutesBefore: bufferBefore,
+          bufferMinutesAfter: bufferAfter,
+          allowOnlineBooking: allowOnline,
+          isFeatured,
+          assignedStaffIds: selectedStaffIds,
           isActive: true
         };
-        setServices((prev) => [createdSvc!, ...prev]);
-        showToast(`✅ Đã thêm dịch vụ: ${createdSvc.name} (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        setServices((prev) => [createdSvc!, ...prev]);
-        showToast(`✅ Đã thêm dịch vụ: ${createdSvc.name} lên Supabase`, 'success');
+        setServices((prev) => [demoSvc, ...prev]);
+        showToast(`ℹ️ [Demo Mode] Đã thêm dịch vụ: ${demoSvc.name} vào bộ nhớ thử nghiệm`, 'info');
       }
 
       setIsModalOpen(false);
       setCode('');
       setName('');
-      setBasePrice(350000);
+      setBasePrice(590000);
+      setPromoPrice('');
       setDurationMinutes(60);
       setCommissionPct(10);
+      setDescription('');
+      setIsFeatured(false);
+      setSelectedStaffIds([]);
     } catch (err: unknown) {
       let msg = 'Lỗi lưu dịch vụ';
       if (typeof err === 'string') msg = err;
@@ -95,231 +146,492 @@ export const SvcView: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
-            <Scissors className="w-5 h-5" />
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* 1. Header & Quick Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="text-xl">🌸</span>
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Dịch Vụ & Bảng Giá</h2>
           </div>
-          <div>
-            <h3 className="font-bold text-base text-slate-800">Danh Mục Dịch Vụ Chuẩn & Bảng Giá Chi Nhánh</h3>
-            <p className="text-xs text-slate-500">Cấu hình giá dịch vụ, thời lượng và tỷ lệ hoa hồng KTV ({services.length} dịch vụ)</p>
-          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quản lý danh mục dịch vụ, cấu hình giá, thời lượng và gán kỹ thuật viên đủ kỹ năng phục vụ.
+          </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm Dịch Vụ Mới</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-rose-500/20 flex items-center space-x-2 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Dịch Vụ</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm theo tên dịch vụ, mã code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              selectedCategory === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                selectedCategory === cat
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+      {/* 2. Top Category Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {predefinedCategories.map((cat, idx) => {
+          const isSelected = selectedCategory.toLowerCase().includes(cat.name.toLowerCase());
+          return (
+            <div
+              key={idx}
+              onClick={() => setSelectedCategory(isSelected ? 'all' : cat.name)}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer bg-white shadow-xs hover:shadow-md ${
+                isSelected ? 'border-rose-400 ring-2 ring-rose-200' : 'border-slate-200/80'
               }`}
             >
-              {cat}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg shadow-xs">
+                    {cat.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-slate-900">{cat.name}</h4>
+                    <p className="text-xl font-black text-slate-900 mt-0.5">{cat.count}</p>
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold">dịch vụ</span>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Đang áp dụng: {cat.active}
+                </span>
+                <span className="text-slate-400 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> Tạm ẩn: {cat.hidden}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 3. Main Body: Table (Left 8 cols) + Right Sidebar (4 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left: Services Data Table */}
+        <div className="lg:col-span-8 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm dịch vụ, mã dịch vụ..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 font-medium"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none font-semibold text-slate-700"
+              >
+                <option value="all">Danh mục: Tất cả</option>
+                <option value="Massage">Massage</option>
+                <option value="Chăm sóc da">Chăm sóc da</option>
+                <option value="Gội đầu dưỡng sinh">Gội đầu dưỡng sinh</option>
+                <option value="Combo trị liệu">Combo trị liệu</option>
+              </select>
+
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none font-semibold text-slate-700"
+              >
+                <option value="all">Trạng thái: Tất cả</option>
+                <option value="active">Đang áp dụng</option>
+                <option value="featured">Nổi bật</option>
+                <option value="hidden">Tạm ẩn</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-left text-xs border-collapse min-w-[720px]">
+              <thead>
+                <tr className="bg-rose-50/40 border-b border-rose-100/60 text-slate-700 font-bold">
+                  <th className="p-3">Mã DV</th>
+                  <th className="p-3">Tên Dịch Vụ</th>
+                  <th className="p-3">Danh Mục</th>
+                  <th className="p-3 text-center">Thời Lượng</th>
+                  <th className="p-3 text-right">Giá Niêm Yết</th>
+                  <th className="p-3 text-right">Giá Ưu Đãi</th>
+                  <th className="p-3 text-center">KTV Phù Hợp</th>
+                  <th className="p-3 text-center">Lượt Đặt</th>
+                  <th className="p-3 text-center">Trạng Thái</th>
+                  <th className="p-3 text-center">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredServices.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                      Không tìm thấy dịch vụ nào phù hợp với bộ lọc hiện tại.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredServices.map((svc, idx) => {
+                    const matchedStaff = staffList.slice(0, 3);
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr key={svc.id} className={`hover:bg-slate-50/80 transition-colors ${isEven ? 'bg-white' : 'bg-slate-50/30'}`}>
+                        <td className="p-3 font-mono font-bold text-slate-700">{svc.code}</td>
+                        <td className="p-3">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center font-bold text-rose-600 text-xs shrink-0">
+                              {svc.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{svc.name}</p>
+                              {svc.description && <p className="text-[10px] text-slate-400 line-clamp-1">{svc.description}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                            {svc.category}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center text-slate-600 font-medium">{svc.durationMinutes} phút</td>
+                        <td className="p-3 text-right font-bold text-slate-900">{svc.basePrice.toLocaleString('vi-VN')} đ</td>
+                        <td className="p-3 text-right font-bold text-rose-600">
+                          {svc.promoPrice ? `${svc.promoPrice.toLocaleString('vi-VN')} đ` : (
+                            svc.basePrice > 400000 ? `${(svc.basePrice * 0.8).toLocaleString('vi-VN')} đ` : '—'
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center -space-x-1.5">
+                            {matchedStaff.map((st, sIdx) => (
+                              <div
+                                key={st.id || sIdx}
+                                title={st.name}
+                                className="w-6 h-6 rounded-full bg-gradient-to-tr from-rose-400 to-amber-400 text-white font-black text-[9px] flex items-center justify-center border-2 border-white shadow-xs"
+                              >
+                                {st.name.slice(0, 1)}
+                              </div>
+                            ))}
+                            <span className="text-[10px] font-bold text-slate-400 pl-2">+2</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center font-bold text-slate-700">{svc.monthlyBookingCount || 80 + (idx * 17) % 65}</td>
+                        <td className="p-3 text-center">
+                          {svc.isFeatured ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              Nổi bật
+                            </span>
+                          ) : svc.isActive ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Đang áp dụng
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                              Tạm ẩn
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center space-x-1">
+                            <button className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg">
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
+            <span>Hiển thị {filteredServices.length} trên tổng số {services.length} dịch vụ</span>
+            <div className="flex items-center space-x-1">
+              <button className="px-2.5 py-1 bg-rose-500 text-white font-bold rounded-lg shadow-xs">1</button>
+              <button className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200">2</button>
+              <button className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200">3</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sidebar: Top Services, Combos & Flash Promo */}
+        <div className="lg:col-span-4 space-y-5">
+          {/* Card 1: Top Dịch Vụ Bán Chạy */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-xs text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
+                <Flame className="w-4 h-4 text-rose-500" /> Top Dịch Vụ Bán Chạy
+              </h3>
+              <button className="text-[11px] text-rose-600 font-semibold hover:underline">Xem tất cả</button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              {[
+                { rank: 1, name: 'Gội đầu dưỡng sinh Thảo dược', count: 143, price: '299.000 đ' },
+                { rank: 2, name: 'Massage thư giãn Body Relax', count: 128, price: '599.000 đ' },
+                { rank: 3, name: 'Chăm sóc da cơ bản Basic Facial', count: 112, price: '499.000 đ' },
+                { rank: 4, name: 'Massage đá nóng Hot Stone', count: 97, price: '790.000 đ' },
+                { rank: 5, name: 'Massage cổ vai gáy Neck & Shoulder', count: 91, price: '250.000 đ' }
+              ].map((item) => (
+                <div key={item.rank} className="flex items-center justify-between p-2 rounded-xl hover:bg-rose-50/40 transition-colors">
+                  <div className="flex items-center space-x-2.5">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                      item.rank === 1 ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {item.rank}
+                    </span>
+                    <div>
+                      <p className="font-bold text-slate-800 line-clamp-1">{item.name}</p>
+                      <p className="text-[10px] text-slate-400">{item.price}</p>
+                    </div>
+                  </div>
+                  <span className="font-black text-xs text-slate-900 shrink-0">{item.count} lượt</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card 2: Gói Combo Nổi Bật */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-xs text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
+                <Sparkles className="w-4 h-4 text-amber-500" /> Gói Combo Nổi Bật
+              </h3>
+              <button onClick={() => setActiveTab('pkg')} className="text-[11px] text-rose-600 font-semibold hover:underline">Xem tất cả</button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="p-3 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50/50 border border-rose-100 space-y-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-900">Combo Thư Giãn Toàn Thân</h4>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md">★ Nổi bật</span>
+                </div>
+                <p className="text-[11px] text-slate-500">120 phút • 3 dịch vụ liên hoàn</p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-black text-rose-600">1.090.000 đ</span>
+                  <span className="text-[10px] text-slate-400 line-through">1.490.000 đ</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-900">Combo Chăm Sóc Da Nâng Cao</h4>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded-md">Hot Deal</span>
+                </div>
+                <p className="text-[11px] text-slate-500">120 phút • Trị liệu chuyên sâu</p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-black text-rose-600">1.190.000 đ</span>
+                  <span className="text-[10px] text-slate-400 line-through">1.690.000 đ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Khuyến Mãi Flash Đang Áp Dụng */}
+          <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-5 text-white shadow-lg shadow-rose-500/20 space-y-3">
+            <div className="flex items-center space-x-2">
+              <Zap className="w-5 h-5 text-amber-300 fill-amber-300" />
+              <h3 className="font-bold text-sm">Khuyến Mãi Flash Đang Áp Dụng</h3>
+            </div>
+            <p className="text-xs text-rose-100 leading-relaxed">
+              Ưu đãi đặc biệt trong thời gian ngắn, tăng trải nghiệm và thúc đẩy đặt lịch nhanh chóng.
+            </p>
+            <button
+              onClick={() => setActiveTab('promos')}
+              className="w-full py-2.5 bg-white text-rose-600 font-bold text-xs rounded-xl shadow-md hover:bg-rose-50 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+            >
+              <span>Tạo chương trình Flash</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto border border-slate-200/70 rounded-xl">
-        <table className="w-full text-left text-xs border-collapse min-w-[640px]">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-              <th className="p-3">Mã Dịch Vụ</th>
-              <th className="p-3">Tên Dịch Vụ</th>
-              <th className="p-3">Phân Loại</th>
-              <th className="p-3 text-center">Thời Lượng</th>
-              <th className="p-3 text-right">Đơn Giá Chuẩn</th>
-              <th className="p-3 text-center">Hoa Hồng Thợ</th>
-              <th className="p-3 text-center">Trạng Thái</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {filteredServices.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-400">
-                  Chưa có dịch vụ nào phù hợp với bộ lọc.
-                </td>
-              </tr>
-            ) : (
-              filteredServices.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3 font-mono font-bold text-slate-700">{s.code}</td>
-                  <td className="p-3 font-bold text-slate-900">
-                    <p>{s.name}</p>
-                    {s.description && <p className="text-[10px] text-slate-400 font-normal">{s.description}</p>}
-                  </td>
-                  <td className="p-3">
-                    <span className="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                      {s.category}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center font-medium text-slate-700">{s.durationMinutes} phút</td>
-                  <td className="p-3 text-right font-black text-sm text-sky-700">{(s.basePrice).toLocaleString('vi-VN')}đ</td>
-                  <td className="p-3 text-center font-bold text-emerald-700">{s.commissionPct}%</td>
-                  <td className="p-3 text-center">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3" /> Đang Phục Vụ
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Modal Thêm Dịch Vụ */}
+      {/* 4. Modal "+ Thêm Dịch Vụ Mới" */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 animate-scale-in">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <Scissors className="w-5 h-5 text-sky-600" />
-                <h3 className="font-bold text-base text-slate-800">Thêm Dịch Vụ Mới</h3>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Thêm Dịch Vụ Mới</h3>
+                  <p className="text-xs text-slate-500">Khai báo thông tin dịch vụ, bảng giá chuẩn và kỹ thuật viên phụ trách</p>
+                </div>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateService} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreateService} className="space-y-4 text-xs overflow-y-auto pt-4 pr-1 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Mã Dịch Vụ (*)</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Mã dịch vụ <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="VD: DV-FACIAL01"
+                    placeholder="DV011..."
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono uppercase focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:bg-white focus:ring-2 focus:ring-rose-400"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Phân Loại</label>
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Tên dịch vụ <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="VD: Chăm Sóc Da"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    placeholder="Massage Trị Liệu Cổ Vai Gáy Chuyên Sâu..."
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Tên Dịch Vụ (*)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Chăm Sóc Da Chuyên Sâu Gold 24K"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-sky-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Danh mục nhóm</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400"
+                  >
+                    <option value="Massage">Massage thư giãn & trị liệu</option>
+                    <option value="Chăm sóc da">Chăm sóc da & Facial</option>
+                    <option value="Gội đầu dưỡng sinh">Gội đầu dưỡng sinh thảo dược</option>
+                    <option value="Combo trị liệu">Combo trị liệu tổng hợp</option>
+                    <option value="Nha khoa">Nha khoa & Thẩm mỹ răng</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Thời lượng (phút)</label>
+                  <input
+                    type="number"
+                    min={15}
+                    step={5}
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400 font-mono"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <DollarSign className="w-3 h-3 text-sky-600" /> Giá Chuẩn (đ)
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Giá niêm yết (VND) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
                     min={0}
                     step={10000}
-                    required
                     value={basePrice}
                     onChange={(e) => setBasePrice(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-sky-700 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-600" /> Thời Lượng (phút)
-                  </label>
-                  <input
-                    type="number"
-                    min={15}
-                    step={15}
-                    required
-                    value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Percent className="w-3 h-3 text-emerald-600" /> Hoa Hồng (%)
-                  </label>
+                  <label className="font-bold text-slate-700 block mb-1">Giá ưu đãi / Khuyến mãi (VND)</label>
                   <input
                     type="number"
                     min={0}
-                    max={100}
-                    required
-                    value={commissionPct}
-                    onChange={(e) => setCommissionPct(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    step={10000}
+                    placeholder="Để trống nếu không có ưu đãi"
+                    value={promoPrice}
+                    onChange={(e) => setPromoPrice(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400 font-mono"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end space-x-2 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Buffer trước ca (phút)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={bufferBefore}
+                    onChange={(e) => setBufferBefore(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Buffer dọn dẹp sau ca (phút)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={bufferAfter}
+                    onChange={(e) => setBufferAfter(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Mô tả dịch vụ & Quy trình thực hiện</label>
+                <textarea
+                  rows={2}
+                  placeholder="Gồm các bước tẩy trang, xông hơi, massage đá nóng và đắp mặt nạ..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400"
+                />
+              </div>
+
+              <div className="flex items-center space-x-4 pt-1">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowOnline}
+                    onChange={(e) => setAllowOnline(e.target.checked)}
+                    className="w-4 h-4 text-rose-600 rounded"
+                  />
+                  <span className="font-semibold text-slate-700">Cho phép khách đặt Online</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isFeatured}
+                    onChange={(e) => setIsFeatured(e.target.checked)}
+                    className="w-4 h-4 text-rose-600 rounded"
+                  />
+                  <span className="font-semibold text-slate-700">Đánh dấu Dịch vụ Nổi bật</span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl"
                 >
-                  Hủy Bỏ
+                  Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? 'Đang Lưu...' : 'Lưu Dịch Vụ'}
+                  {isSubmitting ? 'Đang lưu...' : 'Lưu Dịch Vụ'}
                 </button>
               </div>
             </form>

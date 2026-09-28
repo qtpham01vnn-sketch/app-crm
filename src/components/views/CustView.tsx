@@ -5,7 +5,7 @@ import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 
 export const CustView: React.FC = () => {
-  const { customers, setCustomers, courses, sales, currentBranch, branches, showToast } = useApp();
+  const { customers, setCustomers, courses, sales, currentBranch, showToast, isLiveMode } = useApp();
   const [search, setSearch] = useState('');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
 
@@ -45,12 +45,12 @@ export const CustView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const orgId = currentBranch?.orgId || (branches.length > 0 ? branches[0].orgId : '11111111-1111-1111-1111-111111111111');
-      const branchId = currentBranch?.id || (branches.length > 0 ? branches[0].id : '22222222-2222-2222-2222-222222222221');
+      if (isLiveMode) {
+        if (!currentBranch?.orgId || !currentBranch?.id) {
+          throw new Error('Chưa xác định chi nhánh hợp lệ để tạo khách hàng.');
+        }
 
-      let created: Customer | null = null;
-      try {
-        created = await masterDataService.createCustomer(
+        const created = await masterDataService.createCustomer(
           {
             name: trimmedName,
             phone: cleanPhone,
@@ -59,36 +59,39 @@ export const CustView: React.FC = () => {
             notes: newNotes.trim() || undefined,
             gender: newGender
           },
-          orgId,
-          branchId
+          currentBranch.orgId,
+          currentBranch.id
         );
-      } catch (sbErr) {
-        console.warn('Supabase createCustomer fallback to local state:', sbErr);
-      }
 
-      if (!created) {
-        created = {
-          id: `cust_${Date.now()}`,
-          orgId,
+        if (!created) {
+          throw new Error('Máy chủ Supabase không phản hồi bản ghi sau khi tạo.');
+        }
+
+        setCustomers((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+        setSelectedCust(created);
+        showToast(`✅ Đã thêm khách hàng "${created.name}" vào hệ thống`, 'success');
+      } else {
+        // Demo mode only
+        const demoCust: Customer = {
+          id: `cust_demo_${Date.now()}`,
+          orgId: currentBranch?.orgId || 'demo-org',
           name: trimmedName,
           phone: cleanPhone,
           email: newEmail.trim() || undefined,
           vipTier: newTier,
           gender: newGender,
-          primaryBranchId: branchId,
+          primaryBranchId: currentBranch?.id || 'demo-branch',
           totalSpent: 0,
           debt: 0,
           creditBalance: 0,
           notes: newNotes.trim() || undefined,
           createdAt: new Date().toISOString().slice(0, 10)
         };
-        showToast(`✅ Đã thêm khách hàng "${created.name}" (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        showToast(`✅ Đã thêm khách hàng "${created.name}" lên Supabase`, 'success');
+        setCustomers((prev) => [demoCust, ...prev]);
+        setSelectedCust(demoCust);
+        showToast(`ℹ️ [Demo Mode] Đã thêm khách hàng "${demoCust.name}" vào bộ nhớ thử nghiệm`, 'info');
       }
 
-      setCustomers((prev) => [created!, ...prev.filter((c) => c.id !== created!.id)]);
-      setSelectedCust(created);
       setIsCreateModalOpen(false);
       setNewName('');
       setNewPhone('');

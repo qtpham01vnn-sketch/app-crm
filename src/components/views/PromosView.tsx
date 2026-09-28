@@ -35,30 +35,34 @@ export const PromosView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      let createdPromo: Promotion | null = null;
       if (isLiveMode) {
-        try {
-          createdPromo = await masterDataService.createPromotion(
-            {
-              code: code.trim(),
-              title: title.trim(),
-              discountType,
-              discountValue: Number(discountValue),
-              minOrderValue: Number(minOrderValue),
-              usageLimit: Number(usageLimit),
-              startDate,
-              endDate
-            },
-            org.id
-          );
-        } catch (sbErr) {
-          console.warn('Supabase createPromotion fallback to local state:', sbErr);
+        if (!org?.id) {
+          throw new Error('Chưa xác định tổ chức hợp lệ để tạo voucher khuyến mãi.');
         }
-      }
 
-      if (!createdPromo) {
-        createdPromo = {
-          id: `promo_${Date.now()}`,
+        const createdPromo = await masterDataService.createPromotion(
+          {
+            code: code.trim(),
+            title: title.trim(),
+            discountType,
+            discountValue: Number(discountValue),
+            minOrderValue: Number(minOrderValue),
+            usageLimit: Number(usageLimit),
+            startDate,
+            endDate
+          },
+          org.id
+        );
+
+        if (!createdPromo) {
+          throw new Error('Máy chủ Supabase không phản hồi dữ liệu sau khi tạo voucher.');
+        }
+
+        setPromotions((prev) => [createdPromo, ...prev]);
+        showToast(`✅ Đã tạo voucher: ${createdPromo.code} vào hệ thống`, 'success');
+      } else {
+        const demoPromo: Promotion = {
+          id: `promo_demo_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
           title: title.trim(),
@@ -71,11 +75,8 @@ export const PromosView: React.FC = () => {
           endDate,
           isActive: true
         };
-        setPromotions((prev) => [createdPromo!, ...prev]);
-        showToast(`✅ Đã tạo voucher: ${createdPromo.code} (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        setPromotions((prev) => [createdPromo!, ...prev]);
-        showToast(`✅ Đã tạo voucher: ${createdPromo.code} lên Supabase`, 'success');
+        setPromotions((prev) => [demoPromo, ...prev]);
+        showToast(`ℹ️ [Demo Mode] Đã tạo voucher: ${demoPromo.code} vào bộ nhớ thử nghiệm`, 'info');
       }
 
       setIsModalOpen(false);

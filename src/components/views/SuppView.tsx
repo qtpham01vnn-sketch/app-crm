@@ -31,36 +31,37 @@ export const SuppView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      let createdSup: Supplier | null = null;
       if (isLiveMode) {
-        try {
-          createdSup = await masterDataService.createSupplier(
-            {
-              name: name.trim(),
-              contactPerson: contactPerson.trim() || undefined,
-              phone: phone.trim()
-            },
-            org.id
-          );
-        } catch (sbErr) {
-          console.warn('Supabase createSupplier fallback to local state:', sbErr);
+        if (!org?.id) {
+          throw new Error('Chưa xác định tổ chức hợp lệ để tạo nhà cung cấp.');
         }
-      }
 
-      if (!createdSup) {
-        createdSup = {
-          id: `sup_${Date.now()}`,
+        const createdSup = await masterDataService.createSupplier(
+          {
+            name: name.trim(),
+            contactPerson: contactPerson.trim() || undefined,
+            phone: phone.trim()
+          },
+          org.id
+        );
+
+        if (!createdSup) {
+          throw new Error('Máy chủ Supabase không phản hồi dữ liệu sau khi tạo nhà cung cấp.');
+        }
+
+        setSuppliers((prev) => [createdSup, ...prev]);
+        showToast(`✅ Đã thêm nhà cung cấp: ${createdSup.name} vào hệ thống`, 'success');
+      } else {
+        const demoSup: Supplier = {
+          id: `sup_demo_${Date.now()}`,
           orgId: org.id,
           name: name.trim(),
           contactName: contactPerson.trim() || 'Người đại diện',
           phone: phone.trim(),
           debt: 0
         };
-        setSuppliers((prev) => [createdSup!, ...prev]);
-        showToast(`✅ Đã thêm nhà cung cấp: ${createdSup.name} (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        setSuppliers((prev) => [createdSup!, ...prev]);
-        showToast(`✅ Đã thêm nhà cung cấp: ${createdSup.name} lên Supabase`, 'success');
+        setSuppliers((prev) => [demoSup, ...prev]);
+        showToast(`ℹ️ [Demo Mode] Đã thêm nhà cung cấp: ${demoSup.name} vào bộ nhớ thử nghiệm`, 'info');
       }
 
       setIsModalOpen(false);

@@ -37,29 +37,33 @@ export const ProdView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      let createdProd: Product | null = null;
       if (isLiveMode) {
-        try {
-          createdProd = await masterDataService.createProduct(
-            {
-              code: code.trim(),
-              name: name.trim(),
-              category: category.trim(),
-              unit: unit.trim(),
-              retailPrice: Number(retailPrice),
-              costPrice: Number(costPrice),
-              minStockAlert: Number(minStockAlert)
-            },
-            org.id
-          );
-        } catch (sbErr) {
-          console.warn('Supabase createProduct fallback to local state:', sbErr);
+        if (!org?.id) {
+          throw new Error('Chưa xác định tổ chức hợp lệ để tạo sản phẩm.');
         }
-      }
 
-      if (!createdProd) {
-        createdProd = {
-          id: `prod_${Date.now()}`,
+        const createdProd = await masterDataService.createProduct(
+          {
+            code: code.trim(),
+            name: name.trim(),
+            category: category.trim(),
+            unit: unit.trim(),
+            retailPrice: Number(retailPrice),
+            costPrice: Number(costPrice),
+            minStockAlert: Number(minStockAlert)
+          },
+          org.id
+        );
+
+        if (!createdProd) {
+          throw new Error('Máy chủ Supabase không phản hồi dữ liệu sau khi tạo sản phẩm.');
+        }
+
+        setProducts((prev) => [createdProd, ...prev]);
+        showToast(`✅ Đã thêm sản phẩm: ${createdProd.name} vào hệ thống`, 'success');
+      } else {
+        const demoProd: Product = {
+          id: `prod_demo_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
           name: name.trim(),
@@ -71,11 +75,8 @@ export const ProdView: React.FC = () => {
           minStockAlert: Number(minStockAlert),
           isActive: true
         };
-        setProducts((prev) => [createdProd!, ...prev]);
-        showToast(`✅ Đã thêm sản phẩm: ${createdProd.name} (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        setProducts((prev) => [createdProd!, ...prev]);
-        showToast(`✅ Đã thêm sản phẩm: ${createdProd.name} lên Supabase`, 'success');
+        setProducts((prev) => [demoProd, ...prev]);
+        showToast(`ℹ️ [Demo Mode] Đã thêm sản phẩm: ${demoProd.name} vào bộ nhớ thử nghiệm`, 'info');
       }
 
       setIsModalOpen(false);

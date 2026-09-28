@@ -97,7 +97,7 @@ export const masterDataService = {
       debt: Number(data.debt_balance || 0),
       creditBalance: 0,
       notes: data.medical_notes || undefined,
-      createdAt: data.created_at ? data.created_at.split('T')[0] : '2026-09-27'
+      createdAt: data.created_at ? data.created_at.split('T')[0] : '2026-09-28'
     };
   },
 
@@ -120,12 +120,31 @@ export const masterDataService = {
       basePrice: Number(s.base_price),
       durationMinutes: s.duration_minutes,
       commissionPct: Number(s.default_commission_pct),
+      description: s.description || undefined,
+      imageUrl: s.image_url || undefined,
+      bufferMinutesBefore: s.buffer_minutes_before || 0,
+      bufferMinutesAfter: s.buffer_minutes_after || 0,
+      allowOnlineBooking: s.allow_online_booking !== false,
+      isFeatured: Boolean(s.is_featured),
       isActive: s.is_active
     }));
   },
 
   async createService(
-    svc: { code: string; name: string; category: string; basePrice: number; durationMinutes: number; commissionPct: number },
+    svc: {
+      code: string;
+      name: string;
+      category: string;
+      basePrice: number;
+      durationMinutes: number;
+      commissionPct: number;
+      description?: string;
+      imageUrl?: string;
+      bufferMinutesBefore?: number;
+      bufferMinutesAfter?: number;
+      allowOnlineBooking?: boolean;
+      isFeatured?: boolean;
+    },
     orgId: string
   ): Promise<Service | null> {
     if (!isSupabaseConfigured || !supabase) return null;
@@ -139,6 +158,12 @@ export const masterDataService = {
         base_price: svc.basePrice,
         duration_minutes: svc.durationMinutes,
         default_commission_pct: svc.commissionPct,
+        description: svc.description?.trim() || null,
+        image_url: svc.imageUrl?.trim() || null,
+        buffer_minutes_before: svc.bufferMinutesBefore || 0,
+        buffer_minutes_after: svc.bufferMinutesAfter || 0,
+        allow_online_booking: svc.allowOnlineBooking !== false,
+        is_featured: Boolean(svc.isFeatured),
         is_active: true
       })
       .select()
@@ -158,8 +183,103 @@ export const masterDataService = {
       basePrice: Number(data.base_price),
       durationMinutes: data.duration_minutes,
       commissionPct: Number(data.default_commission_pct),
+      description: data.description || undefined,
+      imageUrl: data.image_url || undefined,
+      bufferMinutesBefore: data.buffer_minutes_before || 0,
+      bufferMinutesAfter: data.buffer_minutes_after || 0,
+      allowOnlineBooking: data.allow_online_booking !== false,
+      isFeatured: Boolean(data.is_featured),
       isActive: data.is_active
     };
+  },
+
+  /**
+   * 2.1 RESOURCES CRUD (Phòng, Giường, Ghế, Máy móc)
+   */
+  async getResources(branchId?: string) {
+    if (!isSupabaseConfigured || !supabase) return [];
+    let query = supabase.from('resources').select('*').order('name');
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching resources:', error);
+      return [];
+    }
+    return (data || []).map((r) => ({
+      id: r.id,
+      orgId: r.organization_id,
+      branchId: r.branch_id,
+      code: r.code,
+      name: r.name,
+      type: r.resource_type as 'room' | 'bed' | 'chair' | 'machine',
+      capacity: r.capacity || 1,
+      isActive: r.is_active,
+      notes: r.notes || undefined
+    }));
+  },
+
+  async createResource(
+    res: { branchId: string; code: string; name: string; type: 'room' | 'bed' | 'chair' | 'machine'; capacity?: number; notes?: string },
+    orgId: string
+  ) {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase
+      .from('resources')
+      .insert({
+        organization_id: orgId,
+        branch_id: res.branchId,
+        code: res.code.trim().toUpperCase(),
+        name: res.name.trim(),
+        resource_type: res.type,
+        capacity: res.capacity || 1,
+        notes: res.notes?.trim() || null,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating resource in Supabase:', error);
+      throw error;
+    }
+    return {
+      id: data.id,
+      orgId: data.organization_id,
+      branchId: data.branch_id,
+      code: data.code,
+      name: data.name,
+      type: data.resource_type as 'room' | 'bed' | 'chair' | 'machine',
+      capacity: data.capacity,
+      isActive: data.is_active,
+      notes: data.notes || undefined
+    };
+  },
+
+  /**
+   * 2.2 SERVICE STAFF SKILLS
+   */
+  async getServiceStaffSkills(serviceId?: string) {
+    if (!isSupabaseConfigured || !supabase) return [];
+    let query = supabase.from('service_staff_skills').select('*');
+    if (serviceId) {
+      query = query.eq('service_id', serviceId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching service staff skills:', error);
+      return [];
+    }
+    return (data || []).map((s) => ({
+      id: s.id,
+      orgId: s.organization_id,
+      serviceId: s.service_id,
+      staffId: s.staff_id,
+      proficiencyLevel: s.proficiency_level as 'standard' | 'senior' | 'master',
+      customDurationMinutes: s.custom_duration_minutes || undefined,
+      isPrimary: Boolean(s.is_primary)
+    }));
   },
 
   /**

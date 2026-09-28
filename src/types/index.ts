@@ -72,8 +72,57 @@ export interface Service {
   category: string;
   durationMinutes: number;
   basePrice: number;
+  promoPrice?: number;
+  promoStartDate?: string;
+  promoEndDate?: string;
+  promoCondition?: string;
   commissionPct: number;
   description?: string;
+  imageUrl?: string;
+  bufferMinutesBefore?: number;
+  bufferMinutesAfter?: number;
+  allowOnlineBooking?: boolean;
+  isFeatured?: boolean;
+  assignedStaffIds?: string[];
+  requiredResourceType?: 'room' | 'bed' | 'chair' | 'machine';
+  monthlyBookingCount?: number;
+  isActive: boolean;
+}
+
+export interface Resource {
+  id: string;
+  orgId: string;
+  branchId: string;
+  code: string;
+  name: string;
+  type: 'room' | 'bed' | 'chair' | 'machine';
+  capacity: number;
+  isActive: boolean;
+  notes?: string;
+}
+
+export interface ServiceStaffSkill {
+  id: string;
+  orgId: string;
+  serviceId: string;
+  staffId: string;
+  proficiencyLevel: 'standard' | 'senior' | 'master';
+  customDurationMinutes?: number;
+  isPrimary: boolean;
+}
+
+export interface ServicePriceVersion {
+  id: string;
+  orgId: string;
+  branchId: string;
+  serviceId: string;
+  price: number;
+  promoPrice?: number;
+  promoStartDate?: string;
+  promoEndDate?: string;
+  promoCondition?: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
   isActive: boolean;
 }
 

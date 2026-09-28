@@ -31,42 +31,47 @@ export const PkgView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      let createdPkg: PackageCombo | null = null;
       if (isLiveMode) {
-        try {
-          createdPkg = await masterDataService.createPackage(
-            {
-              code: code.trim(),
-              name: name.trim(),
-              serviceId: serviceId || (services[0]?.id ?? '55555555-5555-5555-5555-555555555551'),
-              sessions: Number(sessions),
-              price: Number(price),
-              validityDays: Number(validityDays)
-            },
-            org.id
-          );
-        } catch (sbErr) {
-          console.warn('Supabase createPackage fallback to local state:', sbErr);
+        if (!org?.id) {
+          throw new Error('Chưa xác định tổ chức hợp lệ để tạo gói combo.');
         }
-      }
+        if (!serviceId && services.length === 0) {
+          throw new Error('Cần có ít nhất một dịch vụ để liên kết với gói combo.');
+        }
 
-      if (!createdPkg) {
-        createdPkg = {
-          id: `pkg_${Date.now()}`,
+        const effectiveServiceId = serviceId || services[0].id;
+        const createdPkg = await masterDataService.createPackage(
+          {
+            code: code.trim(),
+            name: name.trim(),
+            serviceId: effectiveServiceId,
+            sessions: Number(sessions),
+            price: Number(price),
+            validityDays: Number(validityDays)
+          },
+          org.id
+        );
+
+        if (!createdPkg) {
+          throw new Error('Máy chủ Supabase không phản hồi dữ liệu sau khi tạo gói combo.');
+        }
+
+        setPackages((prev) => [createdPkg, ...prev]);
+        showToast(`✅ Đã thêm gói combo: ${createdPkg.name} vào hệ thống`, 'success');
+      } else {
+        const demoPkg: PackageCombo = {
+          id: `pkg_demo_${Date.now()}`,
           orgId: org.id,
           code: code.trim().toUpperCase(),
           name: name.trim(),
-          serviceId: serviceId || (services[0]?.id ?? '55555555-5555-5555-5555-555555555551'),
+          serviceId: serviceId || (services[0]?.id ?? 'demo-service'),
           sessions: Number(sessions),
           price: Number(price),
           validityDays: Number(validityDays),
           isActive: true
         };
-        setPackages((prev) => [createdPkg!, ...prev]);
-        showToast(`✅ Đã thêm gói combo: ${createdPkg.name} (lưu bộ nhớ tạm)`, 'success');
-      } else {
-        setPackages((prev) => [createdPkg!, ...prev]);
-        showToast(`✅ Đã thêm gói combo: ${createdPkg.name} lên Supabase`, 'success');
+        setPackages((prev) => [demoPkg, ...prev]);
+        showToast(`ℹ️ [Demo Mode] Đã thêm gói combo: ${demoPkg.name} vào bộ nhớ thử nghiệm`, 'info');
       }
 
       setIsModalOpen(false);
