@@ -109,10 +109,10 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container: Flex child on desktop, fixed off-canvas on mobile */}
       <aside
-        className={`fixed top-0 lg:top-[37px] left-0 bottom-0 z-40 lg:z-30 w-64 flex flex-col transition-all duration-300 ease-in-out border-r relative ${
-          isOpen ? 'translate-x-0 !top-0 !z-50' : '-translate-x-full lg:translate-x-0'
+        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-in-out border-r lg:static lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 relative ${
+          isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         } ${
           isSoftLight
             ? 'bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'

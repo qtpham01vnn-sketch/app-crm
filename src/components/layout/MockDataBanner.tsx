@@ -4,7 +4,9 @@ import { useApp } from '../../context/AppContext';
 import { isSupabaseConfigured } from '../../lib/supabase';
 
 export const MockDataBanner: React.FC = () => {
-  const { currentBranch, currentRole } = useApp();
+  const { currentBranch, currentRole, currentTheme } = useApp();
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   const roleLabels: Record<string, string> = {
     owner_admin: 'Chủ cơ sở (Admin)',
@@ -15,25 +17,41 @@ export const MockDataBanner: React.FC = () => {
 
   return (
     <div
-      className={`relative z-30 text-white px-3 md:px-4 py-1.5 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between shadow-md border-b gap-1.5 sm:gap-2 shrink-0 w-full overflow-hidden ${
-        isSupabaseConfigured
-          ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 border-emerald-500/40'
-          : 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-500/30'
+      className={`relative z-30 px-3 md:px-4 py-1.5 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between shadow-xs border-b gap-1.5 sm:gap-2 shrink-0 w-full overflow-hidden transition-colors duration-300 ${
+        isSoftLight
+          ? 'bg-[#EFE9DD] text-[#303833] border-[#E8E3D8]'
+          : isSupabaseConfigured
+          ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 border-emerald-500/40 text-white'
+          : 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-500/30 text-white'
       }`}
     >
       <div className="flex items-center space-x-2 min-w-0">
         {isSupabaseConfigured ? (
-          <span className="bg-emerald-500/30 text-emerald-200 font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1 border border-emerald-400/40 shrink-0">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+          <span
+            className={`font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1 border shrink-0 ${
+              isSoftLight
+                ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
+                : 'bg-emerald-500/30 text-emerald-200 border-emerald-400/40'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             SUPABASE LIVE
           </span>
         ) : (
-          <span className="bg-white/20 text-white font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1 shrink-0">
+          <span
+            className={`font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1 shrink-0 ${
+              isSoftLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-white/20 text-white'
+            }`}
+          >
             <Database className="w-3.5 h-3.5" />
             MOCK DATA P1
           </span>
         )}
-        <span className="hidden md:inline text-slate-200 text-xs truncate">
+        <span
+          className={`hidden md:inline text-xs truncate ${
+            isSoftLight ? 'text-[#70776F]' : 'text-slate-200'
+          }`}
+        >
           {isSupabaseConfigured
             ? 'PostgreSQL Supabase (lskrcerzxltlrcewigrw) • P2 Auth & RLS'
             : 'Chế độ xem trước giao diện P1 (Dữ liệu giả lập).'}
@@ -41,13 +59,25 @@ export const MockDataBanner: React.FC = () => {
       </div>
 
       <div className="flex items-center space-x-2 text-[11px] sm:text-xs">
-        <div className="bg-black/25 px-2 py-0.5 rounded-md flex items-center space-x-1 shrink-0">
-          <span className="text-amber-200 font-normal">CN:</span>
-          <span className="font-semibold text-white">{currentBranch?.code || '---'}</span>
+        <div
+          className={`px-2 py-0.5 rounded-md flex items-center space-x-1 shrink-0 ${
+            isSoftLight ? 'bg-white border border-[#E8E3D8]' : 'bg-black/25'
+          }`}
+        >
+          <span className={isSoftLight ? 'text-[#70776F] font-bold' : 'text-amber-200 font-normal'}>CN:</span>
+          <span className={`font-semibold ${isSoftLight ? 'text-[#234737]' : 'text-white'}`}>
+            {currentBranch?.code || '---'}
+          </span>
         </div>
-        <div className="bg-black/25 px-2 py-0.5 rounded-md flex items-center space-x-1 min-w-0 truncate">
-          <span className="text-amber-200 font-normal">Quyền:</span>
-          <span className="font-semibold text-emerald-300 truncate">{roleLabels[currentRole] || currentRole}</span>
+        <div
+          className={`px-2 py-0.5 rounded-md flex items-center space-x-1 min-w-0 truncate ${
+            isSoftLight ? 'bg-white border border-[#E8E3D8]' : 'bg-black/25'
+          }`}
+        >
+          <span className={isSoftLight ? 'text-[#70776F] font-bold' : 'text-amber-200 font-normal'}>Quyền:</span>
+          <span className={`font-semibold truncate ${isSoftLight ? 'text-[#A65367]' : 'text-emerald-300'}`}>
+            {roleLabels[currentRole] || currentRole}
+          </span>
         </div>
       </div>
     </div>

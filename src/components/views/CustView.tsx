@@ -5,9 +5,11 @@ import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 
 export const CustView: React.FC = () => {
-  const { customers, setCustomers, courses, sales, currentBranch, showToast, isLiveMode } = useApp();
+  const { customers, setCustomers, courses, sales, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
   const [search, setSearch] = useState('');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   // New Customer Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -125,24 +127,35 @@ export const CustView: React.FC = () => {
     standard: { label: 'Thành viên', color: 'text-slate-700', bg: 'bg-slate-100' },
     silver: { label: 'Bạc (Silver)', color: 'text-slate-700', bg: 'bg-slate-200' },
     gold: { label: 'Vàng (Gold)', color: 'text-amber-800', bg: 'bg-amber-100' },
-    diamond: { label: 'Kim Cương (VIP)', color: 'text-indigo-800', bg: 'bg-indigo-100' }
+    diamond: { label: 'Kim Cương (VIP)', color: 'text-rose-800', bg: 'bg-rose-100' }
   };
 
   const custCourses = selectedCust ? courses.filter((crs) => crs.customerId === selectedCust.id) : [];
   const custSales = selectedCust ? sales.filter((s) => s.customerId === selectedCust.id) : [];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in items-start pb-8">
       {/* Left: Customer List (5 cols) */}
-      <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+      <div
+        className={`lg:col-span-5 rounded-2xl p-5 border shadow-xs space-y-4 ${
+          isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+        }`}
+      >
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center space-x-2">
-            <Users className="w-5 h-5 text-sky-600" />
-            <h3 className="font-bold text-sm text-slate-800">Khách Hàng Toàn Chuỗi ({customers.length})</h3>
+            <Users className="w-5 h-5" style={{ color: currentTheme.primaryColor }} />
+            <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-800'}`}>
+              Khách Hàng Toàn Chuỗi ({customers.length})
+            </h3>
           </div>
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="text-xs bg-sky-50 text-sky-700 font-bold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-100 cursor-pointer transition-all"
+            className="text-xs font-bold px-3 py-1.5 rounded-xl border cursor-pointer transition-all hover:opacity-90"
+            style={{
+              backgroundColor: currentTheme.badgeBg,
+              color: currentTheme.badgeText || currentTheme.primaryColor,
+              borderColor: currentTheme.borderColor || currentTheme.primaryColor
+            }}
           >
             + Thêm Khách
           </button>
@@ -155,7 +168,11 @@ export const CustView: React.FC = () => {
             placeholder="Tìm theo tên, SĐT, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-sky-500 font-medium"
+            className={`w-full pl-9 pr-3 py-2 border rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 ${
+              isSoftLight
+                ? 'bg-[#F8F6EF] border-[#E8E3D8] text-[#303833]'
+                : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}
           />
         </div>
 
@@ -169,23 +186,29 @@ export const CustView: React.FC = () => {
                 onClick={() => setSelectedCust(c)}
                 className={`p-3.5 rounded-xl border transition-all cursor-pointer text-xs ${
                   isSelected
-                    ? 'border-sky-500 bg-sky-50/50 shadow-xs'
+                    ? 'border-2 shadow-sm'
+                    : isSoftLight
+                    ? 'border-[#E8E3D8] hover:bg-[#F8F6EF]'
                     : 'border-slate-200/70 hover:border-slate-300 hover:bg-slate-50'
                 }`}
+                style={{
+                  borderColor: isSelected ? currentTheme.primaryColor : undefined,
+                  backgroundColor: isSelected ? currentTheme.badgeBg : undefined
+                }}
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 text-sm">{c.name}</h4>
+                  <h4 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{c.name}</h4>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.bg} ${badge.color}`}>
                     {badge.label}
                   </span>
                 </div>
                 <p className="text-slate-500 font-mono mt-0.5">{c.phone}</p>
                 <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 text-[11px]">
-                  <span className="text-slate-500">Chi tiêu: <b className="text-slate-800">{c.totalSpent.toLocaleString('vi-VN')}đ</b></span>
+                  <span className="text-slate-500">Chi tiêu: <b className="text-slate-800">{c.totalSpent.toLocaleString('vi-VN')} đ</b></span>
                   {c.debt > 0 ? (
-                    <span className="text-rose-600 font-bold">Nợ: {c.debt.toLocaleString('vi-VN')}đ</span>
+                    <span className="text-rose-600 font-bold">Nợ: {c.debt.toLocaleString('vi-VN')} đ</span>
                   ) : (
-                    <span className="text-emerald-600 font-semibold">Không nợ</span>
+                    <span className="text-emerald-700 font-semibold">Không nợ</span>
                   )}
                 </div>
               </div>
@@ -195,73 +218,92 @@ export const CustView: React.FC = () => {
       </div>
 
       {/* Right: Detailed Customer Profile & Treatment History (7 cols) */}
-      <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+      <div
+        className={`lg:col-span-7 rounded-2xl p-6 border shadow-xs space-y-6 ${
+          isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+        }`}
+      >
         {selectedCust ? (
           <>
             {/* Header Profile */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div
+                  className="w-12 h-12 rounded-2xl text-white flex items-center justify-center font-black text-lg shadow-md shrink-0"
+                  style={{ background: currentTheme.heroGradient }}
+                >
                   {selectedCust.name.slice(0, 2).toUpperCase()}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center space-x-2">
-                    <h3 className="font-bold text-base text-slate-900">{selectedCust.name}</h3>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tierBadges[selectedCust.vipTier].bg} ${tierBadges[selectedCust.vipTier].color}`}>
+                    <h3 className={`font-bold text-base truncate ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-900'}`}>
+                      {selectedCust.name}
+                    </h3>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tierBadges[selectedCust.vipTier].bg} ${tierBadges[selectedCust.vipTier].color}`}>
                       {tierBadges[selectedCust.vipTier].label}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 flex items-center gap-3 mt-1">
-                    <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {selectedCust.phone}</span>
-                    {selectedCust.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {selectedCust.email}</span>}
+                  <p className="text-xs text-slate-500 flex flex-wrap items-center gap-3 mt-1">
+                    <span className="flex items-center gap-1 font-mono"><Phone className="w-3.5 h-3.5" /> {selectedCust.phone}</span>
+                    {selectedCust.email && <span className="flex items-center gap-1 truncate"><Mail className="w-3.5 h-3.5" /> {selectedCust.email}</span>}
                   </p>
                 </div>
               </div>
 
-              <div className="text-right sm:self-center">
+              <div className="text-left sm:text-right sm:self-center shrink-0">
                 <p className="text-[11px] text-slate-400">Khách cấp Tổ chức</p>
-                <p className="text-xs font-bold text-sky-700">Dùng chung toàn chuỗi</p>
+                <p className="text-xs font-bold" style={{ color: currentTheme.primaryColor }}>Dùng chung toàn chuỗi</p>
               </div>
             </div>
 
             {/* Financial Summary */}
-            <div className="grid grid-cols-3 gap-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className={`p-3 rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/80'}`}>
                 <span className="text-slate-500 text-[11px]">Tổng Chi Tiêu</span>
-                <p className="font-black text-sm text-slate-900 mt-0.5">{selectedCust.totalSpent.toLocaleString('vi-VN')}đ</p>
+                <p className={`font-black text-sm mt-0.5 ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{selectedCust.totalSpent.toLocaleString('vi-VN')} đ</p>
               </div>
               <div className="p-3 bg-rose-50 rounded-xl border border-rose-200/80">
                 <span className="text-rose-600 text-[11px]">Công Nợ Phải Thu</span>
-                <p className="font-black text-sm text-rose-700 mt-0.5">{selectedCust.debt.toLocaleString('vi-VN')}đ</p>
+                <p className="font-black text-sm text-rose-700 mt-0.5">{selectedCust.debt.toLocaleString('vi-VN')} đ</p>
               </div>
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80">
-                <span className="text-emerald-600 text-[11px]">Số Dư Ký Cọc</span>
-                <p className="font-black text-sm text-emerald-700 mt-0.5">{selectedCust.creditBalance.toLocaleString('vi-VN')}đ</p>
+                <span className="text-emerald-700 text-[11px]">Số Dư Ký Cọc</span>
+                <p className="font-black text-sm text-emerald-800 mt-0.5">{selectedCust.creditBalance.toLocaleString('vi-VN')} đ</p>
               </div>
             </div>
 
             {/* Treatment Courses Section */}
             <div>
-              <h4 className="font-bold text-xs text-slate-800 mb-3 flex items-center gap-2">
+              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>
                 <Sparkles className="w-4 h-4 text-amber-500" /> Gói Liệu Trình Đang Theo Dõi ({custCourses.length})
               </h4>
               {custCourses.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center bg-slate-50 rounded-xl">Khách chưa đăng ký gói liệu trình nào.</p>
+                <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] text-[#70776F] border-[#E8E3D8]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
+                  Khách chưa đăng ký gói liệu trình nào.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {custCourses.map((crs) => (
-                    <div key={crs.id} className="p-4 bg-sky-50/40 rounded-xl border border-sky-200/70 space-y-2 text-xs">
+                    <div
+                      key={crs.id}
+                      className={`p-4 rounded-xl border space-y-2 text-xs ${
+                        isSoftLight ? 'bg-[#F8F6EF]/70 border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/70'
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-900">{crs.name}</span>
-                        <span className="text-sky-700 font-bold">
+                        <span className="font-bold" style={{ color: currentTheme.primaryColor }}>
                           Đã làm {crs.usedSessions} / {crs.totalSessions} buổi
                         </span>
                       </div>
                       {/* Progress bar */}
                       <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-sky-600 h-2 rounded-full transition-all"
-                          style={{ width: `${(crs.usedSessions / crs.totalSessions) * 100}%` }}
+                          className="h-2 rounded-full transition-all"
+                          style={{
+                            width: `${(crs.usedSessions / crs.totalSessions) * 100}%`,
+                            backgroundColor: currentTheme.buttonBg
+                          }}
                         />
                       </div>
                       <div className="flex justify-between text-[11px] text-slate-500 pt-1">
@@ -276,22 +318,33 @@ export const CustView: React.FC = () => {
 
             {/* Invoices History */}
             <div>
-              <h4 className="font-bold text-xs text-slate-800 mb-3 flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-sky-600" /> Lịch Sử Hóa Đơn ({custSales.length})
+              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>
+                <DollarSign className="w-4 h-4" style={{ color: currentTheme.primaryColor }} /> Lịch Sử Hóa Đơn ({custSales.length})
               </h4>
               <div className="space-y-2">
-                {custSales.map((sale) => (
-                  <div key={sale.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-mono font-bold text-sky-800">{sale.invoiceNo}</span>
-                      <p className="text-[11px] text-slate-500">{sale.date} • {sale.paymentMethod}</p>
+                {custSales.length === 0 ? (
+                  <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] text-[#70776F] border-[#E8E3D8]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
+                    Chưa có lịch sử thanh toán hóa đơn.
+                  </p>
+                ) : (
+                  custSales.map((sale) => (
+                    <div
+                      key={sale.id}
+                      className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                        isSoftLight ? 'bg-[#F8F6EF]/70 border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/70'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-mono font-bold" style={{ color: currentTheme.primaryColor }}>{sale.invoiceNo}</span>
+                        <p className="text-[11px] text-slate-500">{sale.date} • {sale.paymentMethod}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-slate-900">{sale.total.toLocaleString('vi-VN')} đ</span>
+                        <p className="text-[11px] text-emerald-700 font-semibold">Đã trả: {sale.paidAmount.toLocaleString('vi-VN')} đ</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-bold text-slate-900">{sale.total.toLocaleString('vi-VN')}đ</span>
-                      <p className="text-[11px] text-emerald-600 font-semibold">Đã trả: {sale.paidAmount.toLocaleString('vi-VN')}đ</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </>
@@ -303,11 +356,11 @@ export const CustView: React.FC = () => {
       {/* CREATE CUSTOMER MODAL */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col p-5 sm:p-6 shadow-2xl border border-slate-200 animate-fade-in my-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col p-5 sm:p-6 shadow-2xl border border-slate-200 animate-fade-in my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center space-x-2">
-                <Users className="w-5 h-5 text-sky-600" />
-                <h3 className="font-bold text-base text-slate-900">Thêm Khách Hàng Mới (Supabase Live)</h3>
+                <Users className="w-5 h-5" style={{ color: currentTheme.primaryColor }} />
+                <h3 className="font-bold text-base text-slate-900">Thêm Khách Hàng Mới</h3>
               </div>
               <button
                 onClick={() => {
@@ -364,7 +417,7 @@ export const CustView: React.FC = () => {
                   placeholder="Ví dụ: Chị Nguyễn Phương Thảo"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400"
                 />
               </div>
 
@@ -382,7 +435,7 @@ export const CustView: React.FC = () => {
                       setNewPhone(e.target.value);
                       if (duplicateWarning) setDuplicateWarning(null);
                     }}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500 font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400 font-mono"
                   />
                 </div>
                 <div>
@@ -390,7 +443,7 @@ export const CustView: React.FC = () => {
                   <select
                     value={newGender}
                     onChange={(e) => setNewGender(e.target.value as Customer['gender'])}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
                   >
                     <option value="female">Nữ</option>
                     <option value="male">Nam</option>
@@ -405,7 +458,7 @@ export const CustView: React.FC = () => {
                   <select
                     value={newTier}
                     onChange={(e) => setNewTier(e.target.value as Customer['vipTier'])}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
                   >
                     <option value="standard">Thành viên chuẩn</option>
                     <option value="silver">Bạc (Silver)</option>
@@ -420,7 +473,7 @@ export const CustView: React.FC = () => {
                     placeholder="email@example.com"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
                   />
                 </div>
               </div>
@@ -432,7 +485,7 @@ export const CustView: React.FC = () => {
                   placeholder="Tiền sử da nhạy cảm, dị ứng hoạt chất, tình trạng răng..."
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
                 />
               </div>
 
@@ -440,16 +493,17 @@ export const CustView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl"
+                  className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+                  className="px-5 py-2 text-white font-bold rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer hover:opacity-90"
+                  style={{ backgroundColor: currentTheme.buttonBg }}
                 >
-                  {isSubmitting ? 'Đang lưu Supabase...' : 'Lưu Khách Hàng'}
+                  {isSubmitting ? 'Đang lưu...' : 'Lưu Khách Hàng'}
                 </button>
               </div>
             </form>

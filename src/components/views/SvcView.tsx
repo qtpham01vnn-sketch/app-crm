@@ -15,12 +15,14 @@ import { masterDataService } from '../../services/masterDataService';
 import type { Service } from '../../types';
 
 export const SvcView: React.FC = () => {
-  const { services, setServices, staffList, org, showToast, isLiveMode, setActiveTab } = useApp();
+  const { services, setServices, staffList, org, currentTheme, showToast, isLiveMode, setActiveTab } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   // Form states
   const [code, setCode] = useState('');
@@ -152,7 +154,9 @@ export const SvcView: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-xl">🌸</span>
-            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Dịch Vụ & Bảng Giá</h2>
+            <h2 className={`text-xl md:text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-900'}`}>
+              Dịch Vụ & Bảng Giá
+            </h2>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản lý danh mục dịch vụ, cấu hình giá, thời lượng và gán kỹ thuật viên đủ kỹ năng phục vụ.
@@ -162,7 +166,8 @@ export const SvcView: React.FC = () => {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-rose-500/20 flex items-center space-x-2 transition-all cursor-pointer"
+            className="text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md flex items-center space-x-2 transition-all cursor-pointer hover:opacity-90 active:scale-95"
+            style={{ backgroundColor: currentTheme.buttonBg }}
           >
             <Plus className="w-4 h-4" />
             <span>Thêm Dịch Vụ</span>
@@ -178,24 +183,35 @@ export const SvcView: React.FC = () => {
             <div
               key={idx}
               onClick={() => setSelectedCategory(isSelected ? 'all' : cat.name)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer bg-white shadow-xs hover:shadow-md ${
-                isSelected ? 'border-rose-400 ring-2 ring-rose-200' : 'border-slate-200/80'
+              className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-xs hover:shadow-md ${
+                isSelected
+                  ? 'border-2 shadow-sm'
+                  : isSoftLight
+                  ? 'bg-[#FFFEFA] border-[#E8E3D8]'
+                  : 'bg-white border-slate-200/80'
               }`}
+              style={{
+                borderColor: isSelected ? currentTheme.primaryColor : undefined,
+                backgroundColor: isSelected ? currentTheme.badgeBg : undefined
+              }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg shadow-xs">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-xs"
+                    style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
+                  >
                     {cat.icon}
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">{cat.name}</h4>
-                    <p className="text-xl font-black text-slate-900 mt-0.5">{cat.count}</p>
+                    <h4 className={`font-bold text-xs ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{cat.name}</h4>
+                    <p className={`text-xl font-black mt-0.5 ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{cat.count}</p>
                   </div>
                 </div>
                 <span className="text-[10px] text-slate-400 font-semibold">dịch vụ</span>
               </div>
               <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                <span className="text-emerald-700 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Đang áp dụng: {cat.active}
                 </span>
                 <span className="text-slate-400 font-medium flex items-center gap-1">

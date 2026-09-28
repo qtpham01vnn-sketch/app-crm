@@ -68,26 +68,40 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
 
   const displayRole = roleDisplayNames[currentRole] || currentRole;
 
+  const isSoftLight = currentTheme.isSoftLight;
+
   return (
-    <div className="sticky top-0 z-30 flex flex-col bg-white shadow-xs w-full max-w-full overflow-hidden">
+    <div
+      className={`sticky top-0 z-30 flex flex-col shadow-xs w-full max-w-full overflow-hidden transition-colors duration-300 ${
+        isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/90'
+      }`}
+    >
       {/* Main Header Bar */}
       <header
-        className="h-14 md:h-16 border-b border-slate-200/90 px-3 md:px-6 flex items-center justify-between transition-colors duration-300 w-full"
+        className={`h-14 md:h-16 border-b px-3 md:px-6 flex items-center justify-between transition-colors duration-300 w-full ${
+          isSoftLight ? 'border-[#E8E3D8]' : 'border-slate-200/90'
+        }`}
         style={{ borderTop: `3px solid ${currentTheme.primaryColor}` }}
       >
         {/* Left: Mobile Menu + Active Title */}
         <div className="flex items-center space-x-2 md:space-x-3 min-w-0 flex-1">
           <button
             onClick={onOpenMobileMenu}
-            className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-none cursor-pointer shrink-0"
+            className={`lg:hidden p-1.5 -ml-1 rounded-lg focus:outline-none cursor-pointer shrink-0 ${
+              isSoftLight ? 'text-[#70776F] hover:bg-[#F3EFE5]' : 'text-slate-600 hover:bg-slate-100'
+            }`}
             aria-label="Mở menu điều hướng"
           >
             <Menu className="w-5 h-5" />
           </button>
 
           <div className="flex items-center space-x-1.5 min-w-0 truncate">
-            <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-800 tracking-tight truncate">
-              {tabTitles[activeTab] || 'VUA APP CRM'}
+            <h2
+              className={`text-sm sm:text-base md:text-lg font-black tracking-tight truncate ${
+                isSoftLight ? 'text-[#234737]' : 'text-slate-800'
+              }`}
+            >
+              {tabTitles[activeTab] || 'PHUONG NAM CRM'}
             </h2>
             <span
               className="hidden sm:inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 transition-all"
@@ -102,11 +116,16 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           </div>
         </div>
 
-        {/* Center Desktop: 10 Instant Theme Swatches */}
-        <div className="hidden lg:flex items-center bg-slate-100/90 hover:bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shadow-xs space-x-1.5 transition-all shrink-0">
+        {/* Center Desktop: Swatches on XL+, Compact Button on LG */}
+        <div className="hidden xl:flex items-center p-1.5 rounded-2xl border shadow-xs space-x-1.5 transition-all shrink-0"
+          style={{
+            backgroundColor: isSoftLight ? '#F8F6EF' : '#f1f5f9',
+            borderColor: isSoftLight ? '#E8E3D8' : '#e2e8f0'
+          }}
+        >
           <div className="flex items-center px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 gap-1">
             <Palette className="w-3.5 h-3.5" style={{ color: currentTheme.primaryColor }} />
-            <span>Theme:</span>
+            <span className={isSoftLight ? 'text-[#70776F]' : 'text-slate-600'}>Theme:</span>
           </div>
           <div className="flex items-center space-x-1.5">
             {APP_THEMES.map((th) => {
@@ -118,7 +137,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                     setCurrentTheme(th);
                     showToast(`🎨 Chuyển sang: ${th.name}`, 'info');
                   }}
-                  className={`w-6 h-6 rounded-full transition-all duration-200 transform cursor-pointer flex items-center justify-center ${
+                  className={`w-5.5 h-5.5 rounded-full transition-all duration-200 transform cursor-pointer flex items-center justify-center ${
                     isSelected ? 'scale-125 ring-2 ring-offset-1 shadow-md z-10' : 'hover:scale-115 opacity-85 hover:opacity-100'
                   }`}
                   style={{
@@ -134,10 +153,34 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           </div>
           <button
             onClick={() => setIsThemeModalOpen(true)}
-            className="ml-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded hover:bg-slate-200/70 cursor-pointer transition-colors"
+            className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors"
+            style={{
+              color: isSoftLight ? '#70776F' : '#475569',
+              backgroundColor: isSoftLight ? '#EFE9DD' : '#e2e8f0'
+            }}
             title="Xem danh sách chi tiết Theme"
           >
-            Chi tiết ▾
+            {APP_THEMES.length} Theme ▾
+          </button>
+        </div>
+
+        {/* Medium Desktop (LG only) Compact Theme Switcher */}
+        <div className="hidden lg:flex xl:hidden items-center shrink-0">
+          <button
+            onClick={() => setIsThemeModalOpen(true)}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            style={{
+              backgroundColor: isSoftLight ? '#F8F6EF' : '#f8fafc',
+              borderColor: isSoftLight ? '#E8E3D8' : '#e2e8f0',
+              color: isSoftLight ? '#234737' : '#1e293b'
+            }}
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-white shadow-xs inline-block shrink-0"
+              style={{ backgroundColor: currentTheme.previewColor }}
+            />
+            <span className="truncate max-w-[110px]">{currentTheme.name.split('—')[0]}</span>
+            <span className="text-[10px] opacity-70">▾</span>
           </button>
         </div>
 

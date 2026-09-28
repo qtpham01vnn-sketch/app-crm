@@ -153,19 +153,19 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-main,#f8fafc)] text-[var(--body-text,#0f172a)] transition-colors duration-200">
       {/* Top Mock Banner */}
       <MockDataBanner />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar (flex child on desktop, drawer on mobile) */}
         <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
+        {/* Main Content Area (takes 100% of remaining width) */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Topbar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
 
-          <main className="flex-1 p-3 sm:p-4 md:p-6 pb-28 sm:pb-24 lg:pb-8 overflow-y-auto max-w-7xl w-full mx-auto">
+          <main className="flex-1 p-3 sm:p-4 md:p-6 pb-28 sm:pb-24 lg:pb-8 overflow-y-auto w-full max-w-7xl mx-auto">
             {renderActiveView()}
           </main>
         </div>
