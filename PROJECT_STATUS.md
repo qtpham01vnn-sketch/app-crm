@@ -4,7 +4,8 @@
 1. [`docs/PLAN_VUA_APP_ANTIGRAVITY.md`](./docs/PLAN_VUA_APP_ANTIGRAVITY.md) (Kế hoạch tổng thể 21 phân hệ)
 2. [`docs/PROMPT_BO_SUNG_CRM_7_MAN_HINH.md`](./docs/PROMPT_BO_SUNG_CRM_7_MAN_HINH.md) (Đặc tả nâng cấp 7 màn hình CRM & Điều phối)
 
-**Ngày cập nhật:** 28/09/2026 (Nghiệm thu Theme 11 "Spa Thanh Lịch — Kem & Hồng Phấn", E0, E1 & E2)  
+**Ngày cập nhật:** 28/09/2026 (Hoàn thành Khắc phục Bố cục Lệch phải & Tối ưu Toàn diện Theme 11)  
+**GitHub Commit Mới Nhất:** `4eea56e` (`main`)  
 **GitHub Repo:** [`https://github.com/qtpham01vnn-sketch/app-crm.git`](https://github.com/qtpham01vnn-sketch/app-crm.git)  
 **Supabase Project:** `lskrcerzxltlrcewigrw` (`https://lskrcerzxltlrcewigrw.supabase.co`) — Region: `ap-southeast-1`  
 **Vercel URL Kiểm Thử:** [`https://phuongnam-crm.vercel.app`](https://phuongnam-crm.vercel.app)  
@@ -15,11 +16,12 @@
 
 | Màn hình / Luồng | File hiện có | Bảng Database / RPC | Đọc Thật | Ghi Thật | Kiểm Thử Đã Chạy | Trạng Thái & Bàn Giao | Phase |
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- | :---: |
-| **Theme Hệ Thống (11 Theme)** | `themes.ts`, `AppContext.tsx`, `ThemeModal.tsx`, `index.css` | LocalStorage `vua_app_theme`, CSS Variables | ✅ LIVE | ✅ LIVE | Switch 11 theme tức thì, lưu LocalStorage, không mất dữ liệu/filter, hỗ trợ `spa_elegance` tone ấm | 🎨 Hoàn thành Theme 11 | **Theme** |
+| **Bố cục App Shell** | `App.tsx`, `Sidebar.tsx`, `Topbar.tsx` | Layout Flex / CSS Grid | ✅ LIVE | N/A | Khắc phục triệt để lỗi cộng dồn 2 lần padding (256px + 256px = 512px). Header và main thẳng hàng | 📐 Chuẩn hóa 100% | **Core** |
+| **Theme Hệ Thống (11 Theme)** | `themes.ts`, `AppContext.tsx`, `ThemeModal.tsx`, `index.css` | LocalStorage `vua_app_theme`, CSS Variables | ✅ LIVE | ✅ LIVE | Switch 11 theme tức thì, lưu LocalStorage, không mất dữ liệu/filter, hỗ trợ `spa_elegance` tone ấm sáng | 🎨 Hoàn thành Theme 11 | **Theme** |
 | **Xác thực & RBAC** | `src/services/authService.ts`, `LoginPage.tsx` | Supabase Auth, `staff_profiles`, `organization_memberships`, RPC `get_staff_session` | ✅ LIVE | ✅ LIVE | Unit test RLS, Login/Logout, Token refresh | 🛡️ Hoàn thành siết bảo mật | **P2** |
 | **Chi nhánh** | `AppContext.tsx`, `Topbar.tsx` | `branches` | ✅ LIVE | Read-only | Đa chi nhánh isolation | ✅ Hoàn thành | **P2** |
-| **Tổng quan (Dashboard Màn 1)** | `HomeView.tsx` | `sales`, `appointments`, `customers`, `inventory_stocks` | ✅ LIVE | N/A | KPI tính động theo ngày/chi nhánh, loại bỏ +18.5% cứng | 🚀 Đã chuẩn hóa E0 | **E0/E4** |
-| **Khách hàng (CRM Màn 4)** | `CustView.tsx`, `masterDataService.ts` | `customers` | ✅ LIVE | ✅ LIVE | Thêm khách ghi Supabase, chặn lưu tạm khi lỗi, giữ form | 🚀 Chuẩn bị nâng cấp E3 | **E0/E3** |
+| **Tổng quan (Dashboard Màn 1)** | `HomeView.tsx` | `sales`, `appointments`, `customers`, `inventory_stocks` | ✅ LIVE | N/A | Banner sáng sang trọng, 4 KPI co giãn 4/2/1 cột, empty state có nút tạo lịch, thao tác nhanh sáng | 🚀 Đã chuẩn hóa E0/E4 | **E0/E4** |
+| **Khách hàng (CRM Màn 4)** | `CustView.tsx`, `masterDataService.ts` | `customers` | ✅ LIVE | ✅ LIVE | Bỏ màu xanh hardcode, nối theme tokens, định dạng tiền đầy đủ, responsive không tràn chữ | 🚀 Hoàn thành E0/E3 | **E0/E3** |
 | **Dịch vụ & Bảng giá (Màn 5)** | `SvcView.tsx`, `masterDataService.ts` | `services`, `service_price_versions`, `service_staff_skills`, `resources` | ✅ LIVE | ✅ LIVE | Giao diện 4 thẻ nhóm, bảng chi tiết KTV/lượt đặt/giá ưu đãi, modal thêm DV chuẩn, migration 007 | 🎯 Hoàn thành E1 (Theo Ảnh 5) | **E1** |
 | **Sản phẩm & Kho** | `ProdView.tsx`, `InvView.tsx` | `products`, `inventory_stocks` | ✅ LIVE | ✅ LIVE (SP) | Đọc tồn kho thật theo chi nhánh, thêm SP lưu DB | 🚀 Hoàn thành E0 | **E0/P5** |
 | **Gói / Combo** | `PkgView.tsx`, `masterDataService.ts` | `packages` | ✅ LIVE | ✅ LIVE | Thêm gói combo lưu Supabase | 🚀 Hoàn thành E0 | **E0/E1** |
@@ -37,40 +39,24 @@
 
 ## 2. BÁO CÁO CHI TIẾT THEO YÊU CẦU
 
-### 2.1 Theme Mới: "Spa Thanh Lịch — Kem & Hồng Phấn" (Theme 11)
-- **Thông số bảng màu chuẩn hóa:**
-  * Nền trang: Kem ngà `#F8F6EF`
-  * Bề mặt thẻ: Trắng ấm `#FFFEFA`
-  * Sidebar: Beige sáng `#F3EFE5` (viền `#E8E3D8`, họa tiết lá cây botanical watermark tinh tế)
-  * Màu chủ đạo: Hồng đất `#C77D8B`
-  * Màu nhấn đậm: `#A65367` (cho badge, nút quan trọng, tiêu đề phụ)
-  * Nền vùng được chọn / Pill: Hồng nhạt `#F5E4E7`
-  * Tiêu đề: Xanh rêu đậm `#234737` (Font Serif hỗ trợ tiếng Việt: *Playfair Display*)
-  * Chữ nội dung: `#303833` (*Plus Jakarta Sans*)
-  * Chữ phụ: `#70776F`
-  * Đường viền: Beige `#E8E3D8`
-- **Tích hợp hệ thống:**
-  * Khởi tạo trong `src/mock/themes.ts` với đầy đủ semantic tokens.
-  * Cập nhật `applyThemeToDOM` trong `AppContext.tsx` kích hoạt class `theme-soft-light` và gán toàn bộ CSS Variables (`--bg-main`, `--card-bg`, `--sidebar-bg`, `--border-color`, `--heading-color`, `--body-text`, `--sub-text`, `--selected-bg`).
-  * Cập nhật `Sidebar.tsx`, `Topbar.tsx`, `BottomNav.tsx`, `ThemeModal.tsx` hiển thị động `APP_THEMES.length` (11 theme).
-  * Lưu vào `localStorage` (`vua_app_theme`), chuyển đổi tức thì không làm mất trạng thái bộ lọc hay dữ liệu form.
+### 2.1 Khắc phục Bố cục Toàn Ứng Dụng (Layout Double Offset)
+- **Nguyên nhân cốt lõi:** `Sidebar.tsx` đồng thời chứa `fixed` và `relative` trong danh sách class CSS khiến nó chiếm 256px trong flow flex của container cha, đồng thời container nội dung chính `div.flex-1` trong `App.tsx` lại có class `lg:pl-64` (256px). Do đó khoảng trống bị cộng 2 lần (256px + 256px = 512px).
+- **Giải pháp dứt điểm:**
+  1. Trên Desktop (`lg+`): Chuyển Sidebar thành phần tử flex tĩnh (`lg:static lg:w-64 lg:shrink-0`).
+  2. Bỏ class `lg:pl-64` ở container chính. Header Topbar và Main content nằm chung trong flex column con chiếm trọn 100% diện tích còn lại, bắt đầu ngay tại cạnh phải Sidebar (256px).
+  3. Trên Mobile (`< lg`): Sidebar là drawer off-canvas (`fixed inset-y-0 left-0 z-50`), nội dung chính chiếm 100% chiều rộng từ 0px đến mép phải.
 
-### 2.2 Làm rõ Trạng thái E1 & E2 và Migration 007
-1. **Migration `007_e1_services_pricing_skills_resources.sql`:**
-   - Đã được khởi tạo đầy đủ trong thư mục `supabase/migrations/` của mã nguồn.
-   - Khi chạy ở môi trường Live Supabase: cần được áp dụng qua Supabase SQL Editor (hoặc CLI migration). Client đã thiết lập kiểm tra graceful fallback cho các trường mở rộng nếu schema chưa được áp dụng trực tiếp trên remote DB.
-2. **Chức năng đã kiểm thử với dữ liệu thật:**
-   - **Xác thực & phân quyền (Auth & RBAC):** Đã kết nối Supabase Auth thật, kiểm tra RLS qua RPC `get_staff_session`.
-   - **Dữ liệu danh mục Master Data:** Đọc và ghi trực tiếp vào các bảng `customers`, `services`, `products`, `packages`, `suppliers`, `promotions`, `branches`. Đã loại bỏ hoàn toàn cơ chế tự động ghi tạm vào State khi Supabase báo lỗi.
-   - **Lịch hẹn & Điều phối (Appts & Roster):** Đã hoàn thành 100% giao diện tác nghiệp, luồng 5 bước, bộ lọc đa tiêu chí, tính toán cọc/thanh toán và lưới 7 ngày x 14 giờ.
-3. **Quy trình nghiệp vụ Lịch hẹn:**
-   - Đã tách biệt rõ ràng **Nhật Ký Nhắc Hẹn (Zalo ZNS / SMS)** thành luồng thông báo độc lập, không ép buộc nằm giữa "Đã xác nhận" và "Hoàn thành". Quy trình tác nghiệp chính gồm: `Tạo lịch ➔ Chờ duyệt ➔ Đã xác nhận ➔ Đang làm ➔ Hoàn thành`.
+### 2.2 Hoàn thiện Màu sắc & Thao tác Nhanh theo 7 Ảnh Tham Khảo
+- **MockDataBanner:** Trong theme `spa_elegance`, đổi từ gradient xanh đen đậm sang tông sáng kem ngà `#EFE9DD`, viền `#E8E3D8`, chữ xanh rêu `#234737`, chip `#FFFEFA`.
+- **Thao tác nhanh (Quick Shortcuts):** Đổi từ nền xanh đen `bg-slate-900` sang nền trắng ấm `#FFFEFA` viền `#E8E3D8`, các nút thao tác nền kem `#F8F6EF` hover `#F3EFE5` chữ `#303833`.
+- **Empty State Lịch hẹn:** Thêm khối thông báo lịch sự khi chưa có lịch trong ngày kèm nút `+ Đặt Lịch Mới Ngay` nổi bật, không để ô trống vô nghĩa.
+- **Rà soát Hardcoded Colors:** Loại bỏ triệt để các mã màu `text-sky-600`, `bg-sky-50`, `border-sky-200` ở Khách hàng (`CustView.tsx`), Dịch vụ (`SvcView.tsx`), Tổng quan (`HomeView.tsx`), thay bằng Semantic Tokens (`currentTheme.primaryColor`, `currentTheme.badgeBg`, `currentTheme.buttonBg`).
 
 ---
 
 ## 3. KẾT QUẢ KIỂM THỬ KỸ THUẬT
 
 - **TypeScript Type Check (`npx tsc --noEmit`):** ✅ **0 lỗi** (`exit code 0`).
-- **Production Build (`npm run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 430ms).
+- **Production Build (`npm run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 409ms).
 - **Local Dev Server:** ✅ Đang phục vụ tại [http://localhost:5173](http://localhost:5173).
 
