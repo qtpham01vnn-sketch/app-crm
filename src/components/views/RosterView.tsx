@@ -11,7 +11,7 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const RosterView: React.FC = () => {
-  const { staffList, currentBranch, branches, setCurrentBranch, showToast } = useApp();
+  const { staffList, currentBranch, branches, setCurrentBranch, showToast, currentTheme } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [selectedStaff, setSelectedStaff] = useState<string>('all');
   const [selectedServiceType, setSelectedServiceType] = useState<string>('all');
@@ -107,10 +107,11 @@ export const RosterView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => showToast('Chức năng tạo ca làm đang mở', 'info')}
-            className="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md shadow-rose-500/20 flex items-center space-x-1.5 transition-all cursor-pointer"
+            className="text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition-all cursor-pointer hover:opacity-90 active:scale-95"
+            style={{ backgroundColor: currentTheme.buttonBg }}
           >
             <Plus className="w-4 h-4" />
-            <span>+ Tạo ca làm</span>
+            <span>Tạo ca làm</span>
           </button>
           <button
             onClick={() => showToast('Đã mở chức năng chặn lịch nghỉ/bảo trì', 'info')}

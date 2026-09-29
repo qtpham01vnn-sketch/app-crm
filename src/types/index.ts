@@ -182,6 +182,8 @@ export interface CustomerCourse {
   startDate: string;
   expiryDate?: string;
   saleId: string;
+  soldBranchId?: string;
+  allowInterBranch?: boolean;
   status: 'active' | 'completed' | 'expired';
 }
 
@@ -292,6 +294,18 @@ export interface Supplier {
   debt: number;
 }
 
+export interface PurchaseOrderItem {
+  id?: string;
+  productId: string;
+  productName: string;
+  purchaseUnit?: string;
+  conversionRate?: number;
+  qtyOrdered: number;
+  qtyReceived: number;
+  unitPrice: number;
+  lineTotal?: number;
+}
+
 export interface PurchaseOrder {
   id: string;
   orgId: string;
@@ -302,14 +316,27 @@ export interface PurchaseOrder {
   orderDate: string;
   expectedDate?: string;
   totalAmount: number;
-  status: 'draft' | 'ordered' | 'partially_received' | 'completed' | 'cancelled';
-  items: {
-    productId: string;
-    productName: string;
-    qtyOrdered: number;
-    qtyReceived: number;
-    unitPrice: number;
-  }[];
+  notes?: string;
+  status: 'draft' | 'ordered' | 'partially_received' | 'received' | 'completed' | 'cancelled';
+  items: PurchaseOrderItem[];
+}
+
+export interface GoodsReceiptItem {
+  id?: string;
+  poItemId?: string;
+  productId: string;
+  productName: string;
+  lotNumber?: string;
+  expiryDate?: string;
+  purchaseUnit?: string;
+  conversionRate?: number;
+  qty: number;
+  qtyAccepted?: number;
+  qtyRejected?: number;
+  rejectionReason?: string;
+  acceptedBaseUnits?: number;
+  unitPrice: number;
+  lineTotal?: number;
 }
 
 export interface GoodsReceiptNote {
@@ -320,17 +347,14 @@ export interface GoodsReceiptNote {
   supplierId: string;
   supplierName?: string;
   grnNumber: string;
+  invoiceNumber?: string;
   receivedDate: string;
   receiverStaffId: string;
   totalAmount: number;
   paidAmount: number;
-  status: 'completed' | 'cancelled';
-  items: {
-    productId: string;
-    productName: string;
-    qty: number;
-    unitPrice: number;
-  }[];
+  notes?: string;
+  status: 'draft' | 'confirmed' | 'completed' | 'cancelled';
+  items: GoodsReceiptItem[];
 }
 
 export interface Expense {
@@ -359,6 +383,7 @@ export interface Promotion {
   usedCount: number;
   startDate: string;
   endDate: string;
+  applicableBranchIds?: string[];
   isActive: boolean;
 }
 

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { Users, Search, Phone, Mail, DollarSign, Sparkles } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 
 export const CustView: React.FC = () => {
-  const { customers, setCustomers, courses, sales, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
+  const { customers, setCustomers, courses, sales, appointments, branches, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
   const [search, setSearch] = useState('');
+  const [scopeFilter, setScopeFilter] = useState<'branch' | 'all'>('branch');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
 
   const isSoftLight = currentTheme.isSoftLight;
@@ -76,13 +77,13 @@ export const CustView: React.FC = () => {
         // Demo mode only
         const demoCust: Customer = {
           id: `cust_demo_${Date.now()}`,
-          orgId: currentBranch?.orgId || 'demo-org',
+          orgId: currentBranch?.orgId || '11111111-1111-1111-1111-111111111111',
           name: trimmedName,
           phone: cleanPhone,
           email: newEmail.trim() || undefined,
           vipTier: newTier,
           gender: newGender,
-          primaryBranchId: currentBranch?.id || 'demo-branch',
+          primaryBranchId: currentBranch?.id || '22222222-2222-2222-2222-222222222221',
           totalSpent: 0,
           debt: 0,
           creditBalance: 0,
@@ -91,7 +92,7 @@ export const CustView: React.FC = () => {
         };
         setCustomers((prev) => [demoCust, ...prev]);
         setSelectedCust(demoCust);
-        showToast(`ℹ️ [Demo Mode] Đã thêm khách hàng "${demoCust.name}" vào bộ nhớ thử nghiệm`, 'info');
+        showToast(`ℹ️ [Demo Mode] Đã thêm khách hàng "${demoCust.name}" vào cơ sở ${currentBranch?.name}`, 'info');
       }
 
       setIsCreateModalOpen(false);
@@ -116,12 +117,40 @@ export const CustView: React.FC = () => {
     }
   };
 
-  const filtered = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
-  );
+  // Branch vs Chain-wide customer filtering logic
+  const branchCustomerIds = useMemo(() => {
+    const ids = new Set<string>();
+    customers.forEach((c) => {
+      if (c.primaryBranchId === currentBranch?.id) {
+        ids.add(c.id);
+      }
+    });
+    sales.forEach((s) => {
+      if (s.branchId === currentBranch?.id && s.customerId) {
+        ids.add(s.customerId);
+      }
+    });
+    appointments.forEach((a) => {
+      if (a.branchId === currentBranch?.id && a.customerId) {
+        ids.add(a.customerId);
+      }
+    });
+    return ids;
+  }, [customers, sales, appointments, currentBranch]);
+
+  const filtered = useMemo(() => {
+    return customers.filter((c) => {
+      const matchSearch =
+        search.trim() === '' ||
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.phone.includes(search) ||
+        (c.email && c.email.toLowerCase().includes(search.toLowerCase()));
+
+      const matchScope = scopeFilter === 'all' || branchCustomerIds.has(c.id);
+
+      return matchSearch && matchScope;
+    });
+  }, [customers, search, scopeFilter, branchCustomerIds]);
 
   const tierBadges: Record<string, { label: string; color: string; bg: string }> = {
     standard: { label: 'Thành viên', color: 'text-slate-700', bg: 'bg-slate-100' },
@@ -130,37 +159,86 @@ export const CustView: React.FC = () => {
     diamond: { label: 'Kim Cương (VIP)', color: 'text-rose-800', bg: 'bg-rose-100' }
   };
 
-  const custCourses = selectedCust ? courses.filter((crs) => crs.customerId === selectedCust.id) : [];
-  const custSales = selectedCust ? sales.filter((s) => s.customerId === selectedCust.id) : [];
+  const custCourses = useMemo(() => {
+    return selectedCust ? courses.filter((crs) => crs.customerId === selectedCust.id) : [];
+  }, [selectedCust, courses]);
+
+  const custSales = useMemo(() => {
+    return selectedCust ? sales.filter((s) => s.customerId === selectedCust.id) : [];
+  }, [selectedCust, sales]);
+
+  const custBranchSales = useMemo(() => {
+    return custSales.filter((s) => s.branchId === currentBranch?.id);
+  }, [custSales, currentBranch]);
+
+  const custBranchSpent = useMemo(() => {
+    return custBranchSales.reduce((sum, s) => sum + s.paidAmount, 0);
+  }, [custBranchSales]);
+
+  const custBranchDebt = useMemo(() => {
+    return custBranchSales.reduce((sum, s) => sum + s.debtAmount, 0);
+  }, [custBranchSales]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in items-start pb-8">
       {/* Left: Customer List (5 cols) */}
       <div
-        className={`lg:col-span-5 rounded-2xl p-5 border shadow-xs space-y-4 ${
-          isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+        className={`lg:col-span-5 rounded-2xl p-5 border space-y-4 ${
+          isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
         }`}
+        style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
       >
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center space-x-2">
             <Users className="w-5 h-5" style={{ color: currentTheme.primaryColor }} />
-            <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-800'}`}>
-              Khách Hàng Toàn Chuỗi ({customers.length})
-            </h3>
+            <div>
+              <h2 className={`font-bold text-sm ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
+                Hồ Sơ Khách Hàng
+              </h2>
+              <p className={`text-[10px] ${isSoftLight ? 'text-[#59665F]' : 'text-slate-400'}`}>
+                {scopeFilter === 'branch' ? `Tại ${currentBranch?.name}` : 'Toàn hệ thống chuỗi'} ({filtered.length})
+              </p>
+            </div>
           </div>
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl border cursor-pointer transition-all hover:opacity-90"
+            className="text-xs font-bold px-3.5 py-2 rounded-xl border cursor-pointer transition-all hover:opacity-90 flex items-center space-x-1.5 shadow-xs"
             style={{
-              backgroundColor: currentTheme.badgeBg,
-              color: currentTheme.badgeText || currentTheme.primaryColor,
-              borderColor: currentTheme.borderColor || currentTheme.primaryColor
+              backgroundColor: currentTheme.buttonBg,
+              color: '#ffffff',
+              borderColor: currentTheme.buttonBg
             }}
           >
-            + Thêm Khách
+            <Users className="w-3.5 h-3.5" />
+            <span>Thêm Khách Mới</span>
           </button>
         </div>
 
+        {/* Scope Filter Buttons */}
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 text-xs font-semibold">
+          <button
+            onClick={() => setScopeFilter('branch')}
+            className={`flex-1 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
+              scopeFilter === 'branch'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Tại chi nhánh ({branchCustomerIds.size})
+          </button>
+          <button
+            onClick={() => setScopeFilter('all')}
+            className={`flex-1 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
+              scopeFilter === 'all'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Toàn chuỗi ({customers.length})
+          </button>
+        </div>
+
+        {/* Search Input */}
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -168,60 +246,82 @@ export const CustView: React.FC = () => {
             placeholder="Tìm theo tên, SĐT, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`w-full pl-9 pr-3 py-2 border rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 ${
+            className={`w-full pl-9 pr-3 py-2 border rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 ${
               isSoftLight
-                ? 'bg-[#F8F6EF] border-[#E8E3D8] text-[#303833]'
-                : 'bg-slate-50 border-slate-200 text-slate-800'
+                ? 'bg-[#FAFAF8] border-[#E5E7E4] text-[#26342F] focus:ring-[#B83D62]'
+                : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-rose-400'
             }`}
           />
         </div>
 
-        <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
-          {filtered.map((c) => {
-            const badge = tierBadges[c.vipTier] || tierBadges.standard;
-            const isSelected = selectedCust?.id === c.id;
-            return (
-              <div
-                key={c.id}
-                onClick={() => setSelectedCust(c)}
-                className={`p-3.5 rounded-xl border transition-all cursor-pointer text-xs ${
-                  isSelected
-                    ? 'border-2 shadow-sm'
-                    : isSoftLight
-                    ? 'border-[#E8E3D8] hover:bg-[#F8F6EF]'
-                    : 'border-slate-200/70 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-                style={{
-                  borderColor: isSelected ? currentTheme.primaryColor : undefined,
-                  backgroundColor: isSelected ? currentTheme.badgeBg : undefined
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <h4 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{c.name}</h4>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.bg} ${badge.color}`}>
-                    {badge.label}
-                  </span>
+        {/* Customer List Items */}
+        <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+          {filtered.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              Không tìm thấy khách hàng nào phù hợp với phạm vi đang chọn.
+            </div>
+          ) : (
+            filtered.map((c) => {
+              const badge = tierBadges[c.vipTier] || tierBadges.standard;
+              const isSelected = selectedCust?.id === c.id;
+              const homeBranch = branches.find((b) => b.id === c.primaryBranchId);
+              const isLocalBranch = c.primaryBranchId === currentBranch?.id;
+
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedCust(c)}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer text-xs ${
+                    isSelected
+                      ? 'border-2 shadow-xs'
+                      : isSoftLight
+                      ? 'border-[#E5E7E4] hover:bg-[#FFF1F5]/40'
+                      : 'border-slate-200/70 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                  style={{
+                    borderColor: isSelected ? currentTheme.primaryColor : undefined,
+                    backgroundColor: isSelected ? currentTheme.badgeBg : undefined
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className={`font-bold text-sm ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{c.name}</h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.bg} ${badge.color}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1 text-[11px]">
+                    <span className="text-slate-500 font-mono">{c.phone}</span>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                      isLocalBranch
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {homeBranch ? homeBranch.name.split(' - ')[0] : 'Chưa gán'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 text-[11px]">
+                    <span className={isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}>
+                      Tổng chi tiêu: <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}>{c.totalSpent.toLocaleString('vi-VN')} đ</b>
+                    </span>
+                    {c.debt > 0 ? (
+                      <span className="text-rose-600 font-bold">Nợ: {c.debt.toLocaleString('vi-VN')} đ</span>
+                    ) : (
+                      <span className="text-emerald-700 font-semibold">Không nợ</span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-slate-500 font-mono mt-0.5">{c.phone}</p>
-                <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 text-[11px]">
-                  <span className="text-slate-500">Chi tiêu: <b className="text-slate-800">{c.totalSpent.toLocaleString('vi-VN')} đ</b></span>
-                  {c.debt > 0 ? (
-                    <span className="text-rose-600 font-bold">Nợ: {c.debt.toLocaleString('vi-VN')} đ</span>
-                  ) : (
-                    <span className="text-emerald-700 font-semibold">Không nợ</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
       {/* Right: Detailed Customer Profile & Treatment History (7 cols) */}
       <div
-        className={`lg:col-span-7 rounded-2xl p-6 border shadow-xs space-y-6 ${
-          isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+        className={`lg:col-span-7 rounded-2xl p-6 border space-y-6 ${
+          isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
         }`}
+        style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
       >
         {selectedCust ? (
           <>
@@ -229,14 +329,14 @@ export const CustView: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-center space-x-3 min-w-0">
                 <div
-                  className="w-12 h-12 rounded-2xl text-white flex items-center justify-center font-black text-lg shadow-md shrink-0"
-                  style={{ background: currentTheme.heroGradient }}
+                  className="w-12 h-12 rounded-2xl text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0"
+                  style={{ background: isSoftLight ? currentTheme.buttonBg : currentTheme.heroGradient }}
                 >
                   {selectedCust.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center space-x-2">
-                    <h3 className={`font-bold text-base truncate ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-900'}`}>
+                    <h3 className={`font-bold text-base truncate ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-900'}`}>
                       {selectedCust.name}
                     </h3>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tierBadges[selectedCust.vipTier].bg} ${tierBadges[selectedCust.vipTier].color}`}>
@@ -251,99 +351,145 @@ export const CustView: React.FC = () => {
               </div>
 
               <div className="text-left sm:text-right sm:self-center shrink-0">
-                <p className="text-[11px] text-slate-400">Khách cấp Tổ chức</p>
-                <p className="text-xs font-bold" style={{ color: currentTheme.primaryColor }}>Dùng chung toàn chuỗi</p>
+                <p className="text-[11px] text-slate-400 flex items-center gap-1 justify-end">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" /> Cơ sở ban đầu:
+                </p>
+                <p className="text-xs font-bold" style={{ color: currentTheme.primaryColor }}>
+                  {branches.find((b) => b.id === selectedCust.primaryBranchId)?.name || 'Toàn hệ thống'}
+                </p>
               </div>
             </div>
 
-            {/* Financial Summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className={`p-3 rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/80'}`}>
-                <span className="text-slate-500 text-[11px]">Tổng Chi Tiêu</span>
-                <p className={`font-black text-sm mt-0.5 ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{selectedCust.totalSpent.toLocaleString('vi-VN')} đ</p>
+            {/* Financial Summary: Differentiate Branch Scope vs Chain-wide */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>Chỉ số tài chính</span>
+                <span className="text-[11px] font-normal text-slate-400">Chi nhánh hiện tại vs Toàn chuỗi</span>
               </div>
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200/80">
-                <span className="text-rose-600 text-[11px]">Công Nợ Phải Thu</span>
-                <p className="font-black text-sm text-rose-700 mt-0.5">{selectedCust.debt.toLocaleString('vi-VN')} đ</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80">
-                <span className="text-emerald-700 text-[11px]">Số Dư Ký Cọc</span>
-                <p className="font-black text-sm text-emerald-800 mt-0.5">{selectedCust.creditBalance.toLocaleString('vi-VN')} đ</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans">
+                {/* Current Branch Box */}
+                <div className={`p-3.5 rounded-xl border ${isSoftLight ? 'bg-[#FFF1F5]/40 border-[#E5E7E4]' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[11px] font-bold text-slate-600 block uppercase tracking-wider">
+                    Tại {currentBranch?.name}
+                  </span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Đã chi tiêu:</span>
+                      <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}>{custBranchSpent.toLocaleString('vi-VN')} đ</b>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Công nợ tại cơ sở:</span>
+                      <b className={custBranchDebt > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                        {custBranchDebt.toLocaleString('vi-VN')} đ
+                      </b>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chain-wide Box */}
+                <div className={`p-3.5 rounded-xl border ${isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[11px] font-bold text-slate-600 block uppercase tracking-wider">
+                    Toàn Hệ Thống Chuỗi
+                  </span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tổng chi tiêu chuỗi:</span>
+                      <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}>{selectedCust.totalSpent.toLocaleString('vi-VN')} đ</b>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tổng nợ toàn chuỗi:</span>
+                      <b className={selectedCust.debt > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                        {selectedCust.debt.toLocaleString('vi-VN')} đ
+                      </b>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Treatment Courses Section */}
             <div>
-              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>
+              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
                 <Sparkles className="w-4 h-4 text-amber-500" /> Gói Liệu Trình Đang Theo Dõi ({custCourses.length})
               </h4>
               {custCourses.length === 0 ? (
-                <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] text-[#70776F] border-[#E8E3D8]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
+                <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#FAFAF8] text-[#59665F] border-[#E5E7E4]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
                   Khách chưa đăng ký gói liệu trình nào.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {custCourses.map((crs) => (
-                    <div
-                      key={crs.id}
-                      className={`p-4 rounded-xl border space-y-2 text-xs ${
-                        isSoftLight ? 'bg-[#F8F6EF]/70 border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/70'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">{crs.name}</span>
-                        <span className="font-bold" style={{ color: currentTheme.primaryColor }}>
-                          Đã làm {crs.usedSessions} / {crs.totalSessions} buổi
-                        </span>
+                <div className="space-y-3 font-sans">
+                  {custCourses.map((crs) => {
+                    const soldBranch = branches.find((b) => b.id === crs.soldBranchId);
+                    return (
+                      <div
+                        key={crs.id}
+                        className={`p-4 rounded-xl border space-y-2 text-xs ${
+                          isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200/70'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`font-bold ${isSoftLight ? 'text-[#26342F]' : 'text-slate-900'}`}>{crs.name}</span>
+                          <span className="font-bold" style={{ color: currentTheme.primaryColor }}>
+                            Đã làm {crs.usedSessions} / {crs.totalSessions} buổi
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-2 rounded-full transition-all"
+                            style={{
+                              width: `${(crs.usedSessions / crs.totalSessions) * 100}%`,
+                              backgroundColor: currentTheme.buttonBg
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-1 gap-1">
+                          <span>Nơi bán: <b>{soldBranch?.name || 'Chi nhánh gốc'}</b> {crs.allowInterBranch && '• (Dùng liên chi nhánh)'}</span>
+                          <span>Còn lại: <b className="text-emerald-700">{crs.totalSessions - crs.usedSessions} buổi</b></span>
+                        </div>
                       </div>
-                      {/* Progress bar */}
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-2 rounded-full transition-all"
-                          style={{
-                            width: `${(crs.usedSessions / crs.totalSessions) * 100}%`,
-                            backgroundColor: currentTheme.buttonBg
-                          }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[11px] text-slate-500 pt-1">
-                        <span>Bắt đầu: {crs.startDate}</span>
-                        <span>Còn lại: <b className="text-emerald-700">{crs.totalSessions - crs.usedSessions} buổi</b></span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Invoices History */}
+            {/* Invoices History with Branch Name */}
             <div>
-              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>
+              <h4 className={`font-bold text-xs mb-3 flex items-center gap-2 ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
                 <DollarSign className="w-4 h-4" style={{ color: currentTheme.primaryColor }} /> Lịch Sử Hóa Đơn ({custSales.length})
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-2 font-sans">
                 {custSales.length === 0 ? (
-                  <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#F8F6EF] text-[#70776F] border-[#E8E3D8]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
+                  <p className={`text-xs py-3 text-center rounded-xl border ${isSoftLight ? 'bg-[#FAFAF8] text-[#59665F] border-[#E5E7E4]' : 'bg-slate-50 text-slate-400 border-slate-200/60'}`}>
                     Chưa có lịch sử thanh toán hóa đơn.
                   </p>
                 ) : (
-                  custSales.map((sale) => (
-                    <div
-                      key={sale.id}
-                      className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
-                        isSoftLight ? 'bg-[#F8F6EF]/70 border-[#E8E3D8]' : 'bg-slate-50 border-slate-200/70'
-                      }`}
-                    >
-                      <div>
-                        <span className="font-mono font-bold" style={{ color: currentTheme.primaryColor }}>{sale.invoiceNo}</span>
-                        <p className="text-[11px] text-slate-500">{sale.date} • {sale.paymentMethod}</p>
+                  custSales.map((sale) => {
+                    const saleBranch = branches.find((b) => b.id === sale.branchId);
+                    return (
+                      <div
+                        key={sale.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                          isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200/70'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono font-bold" style={{ color: currentTheme.primaryColor }}>{sale.invoiceNo}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                              {saleBranch?.name || 'Chi nhánh'}
+                            </span>
+                          </div>
+                          <p className={`text-[11px] mt-0.5 ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>{sale.date} • {sale.paymentMethod}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-bold ${isSoftLight ? 'text-[#26342F]' : 'text-slate-900'}`}>{sale.total.toLocaleString('vi-VN')} đ</span>
+                          <p className="text-[11px] text-emerald-700 font-semibold">Đã trả: {sale.paidAmount.toLocaleString('vi-VN')} đ</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="font-bold text-slate-900">{sale.total.toLocaleString('vi-VN')} đ</span>
-                        <p className="text-[11px] text-emerald-700 font-semibold">Đã trả: {sale.paidAmount.toLocaleString('vi-VN')} đ</p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -375,135 +521,136 @@ export const CustView: React.FC = () => {
 
             {/* Duplicate Phone Notice if detected */}
             {duplicateWarning && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2 shrink-0">
-                <p className="font-bold text-amber-900">
-                  ⚠️ Phát hiện số điện thoại trùng lặp:
-                </p>
-                <p className="text-amber-800">
-                  Số <b>{newPhone}</b> đã thuộc về khách hàng <b>"{duplicateWarning.existingCust.name}"</b>.
-                </p>
-                <div className="flex items-center gap-2 pt-1">
+              <div className="p-3 my-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-2">
+                <p className="font-bold">⚠️ Số điện thoại đã tồn tại trong hệ thống!</p>
+                <p>Khách hàng: <b>{duplicateWarning.existingCust.name}</b> (SĐT: {duplicateWarning.existingCust.phone}) đã có hồ sơ.</p>
+                <div className="flex items-center space-x-2 pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedCust(duplicateWarning.existingCust);
                       setIsCreateModalOpen(false);
                       setDuplicateWarning(null);
-                      showToast(`Đã chuyển sang hồ sơ của "${duplicateWarning.existingCust.name}"`, 'info');
                     }}
-                    className="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 font-bold rounded-lg hover:bg-amber-100 text-[11px] cursor-pointer"
+                    className="px-3 py-1 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700"
                   >
                     Xem Hồ Sơ Đã Có
                   </button>
                   <button
                     type="button"
                     onClick={(e) => handleCreateCustomer(e, true)}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+                    className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300"
                   >
-                    Vẫn Tạo Mới (Dùng chung số)
+                    Vẫn Tạo Trùng
                   </button>
                 </div>
               </div>
             )}
 
-            <form onSubmit={(e) => handleCreateCustomer(e, false)} className="space-y-3.5 text-xs overflow-y-auto pt-3 flex-1">
+            <form onSubmit={(e) => handleCreateCustomer(e, false)} className="space-y-4 pt-3 text-xs overflow-y-auto">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Họ và tên <span className="text-rose-500">*</span>
-                </label>
+                <label className="block font-bold text-slate-700 mb-1">Họ và Tên *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Chị Nguyễn Phương Thảo"
+                  placeholder="VD: Nguyễn Thị Lan Anh"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400"
+                  className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    Số điện thoại <span className="text-rose-500">*</span>
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1">Số Điện Thoại *</label>
                   <input
                     type="tel"
                     required
-                    placeholder="Ví dụ: 0918123456"
+                    placeholder="VD: 0912345678"
                     value={newPhone}
-                    onChange={(e) => {
-                      setNewPhone(e.target.value);
-                      if (duplicateWarning) setDuplicateWarning(null);
-                    }}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-400 font-mono"
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Giới tính</label>
+                  <label className="block font-bold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="lananh@gmail.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Giới Tính</label>
                   <select
                     value={newGender}
                     onChange={(e) => setNewGender(e.target.value as Customer['gender'])}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
+                    className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
                   >
                     <option value="female">Nữ</option>
                     <option value="male">Nam</option>
                     <option value="other">Khác</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Hạng thành viên</label>
+                  <label className="block font-bold text-slate-700 mb-1">Hạng Thành Viên</label>
                   <select
                     value={newTier}
                     onChange={(e) => setNewTier(e.target.value as Customer['vipTier'])}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
+                    className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
                   >
-                    <option value="standard">Thành viên chuẩn</option>
+                    <option value="standard">Thành viên mới (Standard)</option>
                     <option value="silver">Bạc (Silver)</option>
                     <option value="gold">Vàng (Gold)</option>
-                    <option value="diamond">Kim Cương (VIP)</option>
+                    <option value="diamond">Kim Cương (Diamond VIP)</option>
                   </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email</label>
-                  <input
-                    type="email"
-                    placeholder="email@example.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
-                  />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Ghi chú y tế & Dị ứng mỹ phẩm</label>
+                <label className="block font-bold text-slate-700 mb-1">Cơ sở đăng ký ban đầu</label>
+                <input
+                  type="text"
+                  disabled
+                  value={currentBranch?.name || 'Chi nhánh hiện tại'}
+                  className="w-full px-3 py-2 border rounded-xl bg-slate-100 text-slate-500 font-semibold cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Ghi Chú Y Khoa / Sở Thích</label>
                 <textarea
                   rows={2}
-                  placeholder="Tiền sử da nhạy cảm, dị ứng hoạt chất, tình trạng răng..."
+                  placeholder="Ghi chú bệnh lý, tiền sử dị ứng hoặc yêu cầu phục vụ..."
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white"
+                  className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-[#B83D62] outline-none"
                 />
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl cursor-pointer"
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    setDuplicateWarning(null);
+                  }}
+                  className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 text-white font-bold rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer hover:opacity-90"
+                  className="px-4 py-2 text-white font-bold rounded-xl hover:opacity-90 disabled:opacity-50 cursor-pointer"
                   style={{ backgroundColor: currentTheme.buttonBg }}
                 >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu Khách Hàng'}
+                  {isSubmitting ? 'Đang lưu...' : 'Lưu Hồ Sơ Khách'}
                 </button>
               </div>
             </form>

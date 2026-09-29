@@ -30,33 +30,69 @@
 | **Danh sách Lịch hẹn (Màn 2)** | `ApptsView.tsx` | `appointments` | ✅ Live/State | ✅ Live/State | 5 KPI counters động, lọc ngày/trạng thái/KTV/search, sidebar khung giờ đông nhất & ghi chú | 🎯 Hoàn thành E2 (Theo Ảnh 2) | **E2** |
 | **Chi tiết Lịch hẹn (Màn 3)** | `AppointmentDetailModal.tsx` | `appointments`, `appointment_events` | ✅ Live/State | ✅ Live/State | Quy trình 5 bước tác nghiệp (*Tạo lịch ➔ Chờ duyệt ➔ Đã xác nhận ➔ Đang làm ➔ Hoàn thành*), tách biệt **Nhật Ký Nhắc Hẹn (Zalo/SMS)**, tabs sở thích/dị ứng/lịch sử | 🎯 Hoàn thành E2 (Theo Ảnh 3) | **E2** |
 | **Lịch Làm việc & Điều phối (Màn 6)** | `RosterView.tsx` | `shift_rosters`, `resources`, `resource_allocations` | ✅ Live/State | ✅ Live/State | Lưới 7 ngày x 14 khung giờ (08:00 - 21:00), mã màu dịch vụ, sidebar KTV/phòng trống/giờ cao điểm/đổi ca | 🎯 Hoàn thành E2 (Theo Ảnh 6) | **E2** |
-| **Hộp thư Tư vấn (Màn 7)** | `ChatView.tsx` (chuẩn bị) | `conversations`, `messages`, `channel_accounts` | ❌ Chưa có | ❌ Chưa có | Chuẩn bị triển khai E5 với trạng thái "Chưa kết nối" khi thiếu API | ⏳ Đợt tiếp theo | **E5** |
-| **POS & Hóa đơn** | `PosView.tsx`, `InvoiceModal.tsx` | `sales`, `payments` | ⚠️ State | ⚠️ State | Giỏ hàng, in bill mẫu K80/K58 | ACID Checkout RPC | **P5** |
-| **Sổ quỹ & Chi phí** | `ExpView.tsx` | `expenses` | ⚠️ State | ⚠️ State | Giao diện thu chi | Sổ quỹ liên kết | **P5** |
-| **Bảng lương & Hoa hồng** | `PayrollView.tsx`, `CommView.tsx` | `timesheets`, `commissions`, `payroll_records` | ⚠️ State | ⚠️ State | Giao diện tính lương | Hoa hồng sau bill | **P6** |
+| **POS & Hóa đơn** | `PosView.tsx`, `InvoiceModal.tsx` | `sales`, `payments`, `sale_items`, `payment_allocations` | ✅ LIVE | ✅ LIVE | ACID Checkout RPC `rpc_pos_checkout`, trừ tồn kho, cọc ví, phân bổ đa nguồn | 🛡️ Hoàn tất Core P5 | **P5** |
+| **Kho vận sau P5 (Đợt A - Nhập hàng/NCC)** | `PoView.tsx`, `SuppView.tsx`, `masterDataService.ts`, `AppContext.tsx` | `purchase_orders`, `purchase_order_items`, `goods_receipt_notes`, `goods_receipt_items`, `supplier_ledger`, `supplier_payments`, `supplier_advances`, `supplier_returns`, `inventory_lot_stocks`, `damaged_inventory_items` | ⏳ Chờ Migration | ⏳ Chờ Migration | 9 kịch bản nghiệp vụ đã viết (`p5_hardening_and_procurement_test.sql`), **chưa kiểm thử trên live database** (chờ áp dụng migration) | ⏳ **Đang triển khai Đợt A** (Chờ áp dụng SQL 012 & 013) | **Kho vận sau P5** |
+| **Kho vận sau P5 (Đợt B - Điều chuyển)** | `InvView.tsx` (mở rộng) | `branch_transfers`, `transfer_items` | ⏳ Chờ Đợt B | ⏳ Chờ Đợt B | Xuất chuyển giảm tồn A -> In-transit -> Nhận từng phần tại B -> Chống hủy sai | ⏳ Kế hoạch Đợt B (Sau nghiệm thu Đợt A) | **Kho vận sau P5** |
+| **Kho vận sau P5 (Đợt C - Kiểm kê)** | `InvView.tsx` (mở rộng) | `stocktakes`, `stocktake_items` | ⏳ Chờ Đợt C | ⏳ Chờ Đợt C | Mốc chốt số liệu -> Kiểm đếm thực tế -> Duyệt chênh lệch -> Bút toán điều chỉnh/hủy | ⏳ Kế hoạch Đợt C | **Kho vận sau P5** |
+| **Kho vận sau P5 (Đợt D - Báo cáo kho)** | `ReportsView.tsx` | Sổ cái kho & tài chính | ⏳ Chờ Đợt D | ⏳ Chờ Đợt D | Đối chiếu: Tồn đầu + Nhập - Xuất ± Điều chỉnh = Tồn cuối; Khớp nợ NCC; Giá vốn WAC | ⏳ Kế hoạch Đợt D | **Kho vận sau P5** |
+| **CRM Nâng cao (Lead & CSKH)** | `CustView.tsx` (mở rộng) | `leads`, `customer_loyalty`, `customer_care_logs` | ⏳ Bảo toàn | ⏳ Bảo toàn | Phân hạng hội viên, tích điểm, chăm sóc sau liệu trình, kết nối Zalo OA/SMS Brandname | ⏳ Giữ nguyên Master Plan | **CRM Nâng cao** |
+| **Nhân sự & Bác sĩ/KTV** | `StaffView.tsx` | `staff_profiles`, `staff_skills` | ⏳ Bảo toàn | ⏳ Bảo toàn | Hồ sơ chứng chỉ, năng lực chuyên môn KTV/Bác sĩ, phân quyền tài khoản | ⏳ Giữ nguyên Master Plan | **HR** |
+| **Phân ca & Chấm công** | `TimesView.tsx` | `timesheets`, `shift_assignments` | ⏳ Bảo toàn | ⏳ Bảo toàn | Check-in/Check-out GPS/WiFi, ca làm việc, tăng ca, phạt đi muộn/về sớm | ⏳ Giữ nguyên Master Plan | **Timesheet** |
+| **Hoa hồng & Bảng lương** | `CommView.tsx`, `PayrollView.tsx` | `commissions`, `payroll_records` | ⏳ Bảo toàn | ⏳ Bảo toàn | Hoa hồng bán lẻ, hoa hồng làm tour, lương cơ bản, phụ cấp, chốt bảng lương | ⏳ Giữ nguyên Master Plan | **P6** |
+| **Hộp thư Tư vấn (Màn 7)** | `ChatView.tsx` | `conversations`, `messages`, `channel_accounts` | ⏳ Bảo toàn | ⏳ Bảo toàn | Chatbox đa kênh Facebook/Zalo, trạng thái kết nối API, phân bổ hội thoại | ⏳ Giữ nguyên Master Plan | **E5** |
+| **Sổ quỹ & Chi phí** | `ExpView.tsx` | `expenses` | ⚠️ State | ⚠️ State | Thu/chi quỹ tiền mặt, ngân hàng, liên kết bút toán thanh toán NCC (không ghi đè chi phí P&L) | Hoàn thiện theo Đợt A/D | **P5/Kho** |
+| **Nghiệm thu Vận hành** | Toàn hệ thống | E2E Tests, Regression Suite | ⏳ Bảo toàn | ⏳ Bảo toàn | Nghiệm thu tích hợp toàn bộ 21 phân hệ và kịch bản vận hành thực tế | ⏳ Nghiệm thu cuối | **Final** |
 
 ---
 
-## 2. BÁO CÁO CHI TIẾT THEO YÊU CẦU
+## 2. KẾ HOẠCH ĐỢT: KHO VẬN SAU P5 (STAGED SUPPLY CHAIN ROLLOUT)
 
-### 2.1 Khắc phục Bố cục Toàn Ứng Dụng (Layout Double Offset)
-- **Nguyên nhân cốt lõi:** `Sidebar.tsx` đồng thời chứa `fixed` và `relative` trong danh sách class CSS khiến nó chiếm 256px trong flow flex của container cha, đồng thời container nội dung chính `div.flex-1` trong `App.tsx` lại có class `lg:pl-64` (256px). Do đó khoảng trống bị cộng 2 lần (256px + 256px = 512px).
-- **Giải pháp dứt điểm:**
-  1. Trên Desktop (`lg+`): Chuyển Sidebar thành phần tử flex tĩnh (`lg:static lg:w-64 lg:shrink-0`).
-  2. Bỏ class `lg:pl-64` ở container chính. Header Topbar và Main content nằm chung trong flex column con chiếm trọn 100% diện tích còn lại, bắt đầu ngay tại cạnh phải Sidebar (256px).
-  3. Trên Mobile (`< lg`): Sidebar là drawer off-canvas (`fixed inset-y-0 left-0 z-50`), nội dung chính chiếm 100% chiều rộng từ 0px đến mép phải.
+> [!IMPORTANT]
+> **Quy tắc bất biến:** Không được xóa bỏ, thay thế hoặc tự động xem các phân hệ còn lại trong Master Plan (CRM nâng cao, Nhân sự, Phân ca/Chấm công, Hoa hồng/Lương, Hộp thư Chatbox, Báo cáo & Nghiệm thu vận hành) là đã hoàn thành. Module Kho vận được bổ sung thành đợt chuyên đề riêng mang tên **"Kho vận sau P5"** gồm 4 đợt triển khai tuần tự:
+> - **Đợt A:** Nhập hàng & Nhà cung cấp (PO → GRN → Sổ cái công nợ NCC → Thanh toán NCC).
+> - **Đợt B:** Điều chuyển chi nhánh (Xuất A → Hàng đang đi đường → Nhập B → Đối soát hao hụt).
+> - **Đợt C:** Kiểm kê & Điều chỉnh kho (Chốt snapshot dữ liệu → Kiểm đếm → Duyệt chênh lệch → Xuất hủy có lý do).
+> - **Đợt D:** Báo cáo đối chiếu tài chính & kho vận (Cân bằng Tồn đầu/cuối, Công nợ NCC, Giá vốn bình quân).
 
-### 2.2 Hoàn thiện Màu sắc & Thao tác Nhanh theo 7 Ảnh Tham Khảo
-- **MockDataBanner:** Trong theme `spa_elegance`, đổi từ gradient xanh đen đậm sang tông sáng kem ngà `#EFE9DD`, viền `#E8E3D8`, chữ xanh rêu `#234737`, chip `#FFFEFA`.
-- **Thao tác nhanh (Quick Shortcuts):** Đổi từ nền xanh đen `bg-slate-900` sang nền trắng ấm `#FFFEFA` viền `#E8E3D8`, các nút thao tác nền kem `#F8F6EF` hover `#F3EFE5` chữ `#303833`.
-- **Empty State Lịch hẹn:** Thêm khối thông báo lịch sự khi chưa có lịch trong ngày kèm nút `+ Đặt Lịch Mới Ngay` nổi bật, không để ô trống vô nghĩa.
-- **Rà soát Hardcoded Colors:** Loại bỏ triệt để các mã màu `text-sky-600`, `bg-sky-50`, `border-sky-200` ở Khách hàng (`CustView.tsx`), Dịch vụ (`SvcView.tsx`), Tổng quan (`HomeView.tsx`), thay bằng Semantic Tokens (`currentTheme.primaryColor`, `currentTheme.badgeBg`, `currentTheme.buttonBg`).
+### 2.1 Các Chốt Chặn Bắt Buộc Đã Hoàn Thiện Trước Khi Nối Kho:
+1. **Kiểm soát hoàn trả hàng (`rpc_refund_sale`)**:
+   - Tách biệt rõ ràng giữa: Số lượng hoàn tiền, Số lượng thực nhận lại, và Số lượng đủ điều kiện nhập kho (`restockable_qty`).
+   - Hàng hỏng/lỗi/hết hạn nhận lại được đưa vào kho cách ly (`damaged_inventory_items`), tuyệt đối **không cộng vào tồn kho khả dụng để bán**.
+   - Hoàn tiền đối chiếu phương thức thanh toán gốc; trừ công nợ trước nếu đơn còn nợ; không hoàn vượt quá số tiền khách đã thực trả.
+2. **Chuyển khoản VietQR chờ duyệt**:
+   - Khoản tiền chờ duyệt (`pending_verification`) không tính vào doanh thu thực thu.
+   - Chỉ xác nhận có quyền (`rpc_confirm_bank_payment`) mới ghi nhận thanh toán chính thức; có cơ chế chống xác nhận lặp (Idempotent).
+3. **Quy tắc nhập hàng & công nợ nhà cung cấp (Đợt A)**:
+   - Đơn đặt hàng (PO) chưa làm tăng tồn kho.
+   - Phiếu nhận hàng (GRN) được xác nhận mới làm tăng tồn theo số thực nhận đủ tiêu chuẩn (`accepted_base_units`).
+   - Hỗ trợ nhận nhiều lần cho 1 đơn PO (partial receipts).
+   - Quy đổi đơn vị nhập và đơn vị bán nhất quán (thùng/lốc -> chai/hộp).
+   - Sổ cái công nợ NCC (`supplier_ledger`) bất biến: mọi phát sinh mua/thanh toán đều có dòng đối soát, không chỉ sửa cột `debt_balance`.
+   - Tính giá vốn bình quân gia quyền (Weighted Average Cost).
+   - Tiền trả trước / đặt cọc có chứng từ thực tế (`supplier_advances`), kiểm tra hạn mức server-side, phân biệt dòng tiền ra với chi phí P&L.
+   - Luồng xuất trả hàng NCC (`supplier_returns`) với nghiệp vụ đảo sổ cái rõ ràng, bảo toàn lịch sử kiểm toán.
+
+### 2.2 Hiện Trạng Triển Khai & Kiểm Thử Đợt A:
+- **Migration Files (Đã soạn thảo tại workspace local, CHƯA CHẠY trên Supabase Live DB):**
+  - Thứ tự áp dụng bắt buộc (Không chạy song song):
+    1. Chạy `supabase/migrations/012_p5_pos_hardening_and_procurement_a.sql` trước ➔ Kiểm tra tạo bảng PO/GRN, Sổ cái AP, Damaged items.
+    2. Sau khi 012 thành công, chạy `supabase/migrations/013_inventory_phase_a_hardening.sql` ➔ Thêm WAC, Lot Stocks, Advances, Returns & Immutability.
+- **Trạng thái kiểm thử:** ⚠️ **CHƯA KIỂM THỬ TRÊN REMOTE DATABASE** (Chờ áp dụng migration trên Supabase Dashboard).
+- **Giao diện người dùng (Đã hoàn thiện & kiểm thử giao diện):**
+  - `src/components/views/PoView.tsx`: 3 sub-tabs (PO, GRN, Sổ cái AP) + 6 Modals tác nghiệp.
+  - **Modal 3 (Chi tiết PO):** Đã mở rộng hiển thị đầy đủ các cột nghiệp vụ (*Đã đặt, Giao đến, Đạt chuẩn vào kho, Từ chối cách ly, Còn chờ giao*) và bảng lịch sử các phiếu GRN liên kết.
+  - **Modal 6 (Xuất trả NCC):** Phân loại rõ ràng 2 trường hợp nghiệp vụ: *Hàng lỗi giữ hộ từ chối lúc nhận (0đ giảm nợ NCC)* vs *Hàng đã mua phát hiện lỗi sau (Giảm nợ AP)*.
+  - **Kiểm soát nhận hàng:** Chặn nhận vượt số lượng đặt của PO (`qtyAccepted > remainingQty`), bắt buộc nhập lý do hàng lỗi, kiểm tra hạn mức cấn trừ tiền cọc.
+  - `src/components/views/SuppView.tsx`: Tra cứu lịch sử sổ cái AP và thanh toán nợ NCC trực tiếp.
+  - **Xử lý lỗi server:** Giữ form mở nguyên vẹn dữ liệu đã nhập khi gặp lỗi server/RLS, hiển thị thông báo lỗi chi tiết, tuyệt đối không báo thành công giả.
+  - Phân biệt rõ dữ liệu Live Mode và Demo Mode.
+- **Bộ Kiểm Thử Nghiệp Vụ:** `supabase/tests/p5_hardening_and_procurement_test.sql` (9 kịch bản nghiệp vụ sẵn sàng chạy sau khi migration được áp dụng).
 
 ---
 
 ## 3. KẾT QUẢ KIỂM THỬ KỸ THUẬT
 
 - **TypeScript Type Check (`npx tsc --noEmit`):** ✅ **0 lỗi** (`exit code 0`).
-- **Production Build (`npm run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 409ms).
+- **Production Build (`npm.cmd run build`):** ✅ **Thành công** (`dist/` bundle hoàn tất trong 410ms).
 - **Local Dev Server:** ✅ Đang phục vụ tại [http://localhost:5173](http://localhost:5173).
 

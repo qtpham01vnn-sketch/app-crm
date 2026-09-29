@@ -18,6 +18,8 @@ export const PosView: React.FC = () => {
     packages,
     branchStocks,
     currentBranch,
+    branches,
+    promotions,
     customers,
     staffList,
     currentTheme,
@@ -358,13 +360,38 @@ export const PosView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-0.5">Mã Voucher</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[11px] font-bold text-slate-600">Mã Voucher</label>
+                {cart.promoCode && (() => {
+                  const promo = promotions.find((p) => p.code.toUpperCase() === cart.promoCode.toUpperCase());
+                  if (!promo) return <span className="text-[10px] text-rose-500 font-semibold">Không tồn tại</span>;
+                  const isBranchValid = !promo.applicableBranchIds || promo.applicableBranchIds.length === 0 || promo.applicableBranchIds.includes(currentBranch?.id || '');
+                  if (!isBranchValid) {
+                    const validBranchName = promo.applicableBranchIds?.map((id) => branches.find((b) => b.id === id)?.name || id).join(', ');
+                    return <span className="text-[10px] text-amber-600 font-semibold" title={`Chỉ áp dụng tại: ${validBranchName}`}>Chỉ tại {validBranchName}</span>;
+                  }
+                  return <span className="text-[10px] text-emerald-600 font-semibold">Hợp lệ ({promo.discountType === 'pct' ? `-${promo.discountValue}%` : `-${promo.discountValue.toLocaleString()}đ`})</span>;
+                })()}
+              </div>
               <div className="flex items-center bg-white border border-slate-200 rounded-lg px-2">
                 <TicketPercent className="w-3.5 h-3.5 text-slate-400 mr-1" />
                 <input
                   type="text"
                   value={cart.promoCode}
-                  onChange={(e) => setCartPromoCode(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    const code = e.target.value.toUpperCase();
+                    setCartPromoCode(code);
+                    const promo = promotions.find((p) => p.code.toUpperCase() === code);
+                    if (promo) {
+                      const isBranchValid = !promo.applicableBranchIds || promo.applicableBranchIds.length === 0 || promo.applicableBranchIds.includes(currentBranch?.id || '');
+                      if (isBranchValid && promo.discountType === 'pct') {
+                        setCartDiscountPct(promo.discountValue);
+                        const newSub = cart.items.reduce((s, i) => s + i.price * i.qty, 0);
+                        const newDisc = Math.round((newSub * promo.discountValue) / 100);
+                        setCartPaidAmount(newSub - newDisc + cart.tipAmount);
+                      }
+                    }
+                  }}
                   placeholder="VIPDIAMOND"
                   className="w-full py-1 text-xs font-bold focus:outline-none uppercase"
                 />

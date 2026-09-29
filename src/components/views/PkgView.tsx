@@ -5,10 +5,12 @@ import { masterDataService } from '../../services/masterDataService';
 import type { PackageCombo } from '../../types';
 
 export const PkgView: React.FC = () => {
-  const { packages, setPackages, services, org, showToast, isLiveMode } = useApp();
+  const { packages, setPackages, services, org, showToast, isLiveMode, currentTheme } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   // Form states
   const [code, setCode] = useState('');
@@ -95,22 +97,35 @@ export const PkgView: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6 animate-fade-in">
+    <div
+      className={`rounded-2xl p-6 border space-y-6 animate-fade-in ${
+        isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
+      }`}
+      style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-xs"
+            style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
+          >
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-base text-slate-800">Combo Gói Dịch Vụ & Liệu Trình Trả Trước</h3>
-            <p className="text-xs text-slate-500">Cấu hình gói nhiều buổi ưu đãi và hạn sử dụng ({packages.length} gói)</p>
+            <h2 className={`font-bold text-base ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
+              Combo Gói Dịch Vụ & Liệu Trình Trả Trước
+            </h2>
+            <p className={`text-xs ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
+              Cấu hình gói nhiều buổi ưu đãi và hạn sử dụng ({packages.length} gói)
+            </p>
           </div>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all active:scale-95"
+          className="w-full sm:w-auto text-xs text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all active:scale-95 hover:opacity-90"
+          style={{ backgroundColor: currentTheme.buttonBg }}
         >
           <Plus className="w-4 h-4" />
           <span>Tạo Combo Gói Mới</span>
@@ -125,7 +140,11 @@ export const PkgView: React.FC = () => {
           placeholder="Tìm theo tên gói, mã combo..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className={`w-full pl-9 pr-3 py-2 border rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 ${
+            isSoftLight
+              ? 'bg-[#FAFAF8] border-[#E5E7E4] text-[#26342F] focus:ring-[#B83D62]'
+              : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-sky-500'
+          }`}
         />
       </div>
 
@@ -139,22 +158,28 @@ export const PkgView: React.FC = () => {
           filteredPackages.map((pkg) => (
             <div
               key={pkg.id}
-              className="p-5 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-sky-300 hover:shadow-md transition-all space-y-3 flex flex-col justify-between"
+              className={`p-5 rounded-2xl border transition-all space-y-3 flex flex-col justify-between ${
+                isSoftLight
+                  ? 'bg-white border-[#E5E7E4] hover:border-[#B83D62] hover:shadow-sm'
+                  : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-sky-300 hover:shadow-md'
+              }`}
             >
               <div>
                 <div className="flex items-start justify-between">
-                  <span className="font-mono text-[10px] font-bold text-sky-700 bg-sky-100/70 px-2 py-0.5 rounded">
+                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    isSoftLight ? 'bg-[#FFF1F5] text-[#244B3C] border-[#E5E7E4]' : 'text-sky-700 bg-sky-100/70 border-sky-200'
+                  }`}>
                     {pkg.code}
                   </span>
-                  <span className="text-sm font-black text-emerald-700">
-                    {(pkg.price).toLocaleString('vi-VN')}đ
+                  <span className="text-sm font-black" style={{ color: currentTheme.primaryColor }}>
+                    {(pkg.price).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
-                <h4 className="font-bold text-sm text-slate-900 mt-2">{pkg.name}</h4>
-                {pkg.description && <p className="text-xs text-slate-500 mt-1">{pkg.description}</p>}
+                <h4 className={`font-bold text-sm mt-2 ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{pkg.name}</h4>
+                {pkg.description && <p className={`text-xs mt-1 ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>{pkg.description}</p>}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-xs text-slate-600">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-600">
                 <span className="flex items-center gap-1 font-bold text-slate-800">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" /> {pkg.sessions} Buổi điều trị
                 </span>

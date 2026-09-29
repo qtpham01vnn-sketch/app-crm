@@ -1,5 +1,8 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote } from '../types';
+
+const isUUID = (val?: string | null): boolean =>
+  typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
 export const masterDataService = {
   /**
@@ -503,7 +506,17 @@ export const masterDataService = {
   },
 
   async createPromotion(
-    promo: { code: string; title: string; discountType: 'pct' | 'fixed'; discountValue: number; minOrderValue: number; usageLimit?: number; startDate: string; endDate: string },
+    promo: {
+      code: string;
+      title: string;
+      discountType: 'pct' | 'fixed';
+      discountValue: number;
+      minOrderValue: number;
+      usageLimit?: number;
+      startDate: string;
+      endDate: string;
+      applicableBranchIds?: string[];
+    },
     orgId: string
   ): Promise<Promotion | null> {
     if (!isSupabaseConfigured || !supabase) return null;
@@ -536,13 +549,14 @@ export const masterDataService = {
       code: data.code,
       title: data.description || data.code,
       discountType: data.discount_type === 'percentage' ? 'pct' : 'fixed',
-      discountValue: Number(data.discount_value),
-      minOrderValue: Number(data.min_order_value || 0),
-      usageLimit: data.usage_limit || 100,
+      discountValue: data.discount_value,
+      minOrderValue: data.min_order_value || 0,
+      usageLimit: data.usage_limit,
       usedCount: data.used_count || 0,
-      startDate: data.start_date || promo.startDate,
-      endDate: data.end_date || promo.endDate,
-      isActive: data.is_active
+      startDate: data.start_date || '2026-09-01',
+      endDate: data.end_date || '2026-12-31',
+      isActive: data.is_active,
+      applicableBranchIds: promo.applicableBranchIds
     };
   },
 
@@ -590,5 +604,1083 @@ export const masterDataService = {
         phone: s.phone
       };
     });
+  },
+
+  /**
+   * 8. APPOINTMENTS (LỊCH HẸN TIẾP ĐÓN)
+   */
+  async getAppointments(orgId?: string, branchId?: string): Promise<Appointment[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    let query = supabase
+      .from('appointments')
+      .select(`
+        id,
+        organization_id,
+        branch_id,
+        customer_id,
+        staff_id,
+        service_id,
+        scheduled_at,
+        duration_minutes,
+        status,
+        notes,
+        customers (full_name, phone),
+        services (name, base_price),
+        staff_profiles (full_name)
+      `)
+      .order('scheduled_at', { ascending: true });
+
+    if (orgId) query = query.eq('organization_id', orgId);
+    if (branchId) query = query.eq('branch_id', branchId);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching appointments from Supabase:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => {
+      const scheduledDateObj = new Date(row.scheduled_at);
+      const dateStr = scheduledDateObj.toISOString().slice(0, 10);
+      const timeStr = scheduledDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      let mappedStatus: Appointment['status'] = 'booked';
+      if (row.status === 'confirmed') mappedStatus = 'confirmed';
+      else if (row.status === 'in_progress') mappedStatus = 'in_progress';
+      else if (row.status === 'completed') mappedStatus = 'done';
+      else if (row.status === 'cancelled') mappedStatus = 'cancelled';
+
+      return {
+        id: row.id,
+        branchId: row.branch_id,
+        customerId: row.customer_id,
+        customerName: row.customers?.full_name || 'Khách hàng',
+        customerPhone: row.customers?.phone || '',
+        serviceId: row.service_id,
+        serviceName: row.services?.name || 'Dịch vụ Spa',
+        staffId: row.staff_id || '',
+        staffName: row.staff_profiles?.full_name || 'Chưa chỉ định',
+        date: dateStr,
+        time: timeStr,
+        durationMinutes: row.duration_minutes || 60,
+        status: mappedStatus,
+        priceSnapshot: row.services?.base_price || 0,
+        notes: row.notes || ''
+      };
+    });
+  },
+
+  async createAppointment(appt: Omit<Appointment, 'id'>, orgId: string): Promise<Appointment | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+    
+    // Convert date + time into ISO timestamp
+    const scheduledAt = new Date(`${appt.date}T${appt.time}:00`).toISOString();
+    let dbStatus = 'booked';
+    if (appt.status === 'confirmed') dbStatus = 'confirmed';
+    else if (appt.status === 'in_progress') dbStatus = 'in_progress';
+    else if (appt.status === 'done') dbStatus = 'completed';
+    else if (appt.status === 'cancelled') dbStatus = 'cancelled';
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .insert({
+        organization_id: orgId,
+        branch_id: appt.branchId,
+        customer_id: appt.customerId,
+        staff_id: appt.staffId || null,
+        service_id: appt.serviceId,
+        scheduled_at: scheduledAt,
+        duration_minutes: appt.durationMinutes || 60,
+        status: dbStatus,
+        notes: appt.notes || null
+      })
+      .select(`
+        id,
+        organization_id,
+        branch_id,
+        customer_id,
+        staff_id,
+        service_id,
+        scheduled_at,
+        duration_minutes,
+        status,
+        notes
+      `)
+      .single();
+
+    if (error || !data) {
+      console.error('Error inserting appointment in Supabase:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      branchId: data.branch_id,
+      customerId: data.customer_id,
+      customerName: appt.customerName,
+      customerPhone: appt.customerPhone,
+      serviceId: data.service_id,
+      serviceName: appt.serviceName,
+      staffId: data.staff_id || '',
+      staffName: appt.staffName,
+      date: appt.date,
+      time: appt.time,
+      durationMinutes: data.duration_minutes,
+      status: appt.status,
+      priceSnapshot: appt.priceSnapshot,
+      roomOrBed: appt.roomOrBed,
+      notes: data.notes || ''
+    };
+  },
+
+  async updateAppointmentStatus(apptId: string, status: Appointment['status']): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    let dbStatus = 'booked';
+    if (status === 'confirmed') dbStatus = 'confirmed';
+    else if (status === 'in_progress') dbStatus = 'in_progress';
+    else if (status === 'done') dbStatus = 'completed';
+    else if (status === 'cancelled') dbStatus = 'cancelled';
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({
+        status: dbStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', apptId);
+
+    if (error) {
+      console.error('Error updating appointment status in Supabase:', error);
+      throw error;
+    }
+    return true;
+  },
+
+  /**
+   * 10. ATOMIC CONCURRENCY BOOKING VIA RPC
+   */
+  async bookAppointmentRPC(params: {
+    orgId: string;
+    branchId: string;
+    customerId: string;
+    serviceId: string;
+    staffId?: string;
+    resourceId?: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    notes?: string;
+    existingApptId?: string;
+  }): Promise<{ success: boolean; appointmentId?: string; message?: string }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode' };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_book_appointment', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_customer_id: params.customerId,
+      p_service_id: params.serviceId,
+      p_staff_id: params.staffId || null,
+      p_resource_id: params.resourceId || null,
+      p_scheduled_at: params.scheduledAt,
+      p_duration_minutes: params.durationMinutes,
+      p_notes: params.notes || null,
+      p_existing_appt_id: params.existingApptId || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_book_appointment:', error);
+      throw error;
+    }
+
+    const res = data as { success: boolean; appointment_id?: string; message?: string; conflict_type?: string };
+    return {
+      success: res?.success ?? false,
+      appointmentId: res?.appointment_id,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 11. ATOMIC POS CHECKOUT VIA RPC (PHASE P5)
+   */
+  async checkoutPOSRPC(params: {
+    orgId: string;
+    branchId: string;
+    customerId: string;
+    cashierStaffId: string;
+    items: Array<{ type: 'service' | 'product' | 'package'; id: string; qty: number; performer_id?: string }>;
+    paymentMethod: string;
+    paidAmount: number;
+    promoCode?: string;
+    manualDiscountAmount?: number;
+    manualDiscountReason?: string;
+    useDepositAmount?: number;
+    appointmentId?: string;
+    notes?: string;
+    idempotencyKey?: string;
+  }): Promise<{
+    success: boolean;
+    saleId?: string;
+    invoiceNo?: string;
+    subtotal?: number;
+    discountAmount?: number;
+    totalAmount?: number;
+    paidAmount?: number;
+    debtAmount?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_pos_checkout', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_customer_id: params.customerId,
+      p_cashier_staff_id: params.cashierStaffId,
+      p_items: params.items,
+      p_payment_method: params.paymentMethod,
+      p_paid_amount: params.paidAmount,
+      p_promo_code: params.promoCode || null,
+      p_manual_discount_amount: params.manualDiscountAmount || 0,
+      p_manual_discount_reason: params.manualDiscountReason || null,
+      p_use_deposit_amount: params.useDepositAmount || 0,
+      p_appointment_id: params.appointmentId || null,
+      p_notes: params.notes || null,
+      p_idempotency_key: params.idempotencyKey || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_pos_checkout:', error);
+      throw error;
+    }
+
+    const res = data as {
+      success: boolean;
+      sale_id?: string;
+      invoice_no?: string;
+      subtotal?: number;
+      discount_amount?: number;
+      total_amount?: number;
+      paid_amount?: number;
+      debt_amount?: number;
+      message?: string;
+    };
+
+    return {
+      success: res?.success ?? false,
+      saleId: res?.sale_id,
+      invoiceNo: res?.invoice_no,
+      subtotal: res?.subtotal ? Number(res.subtotal) : undefined,
+      discountAmount: res?.discount_amount ? Number(res.discount_amount) : undefined,
+      totalAmount: res?.total_amount ? Number(res.total_amount) : undefined,
+      paidAmount: res?.paid_amount ? Number(res.paid_amount) : undefined,
+      debtAmount: res?.debt_amount ? Number(res.debt_amount) : undefined,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 12. HARDENED REFUND SALE VIA RPC (P5 HARDENING)
+   */
+  async refundSaleRPC(params: {
+    orgId: string;
+    branchId: string;
+    saleId: string;
+    authorizedStaffId: string;
+    reason: string;
+    returnStock?: boolean;
+    refundMethod?: 'cash' | 'transfer' | 'deposit_return';
+    returnedItems?: Array<{
+      product_id: string;
+      refund_qty: number;
+      received_back_qty: number;
+      restockable_qty: number;
+      damaged_qty: number;
+      damage_reason?: string;
+    }>;
+  }): Promise<{
+    success: boolean;
+    refundId?: string;
+    refundNumber?: string;
+    refundAmount?: number;
+    debtReduced?: number;
+    refundMethod?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_refund_sale', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_sale_id: params.saleId,
+      p_authorized_staff_id: params.authorizedStaffId,
+      p_reason: params.reason,
+      p_return_stock: params.returnStock ?? true,
+      p_refund_method: params.refundMethod || 'cash',
+      p_returned_items: params.returnedItems || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_refund_sale:', error);
+      throw error;
+    }
+
+    const res = data as {
+      success: boolean;
+      refund_id?: string;
+      refund_number?: string;
+      refund_amount?: number;
+      debt_reduced?: number;
+      refund_method?: string;
+      message?: string;
+    };
+
+    return {
+      success: res?.success ?? false,
+      refundId: res?.refund_id,
+      refundNumber: res?.refund_number,
+      refundAmount: res?.refund_amount,
+      debtReduced: res?.debt_reduced,
+      refundMethod: res?.refund_method,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 13. PROCUREMENT PHASE A — CREATE PURCHASE ORDER (PO)
+   */
+  async createPurchaseOrderRPC(params: {
+    orgId: string;
+    branchId: string;
+    supplierId: string;
+    staffId: string;
+    items: Array<{
+      product_id: string;
+      purchase_unit: string;
+      conversion_rate: number;
+      quantity: number;
+      unit_cost: number;
+    }>;
+    expectedDate?: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    poId?: string;
+    poNumber?: string;
+    totalAmount?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_create_purchase_order', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_supplier_id: params.supplierId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_expected_date: params.expectedDate || null,
+      p_notes: params.notes || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_create_purchase_order:', error);
+      const err = new Error(error.message || error.details || 'Lỗi tạo PO từ server.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+
+    const res = data as {
+      success: boolean;
+      po_id?: string;
+      po_number?: string;
+      total_amount?: number;
+      message?: string;
+    };
+
+    return {
+      success: res?.success ?? false,
+      poId: res?.po_id,
+      poNumber: res?.po_number,
+      totalAmount: res?.total_amount,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 14. PROCUREMENT PHASE A — CONFIRM GOODS RECEIPT (GRN)
+   */
+  async confirmGoodsReceiptRPC(params: {
+    orgId: string;
+    branchId: string;
+    poId?: string;
+    supplierId: string;
+    staffId: string;
+    items: Array<{
+      po_item_id?: string;
+      product_id: string;
+      lot_number?: string;
+      expiry_date?: string;
+      purchase_unit?: string;
+      conversion_rate?: number;
+      qty_received: number;
+      qty_accepted: number;
+      qty_rejected?: number;
+      rejection_reason?: string;
+      unit_cost: number;
+    }>;
+    invoiceNumber?: string;
+    advanceId?: string;
+    advancePaid?: number;
+    notes?: string;
+    closePo?: boolean;
+  }): Promise<{
+    success: boolean;
+    grnId?: string;
+    grnNumber?: string;
+    totalAcceptedValue?: number;
+    advancePaid?: number;
+    netDebtAdded?: number;
+    supplierDebtBalance?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_confirm_goods_receipt', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_po_id: params.poId || null,
+      p_supplier_id: params.supplierId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_invoice_number: params.invoiceNumber || null,
+      p_advance_id: params.advanceId || null,
+      p_advance_amount_to_use: params.advancePaid || 0,
+      p_notes: params.notes || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_confirm_goods_receipt:', error);
+      const err = new Error(error.message || error.details || 'Lỗi nhận hàng GRN từ server.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+
+    const res = data as {
+      success: boolean;
+      grn_id?: string;
+      grn_number?: string;
+      total_accepted_value?: number;
+      advance_paid?: number;
+      net_debt_added?: number;
+      supplier_debt_balance?: number;
+      message?: string;
+    };
+
+    // Nếu người dùng chọn đóng đơn PO (mặc định TRUE) và RPC thành công -> cập nhật trạng thái PO thành received
+    if (res?.success && params.poId && (params.closePo ?? true)) {
+      try {
+        await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'received',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', params.poId);
+      } catch (updErr) {
+        console.warn('Cập nhật trạng thái đóng PO thất bại:', updErr);
+      }
+    }
+
+    return {
+      success: res?.success ?? false,
+      grnId: res?.grn_id,
+      grnNumber: res?.grn_number,
+      totalAcceptedValue: res?.total_accepted_value,
+      advancePaid: res?.advance_paid,
+      netDebtAdded: res?.net_debt_added,
+      supplierDebtBalance: res?.supplier_debt_balance,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 14b. CLOSE PURCHASE ORDER DIRECTLY VIA DIRECT UPDATE
+   */
+  async closePurchaseOrderRPC(poId: string, _reason?: string): Promise<{ success: boolean; message?: string }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { error } = await supabase
+      .from('purchase_orders')
+      .update({
+        status: 'received',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', poId);
+    if (error) {
+      console.error('Lỗi khi đóng đơn PO:', error);
+      const err = new Error(error.message || error.details || 'Lỗi đóng đơn PO.');
+      (err as any).details = error.details;
+      throw err;
+    }
+    return { success: true, message: 'Đã hoàn tất và đóng đơn đặt hàng thành công.' };
+  },
+
+  /**
+   * 15. PROCUREMENT PHASE A — PAY SUPPLIER AP VIA RPC
+   */
+  async paySupplierRPC(params: {
+    orgId: string;
+    branchId: string;
+    supplierId: string;
+    staffId: string;
+    amount: number;
+    paymentMethod?: 'transfer' | 'cash';
+    bankRefCode?: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    paymentId?: string;
+    paymentNumber?: string;
+    amountPaid?: number;
+    debtBalanceAfter?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_pay_supplier', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_supplier_id: params.supplierId,
+      p_staff_id: validStaffId,
+      p_amount: params.amount,
+      p_payment_method: params.paymentMethod || 'transfer',
+      p_bank_ref_code: params.bankRefCode || null,
+      p_notes: params.notes || null
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_pay_supplier:', error);
+      const err = new Error(error.message || error.details || 'Lỗi thanh toán NCC từ server.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+
+    const res = data as {
+      success: boolean;
+      payment_id?: string;
+      payment_number?: string;
+      amount_paid?: number;
+      debt_balance_after?: number;
+      message?: string;
+    };
+
+    return {
+      success: res?.success ?? false,
+      paymentId: res?.payment_id,
+      paymentNumber: res?.payment_number,
+      amountPaid: res?.amount_paid,
+      debtBalanceAfter: res?.debt_balance_after,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 16. PROCUREMENT PHASE A — FETCH SUPPLIER LEDGER
+   */
+  async getSupplierLedger(supplierId: string): Promise<Array<{
+    id: string;
+    entryType: string;
+    referenceType: string;
+    referenceId?: string;
+    debitAmount: number;
+    creditAmount: number;
+    balanceAfter: number;
+    notes?: string;
+    createdAt: string;
+  }>> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    const { data, error } = await supabase
+      .from('supplier_ledger')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching supplier ledger:', error);
+      return [];
+    }
+
+    return (data || []).map((row) => ({
+      id: row.id,
+      entryType: row.entry_type,
+      referenceType: row.reference_type,
+      referenceId: row.reference_id,
+      debitAmount: Number(row.debit_amount || 0),
+      creditAmount: Number(row.credit_amount || 0),
+      balanceAfter: Number(row.balance_after || 0),
+      notes: row.notes,
+      createdAt: row.created_at
+    }));
+  },
+
+  /**
+   * 17. PROCUREMENT PHASE A — FETCH PURCHASE ORDERS
+   */
+  async getPurchaseOrders(branchId?: string): Promise<PurchaseOrder[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+
+    // Ưu tiên gọi RPC bảo mật SECURITY DEFINER rpc_get_purchase_orders
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_purchase_orders', {
+        p_branch_id: branchId || null
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData.map((po: any) => ({
+          id: po.id as string,
+          orgId: po.organization_id as string,
+          branchId: po.branch_id as string,
+          supplierId: po.supplier_id as string,
+          supplierName: (po.supplier_name as string) || 'Nhà cung cấp',
+          poNumber: po.po_number as string,
+          orderDate: po.order_date || (po.created_at ? (po.created_at as string).split('T')[0] : ''),
+          expectedDate: (po.expected_delivery_date as string) || undefined,
+          totalAmount: Number(po.total_amount || 0),
+          notes: (po.notes as string) || undefined,
+          status: po.status as PurchaseOrder['status'],
+          items: ((po.items || []) as any[]).map((it) => ({
+            id: it.id,
+            productId: it.product_id,
+            productName: it.product_name || 'Sản phẩm',
+            purchaseUnit: it.purchase_unit,
+            conversionRate: Number(it.conversion_rate || 1),
+            qtyOrdered: Number(it.quantity_ordered || 0),
+            qtyReceived: Number(it.quantity_received || 0),
+            unitPrice: Number(it.unit_cost || 0),
+            lineTotal: Number(it.line_total || 0)
+          }))
+        }));
+      }
+    } catch {
+      // Fallback xuống truy vấn trực tiếp PostgREST
+    }
+
+    let query = supabase
+      .from('purchase_orders')
+      .select(`
+        id, organization_id, branch_id, supplier_id, po_number, total_amount, status, expected_delivery_date, notes, created_at,
+        suppliers:supplier_id (name),
+        items:purchase_order_items (
+          id, product_id, purchase_unit, conversion_rate, quantity_ordered, quantity_received, unit_cost, line_total,
+          products:product_id (name)
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching purchase orders:', error);
+      return [];
+    }
+    return (data || []).map((po: Record<string, unknown>) => {
+      const suppliers = po.suppliers as { name?: string } | null;
+      const items = (po.items || []) as Array<{
+        id?: string;
+        product_id: string;
+        purchase_unit?: string;
+        conversion_rate?: number;
+        quantity_ordered: number;
+        quantity_received: number;
+        unit_cost: number;
+        line_total: number;
+        products?: { name?: string } | null;
+      }>;
+      return {
+        id: po.id as string,
+        orgId: po.organization_id as string,
+        branchId: po.branch_id as string,
+        supplierId: po.supplier_id as string,
+        supplierName: suppliers?.name || 'Nhà cung cấp',
+        poNumber: po.po_number as string,
+        orderDate: po.created_at ? (po.created_at as string).split('T')[0] : '',
+        expectedDate: (po.expected_delivery_date as string) || undefined,
+        totalAmount: Number(po.total_amount || 0),
+        notes: (po.notes as string) || undefined,
+        status: po.status as PurchaseOrder['status'],
+        items: items.map((it) => ({
+          id: it.id,
+          productId: it.product_id,
+          productName: it.products?.name || 'Sản phẩm',
+          purchaseUnit: it.purchase_unit,
+          conversionRate: Number(it.conversion_rate || 1),
+          qtyOrdered: Number(it.quantity_ordered || 0),
+          qtyReceived: Number(it.quantity_received || 0),
+          unitPrice: Number(it.unit_cost || 0),
+          lineTotal: Number(it.line_total || 0)
+        }))
+      };
+    });
+  },
+
+  /**
+   * 18. PROCUREMENT PHASE A — FETCH GOODS RECEIPTS
+   */
+  async getGoodsReceipts(branchId?: string): Promise<GoodsReceiptNote[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+
+    // Ưu tiên gọi RPC bảo mật SECURITY DEFINER rpc_get_goods_receipts
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_goods_receipts', {
+        p_branch_id: branchId || null
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData.map((grn: any) => ({
+          id: grn.id as string,
+          orgId: grn.organization_id as string,
+          branchId: grn.branch_id as string,
+          poId: (grn.purchase_order_id as string) || undefined,
+          supplierId: grn.supplier_id as string,
+          supplierName: (grn.supplier_name as string) || 'Nhà cung cấp',
+          grnNumber: grn.grn_number as string,
+          invoiceNumber: (grn.invoice_number as string) || undefined,
+          receivedDate: grn.received_at ? (grn.received_at as string).split('T')[0] : '',
+          receiverStaffId: '',
+          totalAmount: Number(grn.total_value || 0),
+          paidAmount: 0,
+          notes: (grn.notes as string) || undefined,
+          status: (grn.status || 'completed') as GoodsReceiptNote['status'],
+          items: ((grn.items || []) as any[]).map((it) => ({
+            id: it.id,
+            poItemId: it.po_item_id,
+            productId: it.product_id,
+            productName: it.product_name || 'Sản phẩm',
+            lotNumber: it.lot_number,
+            expiryDate: it.expiry_date,
+            purchaseUnit: it.purchase_unit,
+            conversionRate: Number(it.conversion_rate || 1),
+            qty: Number(it.quantity_received || 0),
+            qtyAccepted: Number(it.quantity_accepted || 0),
+            qtyRejected: Number(it.quantity_rejected || 0),
+            rejectionReason: it.rejection_reason,
+            acceptedBaseUnits: Number(it.accepted_base_units || 0),
+            unitPrice: Number(it.unit_cost || 0),
+            lineTotal: Number(it.line_total || 0)
+          }))
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    let query = supabase
+      .from('goods_receipt_notes')
+      .select(`
+        id, organization_id, branch_id, purchase_order_id, supplier_id, grn_number, invoice_number, status, received_at, total_value, notes,
+        suppliers:supplier_id (name),
+        items:goods_receipt_items (
+          id, po_item_id, product_id, lot_number, expiry_date, purchase_unit, conversion_rate,
+          quantity_received, quantity_accepted, quantity_rejected, rejection_reason, accepted_base_units, unit_cost, line_total,
+          products:product_id (name)
+        )
+      `)
+      .order('received_at', { ascending: false });
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching goods receipts:', error);
+      return [];
+    }
+    return (data || []).map((grn: Record<string, unknown>) => {
+      const suppliers = grn.suppliers as { name?: string } | null;
+      const items = (grn.items || []) as Array<{
+        id?: string;
+        po_item_id?: string;
+        product_id: string;
+        lot_number?: string;
+        expiry_date?: string;
+        purchase_unit?: string;
+        conversion_rate?: number;
+        quantity_received: number;
+        quantity_accepted: number;
+        quantity_rejected: number;
+        rejection_reason?: string;
+        accepted_base_units: number;
+        unit_cost: number;
+        line_total: number;
+        products?: { name?: string } | null;
+      }>;
+      return {
+        id: grn.id as string,
+        orgId: grn.organization_id as string,
+        branchId: grn.branch_id as string,
+        poId: (grn.purchase_order_id as string) || undefined,
+        supplierId: grn.supplier_id as string,
+        supplierName: suppliers?.name || 'Nhà cung cấp',
+        grnNumber: grn.grn_number as string,
+        invoiceNumber: (grn.invoice_number as string) || undefined,
+        receivedDate: grn.received_at ? (grn.received_at as string).split('T')[0] : '',
+        receiverStaffId: (grn.received_by_staff_id as string) || '',
+        totalAmount: Number(grn.total_value || 0),
+        paidAmount: 0,
+        notes: (grn.notes as string) || undefined,
+        status: (grn.status || 'completed') as GoodsReceiptNote['status'],
+        items: items.map((it) => ({
+          id: it.id,
+          poItemId: it.po_item_id,
+          productId: it.product_id,
+          productName: it.products?.name || 'Sản phẩm',
+          lotNumber: it.lot_number,
+          expiryDate: it.expiry_date,
+          purchaseUnit: it.purchase_unit,
+          conversionRate: Number(it.conversion_rate || 1),
+          qty: Number(it.quantity_received || 0),
+          qtyAccepted: Number(it.quantity_accepted || 0),
+          qtyRejected: Number(it.quantity_rejected || 0),
+          rejectionReason: it.rejection_reason,
+          acceptedBaseUnits: Number(it.accepted_base_units || 0),
+          unitPrice: Number(it.unit_cost || 0),
+          lineTotal: Number(it.line_total || 0)
+        }))
+      };
+    });
+  },
+
+  /**
+   * 19. FETCH INVENTORY LOT STOCKS
+   */
+  async getInventoryLotStocks(branchId?: string): Promise<Array<{
+    id: string;
+    branchId: string;
+    productId: string;
+    productName: string;
+    lotNumber: string;
+    expiryDate?: string;
+    quantityOnHand: number;
+    costPrice: number;
+    status: string;
+  }>> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    let query = supabase
+      .from('inventory_lot_stocks')
+      .select('*, products:product_id(name)')
+      .order('expiry_date', { ascending: true });
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching inventory lot stocks:', error);
+      return [];
+    }
+    return (data || []).map((row: Record<string, unknown>) => {
+      const prod = row.products as { name?: string } | null;
+      return {
+        id: row.id as string,
+        branchId: row.branch_id as string,
+        productId: row.product_id as string,
+        productName: prod?.name || 'Sản phẩm',
+        lotNumber: row.lot_number as string,
+        expiryDate: (row.expiry_date as string) || undefined,
+        quantityOnHand: Number(row.quantity_on_hand || 0),
+        costPrice: Number(row.cost_price || 0),
+        status: (row.status as string) || 'active'
+      };
+    });
+  },
+
+  /**
+   * 20. FETCH SUPPLIER ADVANCES
+   */
+  async getSupplierAdvances(supplierId?: string): Promise<Array<{
+    id: string;
+    advanceNumber: string;
+    supplierId: string;
+    totalAmount: number;
+    usedAmount: number;
+    remainingAmount: number;
+    status: string;
+    paymentMethod: string;
+    bankRefCode?: string;
+    notes?: string;
+    createdAt: string;
+  }>> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    let query = supabase
+      .from('supplier_advances')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (supplierId) {
+      query = query.eq('supplier_id', supplierId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching supplier advances:', error);
+      return [];
+    }
+    return (data || []).map((adv: Record<string, unknown>) => ({
+      id: adv.id as string,
+      advanceNumber: adv.advance_number as string,
+      supplierId: adv.supplier_id as string,
+      totalAmount: Number(adv.total_amount || 0),
+      usedAmount: Number(adv.used_amount || 0),
+      remainingAmount: Number(adv.total_amount || 0) - Number(adv.used_amount || 0),
+      status: adv.status as string,
+      paymentMethod: (adv.payment_method as string) || 'transfer',
+      bankRefCode: (adv.bank_ref_code as string) || undefined,
+      notes: (adv.notes as string) || undefined,
+      createdAt: adv.created_at as string
+    }));
+  },
+
+  /**
+   * 21. CREATE SUPPLIER ADVANCE VIA RPC
+   */
+  async createSupplierAdvanceRPC(params: {
+    orgId: string;
+    branchId: string;
+    supplierId: string;
+    staffId: string;
+    amount: number;
+    paymentMethod?: string;
+    bankRefCode?: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    advanceId?: string;
+    advanceNumber?: string;
+    amount?: number;
+    supplierDebtBalance?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_create_supplier_advance', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_supplier_id: params.supplierId,
+      p_staff_id: validStaffId,
+      p_amount: params.amount,
+      p_payment_method: params.paymentMethod || 'transfer',
+      p_bank_ref_code: params.bankRefCode || null,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_create_supplier_advance:', error);
+      const err = new Error(error.message || error.details || 'Lỗi tạo cọc NCC từ server.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as {
+      success: boolean;
+      advance_id?: string;
+      advance_number?: string;
+      amount?: number;
+      supplier_debt_balance?: number;
+      message?: string;
+    };
+    return {
+      success: res?.success ?? false,
+      advanceId: res?.advance_id,
+      advanceNumber: res?.advance_number,
+      amount: res?.amount,
+      supplierDebtBalance: res?.supplier_debt_balance,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 22. RETURN GOODS TO SUPPLIER VIA RPC
+   */
+  async returnGoodsToSupplierRPC(params: {
+    orgId: string;
+    branchId: string;
+    supplierId: string;
+    staffId: string;
+    items: Array<{
+      product_id: string;
+      lot_number?: string;
+      quantity: number;
+      unit_cost: number;
+      is_from_quarantined?: boolean;
+      is_holding_rejection?: boolean;
+      damaged_item_id?: string;
+    }>;
+    reason: string;
+    grnId?: string;
+  }): Promise<{
+    success: boolean;
+    returnId?: string;
+    returnNumber?: string;
+    totalAmount?: number;
+    totalDebtReduction?: number;
+    debtBalanceAfter?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_return_goods_to_supplier', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_supplier_id: params.supplierId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_reason: params.reason,
+      p_grn_id: params.grnId || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_return_goods_to_supplier:', error);
+      const err = new Error(error.message || error.details || 'Lỗi trả hàng NCC từ server.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as {
+      success: boolean;
+      return_id?: string;
+      return_number?: string;
+      total_amount?: number;
+      total_debt_reduction?: number;
+      debt_balance_after?: number;
+      message?: string;
+    };
+    return {
+      success: res?.success ?? false,
+      returnId: res?.return_id,
+      returnNumber: res?.return_number,
+      totalAmount: res?.total_amount,
+      totalDebtReduction: res?.total_debt_reduction,
+      debtBalanceAfter: res?.debt_balance_after,
+      message: res?.message
+    };
   }
 };
+

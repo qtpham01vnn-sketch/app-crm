@@ -73,13 +73,13 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
   return (
     <div
       className={`sticky top-0 z-30 flex flex-col shadow-xs w-full max-w-full overflow-hidden transition-colors duration-300 ${
-        isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/90'
+        isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/90'
       }`}
     >
       {/* Main Header Bar */}
       <header
         className={`h-14 md:h-16 border-b px-3 md:px-6 flex items-center justify-between transition-colors duration-300 w-full ${
-          isSoftLight ? 'border-[#E8E3D8]' : 'border-slate-200/90'
+          isSoftLight ? 'border-[#E5E7E4]' : 'border-slate-200/90'
         }`}
         style={{ borderTop: `3px solid ${currentTheme.primaryColor}` }}
       >
@@ -88,7 +88,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           <button
             onClick={onOpenMobileMenu}
             className={`lg:hidden p-1.5 -ml-1 rounded-lg focus:outline-none cursor-pointer shrink-0 ${
-              isSoftLight ? 'text-[#70776F] hover:bg-[#F3EFE5]' : 'text-slate-600 hover:bg-slate-100'
+              isSoftLight ? 'text-[#59665F] hover:bg-[#FFF1F5]' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="Mở menu điều hướng"
           >
@@ -98,7 +98,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           <div className="flex items-center space-x-1.5 min-w-0 truncate">
             <h2
               className={`text-sm sm:text-base md:text-lg font-black tracking-tight truncate ${
-                isSoftLight ? 'text-[#234737]' : 'text-slate-800'
+                isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'
               }`}
             >
               {tabTitles[activeTab] || 'PHUONG NAM CRM'}
@@ -108,7 +108,7 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
               style={{
                 backgroundColor: currentTheme.badgeBg,
                 color: currentTheme.primaryColor,
-                borderColor: currentTheme.primaryColor
+                borderColor: isSoftLight ? '#E5E7E4' : currentTheme.primaryColor
               }}
             >
               <Sparkles className="w-3 h-3 mr-0.5" /> {isLiveMode ? 'Live' : 'Demo'}
@@ -119,13 +119,13 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
         {/* Center Desktop: Swatches on XL+, Compact Button on LG */}
         <div className="hidden xl:flex items-center p-1.5 rounded-2xl border shadow-xs space-x-1.5 transition-all shrink-0"
           style={{
-            backgroundColor: isSoftLight ? '#F8F6EF' : '#f1f5f9',
-            borderColor: isSoftLight ? '#E8E3D8' : '#e2e8f0'
+            backgroundColor: isSoftLight ? '#FAFAF8' : '#f1f5f9',
+            borderColor: isSoftLight ? '#E5E7E4' : '#e2e8f0'
           }}
         >
-          <div className="flex items-center px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 gap-1">
+          <div className="flex items-center px-1.5 text-[10px] font-extrabold uppercase tracking-wider gap-1">
             <Palette className="w-3.5 h-3.5" style={{ color: currentTheme.primaryColor }} />
-            <span className={isSoftLight ? 'text-[#70776F]' : 'text-slate-600'}>Theme:</span>
+            <span className={isSoftLight ? 'text-[#59665F]' : 'text-slate-600'}>Theme:</span>
           </div>
           <div className="flex items-center space-x-1.5">
             {APP_THEMES.map((th) => {
@@ -138,15 +138,15 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                     showToast(`🎨 Chuyển sang: ${th.name}`, 'info');
                   }}
                   className={`w-5.5 h-5.5 rounded-full transition-all duration-200 transform cursor-pointer flex items-center justify-center ${
-                    isSelected ? 'scale-125 ring-2 ring-offset-1 shadow-md z-10' : 'hover:scale-115 opacity-85 hover:opacity-100'
+                    isSelected ? 'scale-125 ring-2 ring-offset-1 shadow-xs z-10' : 'hover:scale-115 opacity-85 hover:opacity-100'
                   }`}
                   style={{
                     backgroundColor: th.previewColor,
-                    boxShadow: isSelected ? `0 0 0 2px #ffffff, 0 0 0 4px ${th.primaryColor}` : undefined
+                    boxShadow: isSelected ? `0 0 0 2px #ffffff, 0 0 0 3px ${th.primaryColor}` : undefined
                   }}
                   title={`${th.name}`}
                 >
-                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs" />}
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </button>
               );
             })}
@@ -155,8 +155,8 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
             onClick={() => setIsThemeModalOpen(true)}
             className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors"
             style={{
-              color: isSoftLight ? '#70776F' : '#475569',
-              backgroundColor: isSoftLight ? '#EFE9DD' : '#e2e8f0'
+              color: isSoftLight ? '#59665F' : '#475569',
+              backgroundColor: isSoftLight ? '#FFF1F5' : '#e2e8f0'
             }}
             title="Xem danh sách chi tiết Theme"
           >
@@ -170,9 +170,9 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
             onClick={() => setIsThemeModalOpen(true)}
             className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer"
             style={{
-              backgroundColor: isSoftLight ? '#F8F6EF' : '#f8fafc',
-              borderColor: isSoftLight ? '#E8E3D8' : '#e2e8f0',
-              color: isSoftLight ? '#234737' : '#1e293b'
+              backgroundColor: isSoftLight ? '#FAFAF8' : '#f8fafc',
+              borderColor: isSoftLight ? '#E5E7E4' : '#e2e8f0',
+              color: isSoftLight ? '#244B3C' : '#1e293b'
             }}
           >
             <span
@@ -202,7 +202,9 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
         <div className="hidden md:flex items-center space-x-2 shrink-0">
           {/* Branch Switcher Desktop */}
           {branches.length > 0 && (
-            <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200/80 rounded-xl px-2 py-1">
+            <div className={`flex items-center space-x-1 border rounded-xl px-2 py-1 ${
+              isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200/80'
+            }`}>
               <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
               <select
                 value={currentBranch?.id || ''}
@@ -210,11 +212,13 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                   const selected = branches.find((b) => b.id === e.target.value);
                   if (selected) setCurrentBranch(selected);
                 }}
-                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer pr-1"
+                className={`bg-transparent text-xs font-semibold focus:outline-none cursor-pointer pr-1 ${
+                  isSoftLight ? 'text-[#26342F]' : 'text-slate-700'
+                }`}
               >
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code} - {b.name.replace('Chi Nhánh ', '')}
+                    {b.code} - {b.name}
                   </option>
                 ))}
               </select>
@@ -228,16 +232,16 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
           </div>
 
           {/* Staff Pill Desktop + Logout */}
-          <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
+          <div className={`flex items-center space-x-2 pl-2 border-l ${isSoftLight ? 'border-[#E5E7E4]' : 'border-slate-200'}`}>
             <div
-              className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0"
-              style={{ background: currentTheme.heroGradient }}
+              className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs shrink-0"
+              style={{ background: isSoftLight ? currentTheme.buttonBg : currentTheme.heroGradient }}
             >
               {displayName.slice(0, 2).toUpperCase()}
             </div>
             <div className="hidden xl:block text-left">
-              <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">{displayName}</p>
-              <p className="text-[10px] text-slate-500">{displayRole}</p>
+              <p className={`text-xs font-bold leading-tight truncate max-w-[120px] ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}`}>{displayName}</p>
+              <p className={`text-[10px] ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>{displayRole}</p>
             </div>
             {isLiveMode && (
               <button
@@ -255,18 +259,20 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
         <div className="md:hidden flex items-center space-x-2 shrink-0">
           <button
             onClick={() => setIsThemeModalOpen(true)}
-            className="flex items-center space-x-1 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 cursor-pointer active:scale-95"
+            className={`flex items-center space-x-1 border rounded-lg px-2 py-1 cursor-pointer active:scale-95 ${
+              isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-100 border-slate-200'
+            }`}
             title="Đổi giao diện Theme"
           >
             <span
               className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs inline-block shrink-0"
               style={{ backgroundColor: currentTheme.previewColor }}
             />
-            <span className="text-[11px] font-semibold text-slate-700">Theme</span>
+            <span className={`text-[11px] font-semibold ${isSoftLight ? 'text-[#26342F]' : 'text-slate-700'}`}>Theme</span>
           </button>
           <div
-            className="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-[11px] shadow-sm shrink-0"
-            style={{ background: currentTheme.heroGradient }}
+            className="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-[11px] shrink-0"
+            style={{ background: isSoftLight ? currentTheme.buttonBg : currentTheme.heroGradient }}
             title={`${displayName} (${displayRole})`}
           >
             {displayName.slice(0, 2).toUpperCase()}
@@ -275,10 +281,14 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
       </header>
 
       {/* Mobile Sub-Toolbar: Branch selector + user info */}
-      <div className="md:hidden px-3 py-1.5 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between gap-2 text-xs w-full box-border">
+      <div className={`md:hidden px-3 py-1.5 border-b flex items-center justify-between gap-2 text-xs w-full box-border ${
+        isSoftLight ? 'bg-[#FCFAF7] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200/90'
+      }`}>
         {/* Branch Selector Mobile */}
         {branches.length > 0 && (
-          <div className="flex-1 min-w-0 flex items-center space-x-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-2xs">
+          <div className={`flex-1 min-w-0 flex items-center space-x-1 border rounded-lg px-2 py-1 ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200'
+          }`}>
             <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
             <select
               value={currentBranch?.id || ''}
@@ -286,11 +296,13 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
                 const selected = branches.find((b) => b.id === e.target.value);
                 if (selected) setCurrentBranch(selected);
               }}
-              className="w-full bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer truncate"
+              className={`w-full bg-transparent text-[11px] font-semibold focus:outline-none cursor-pointer truncate ${
+                isSoftLight ? 'text-[#26342F]' : 'text-slate-700'
+              }`}
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.code} - {b.name.replace('Chi Nhánh ', '')}
+                  {b.code} - {b.name}
                 </option>
               ))}
             </select>

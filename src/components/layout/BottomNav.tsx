@@ -18,9 +18,9 @@ export const BottomNav: React.FC = () => {
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-40 border-t lg:hidden shadow-lg px-2 pt-1 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md ${
+      className={`fixed bottom-0 left-0 right-0 z-40 border-t lg:hidden shadow-sm px-2 pt-1 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md ${
         isSoftLight
-          ? 'bg-[#FFFEFA]/95 border-[#E8E3D8]'
+          ? 'bg-white/95 border-[#E5E7E4]'
           : 'bg-white/95 border-slate-200'
       }`}
     >
@@ -34,14 +34,14 @@ export const BottomNav: React.FC = () => {
               onClick={() => setActiveTab(it.id)}
               className="flex flex-col items-center justify-center py-1 px-3 relative rounded-lg transition-colors cursor-pointer"
               style={{
-                color: isActive ? currentTheme.primaryColor : isSoftLight ? '#70776F' : '#64748b',
+                color: isActive ? currentTheme.primaryColor : isSoftLight ? '#59665F' : '#64748b',
                 fontWeight: isActive ? 700 : 500
               }}
             >
               <div className="relative">
                 <Icon
                   className="w-5 h-5 transition-transform"
-                  style={{ color: isActive ? currentTheme.primaryColor : isSoftLight ? '#70776F' : '#64748b' }}
+                  style={{ color: isActive ? currentTheme.primaryColor : isSoftLight ? '#59665F' : '#64748b' }}
                 />
                 {Boolean(it.badge && it.badge > 0) && (
                   <span

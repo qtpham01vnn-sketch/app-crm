@@ -5,11 +5,13 @@ import { masterDataService } from '../../services/masterDataService';
 import type { Product } from '../../types';
 
 export const ProdView: React.FC = () => {
-  const { products, setProducts, branchStocks, currentBranch, org, showToast, isLiveMode } = useApp();
+  const { products, setProducts, branchStocks, currentBranch, org, showToast, isLiveMode, currentTheme } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isSoftLight = currentTheme.isSoftLight;
 
   // Form states
   const [code, setCode] = useState('');
@@ -100,24 +102,35 @@ export const ProdView: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6 animate-fade-in">
+    <div
+      className={`rounded-2xl p-6 border space-y-6 animate-fade-in ${
+        isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
+      }`}
+      style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-xs"
+            style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
+          >
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-base text-slate-800">Danh Mục Sản Phẩm & Tồn Kho Chi Nhánh</h3>
-            <p className="text-xs text-slate-500">
-              Chi nhánh: {currentBranch?.name || 'Chi Nhánh'} ({currentBranch?.code || '---'}) • {products.length} mặt hàng
+            <h2 className={`font-bold text-base ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
+              Danh Mục Sản Phẩm & Tồn Kho Chi Nhánh
+            </h2>
+            <p className={`text-xs ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
+              Chi nhánh: <b>{currentBranch?.name || 'Chi Nhánh'}</b> • {products.length} mặt hàng
             </p>
           </div>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all active:scale-95"
+          className="w-full sm:w-auto text-xs text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all active:scale-95 hover:opacity-90"
+          style={{ backgroundColor: currentTheme.buttonBg }}
         >
           <Plus className="w-4 h-4" />
           <span>Thêm Sản Phẩm Mới</span>
@@ -133,7 +146,11 @@ export const ProdView: React.FC = () => {
             placeholder="Tìm theo tên sản phẩm, mã SKU..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className={`w-full pl-9 pr-3 py-2 border rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 ${
+              isSoftLight
+                ? 'bg-[#FAFAF8] border-[#E5E7E4] text-[#26342F] focus:ring-[#B83D62]'
+                : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-sky-500'
+            }`}
           />
         </div>
 
@@ -142,9 +159,10 @@ export const ProdView: React.FC = () => {
             onClick={() => setSelectedCategory('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
               selectedCategory === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
+            style={selectedCategory === 'all' ? { backgroundColor: currentTheme.buttonBg } : undefined}
           >
             Tất cả
           </button>
@@ -154,9 +172,10 @@ export const ProdView: React.FC = () => {
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                 selectedCategory === cat
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
+              style={selectedCategory === cat ? { backgroundColor: currentTheme.buttonBg } : undefined}
             >
               {cat}
             </button>

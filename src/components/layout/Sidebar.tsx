@@ -115,14 +115,14 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
           isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         } ${
           isSoftLight
-            ? 'bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+            ? 'bg-[#FCFAF7] text-[#26342F] border-[#E5E7E4]'
             : 'bg-slate-900 text-slate-300 border-slate-800'
         }`}
       >
         {/* Subtle Decorative Botanical Motif in soft light theme */}
         {isSoftLight && (
-          <div className="absolute -bottom-6 -right-6 pointer-events-none opacity-[0.07] overflow-hidden">
-            <svg width="180" height="180" viewBox="0 0 100 100" fill="currentColor" className="text-[#234737]">
+          <div className="absolute -bottom-6 -right-6 pointer-events-none opacity-[0.04] overflow-hidden">
+            <svg width="180" height="180" viewBox="0 0 100 100" fill="currentColor" className="text-[#244B3C]">
               <path d="M50 0 C60 25 75 40 100 50 C75 60 60 75 50 100 C40 75 25 60 0 50 C25 40 40 25 50 0 Z" />
             </svg>
           </div>
@@ -132,16 +132,15 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
         <div
           className={`h-16 px-4 flex items-center justify-between border-b ${
             isSoftLight
-              ? 'border-[#E8E3D8] bg-[#EFE9DD]/70'
+              ? 'border-[#E5E7E4] bg-[#FCFAF7]'
               : 'border-slate-800/80 bg-slate-950/40'
           }`}
         >
           <div className="flex items-center space-x-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black shadow-lg transition-all"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black transition-all"
               style={{
-                background: currentTheme.heroGradient,
-                boxShadow: `0 4px 14px ${currentTheme.ringColor}`
+                backgroundColor: currentTheme.primaryColor
               }}
             >
               <Building2 className="w-5 h-5" />
@@ -149,7 +148,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
             <div>
               <h1
                 className={`font-bold text-sm tracking-wide ${
-                  isSoftLight ? 'text-[#234737]' : 'text-white'
+                  isSoftLight ? 'text-[#244B3C]' : 'text-white'
                 }`}
               >
                 PHUONG NAM
@@ -163,7 +162,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
             onClick={onClose}
             className={`lg:hidden p-1.5 rounded-lg cursor-pointer ${
               isSoftLight
-                ? 'text-[#70776F] hover:text-[#234737] hover:bg-[#EAE4D6]'
+                ? 'text-[#59665F] hover:text-[#244B3C] hover:bg-[#FFF1F5]'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
@@ -177,7 +176,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
             <div key={gIdx}>
               <p
                 className={`px-3 text-[10px] font-bold tracking-wider uppercase mb-2 ${
-                  isSoftLight ? 'text-[#70776F]' : 'text-slate-400'
+                  isSoftLight ? 'text-[#59665F]' : 'text-slate-400'
                 }`}
               >
                 {group.title}
@@ -195,16 +194,15 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                         isActive
-                          ? 'text-white shadow-md'
+                          ? 'text-white font-bold'
                           : isSoftLight
-                          ? 'text-[#303833] hover:bg-[#EAE4D6] hover:text-[#234737]'
+                          ? 'text-[#26342F] hover:bg-[#FFF1F5] hover:text-[#B83D62]'
                           : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
                       }`}
                       style={
                         isActive
                           ? {
-                              backgroundColor: currentTheme.activeSidebarBg,
-                              boxShadow: `0 4px 12px ${currentTheme.ringColor}`
+                              backgroundColor: currentTheme.activeSidebarBg
                             }
                           : {}
                       }
@@ -215,7 +213,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                             isActive
                               ? 'text-white'
                               : isSoftLight
-                              ? 'text-[#70776F]'
+                              ? 'text-[#59665F]'
                               : 'text-slate-400'
                           }`}
                         />
@@ -228,7 +226,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                             isActive
                               ? { backgroundColor: '#ffffff', color: currentTheme.primaryColor }
                               : isSoftLight
-                              ? { backgroundColor: currentTheme.badgeBg, color: currentTheme.badgeText, border: `1px solid ${currentTheme.borderColor || '#E8E3D8'}` }
+                              ? { backgroundColor: currentTheme.badgeBg, color: currentTheme.badgeText, border: `1px solid ${currentTheme.borderColor || '#E5E7E4'}` }
                               : { backgroundColor: '#1e293b', color: currentTheme.primaryColor, border: '1px solid #334155' }
                           }
                         >
@@ -247,20 +245,21 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
         <div
           className={`p-3 border-t space-y-2 ${
             isSoftLight
-              ? 'border-[#E8E3D8] bg-[#EFE9DD]/50'
+              ? 'border-[#E5E7E4] bg-[#FCFAF7]'
               : 'border-slate-800/80 bg-slate-950/30'
           }`}
         >
           <button
             onClick={() => setIsThemeModalOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-white text-xs font-bold border shadow-sm transition-all hover:opacity-90 cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-xs border transition-all hover:opacity-90 cursor-pointer"
             style={{
-              background: currentTheme.heroGradient,
-              borderColor: currentTheme.primaryColor
+              backgroundColor: isSoftLight ? '#FFF1F5' : currentTheme.buttonBg,
+              color: isSoftLight ? currentTheme.primaryColor : '#ffffff',
+              borderColor: isSoftLight ? '#E5E7E4' : currentTheme.primaryColor
             }}
           >
             <div className="flex items-center space-x-2">
-              <Palette className="w-4 h-4 text-white" />
+              <Palette className="w-4 h-4" />
               <span>Đổi {APP_THEMES.length} Giao Diện</span>
             </div>
             <div
@@ -271,7 +270,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
 
           <div
             className={`text-[10px] text-center ${
-              isSoftLight ? 'text-[#70776F]' : 'text-slate-400'
+              isSoftLight ? 'text-[#59665F]' : 'text-slate-400'
             }`}
           >
             <span>Phiên bản v2.0 • Phase 1 UI</span>

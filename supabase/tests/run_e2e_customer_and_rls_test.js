@@ -25,8 +25,8 @@ async function runE2ECustomerAndRlsTest() {
   // 2. Đăng nhập Auth Session thật
   console.log('\n2. XÁC THỰC AUTH VỚI TÀI KHOẢN ADMIN:');
   const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-    email: 'admin@phuongnam.vn',
-    password: 'Admin@123456!'
+    email: process.env.TEST_ADMIN_EMAIL || 'admin@phuongnam.vn',
+    password: process.env.TEST_ADMIN_PASSWORD || ''
   });
 
   if (authErr) {

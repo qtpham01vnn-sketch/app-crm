@@ -112,7 +112,7 @@ const MainLayout: React.FC = () => {
       case 'appts':
         return <ApptsView onOpenNewAppt={() => setIsNewApptModalOpen(true)} />;
       case 'book':
-        return <BookView />;
+        return <BookView onOpenNewAppt={() => setIsNewApptModalOpen(true)} />;
       case 'wait':
         return <WaitView />;
       case 'cust':

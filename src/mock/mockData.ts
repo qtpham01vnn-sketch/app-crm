@@ -37,7 +37,7 @@ export const mockBranches: Branch[] = [
   {
     id: '22222222-2222-2222-2222-222222222221',
     orgId: '11111111-1111-1111-1111-111111111111',
-    name: 'Chi Nhánh Quận 1 - Hồ Chí Minh',
+    name: 'Quận 1 - Hồ Chí Minh',
     code: 'HCM-Q1',
     phone: '028 3822 9999',
     address: '120 Lê Thánh Tôn, Bến Nghé, Quận 1, TP.HCM',
@@ -46,7 +46,7 @@ export const mockBranches: Branch[] = [
   {
     id: '22222222-2222-2222-2222-222222222222',
     orgId: '11111111-1111-1111-1111-111111111111',
-    name: 'Chi Nhánh Quận 7 - Phú Mỹ Hưng',
+    name: 'Quận 7 - Phú Mỹ Hưng',
     code: 'HCM-Q7',
     phone: '028 5411 2222',
     address: '456 Nguyễn Văn Linh, Tân Phong, Quận 7, TP.HCM'
@@ -54,7 +54,7 @@ export const mockBranches: Branch[] = [
   {
     id: '22222222-2222-2222-2222-222222222223',
     orgId: '11111111-1111-1111-1111-111111111111',
-    name: 'Chi Nhánh TP. Thủ Đức',
+    name: 'TP. Thủ Đức',
     code: 'HCM-TD',
     phone: '028 7300 3333',
     address: '789 Võ Văn Ngân, TP. Thủ Đức, TP.HCM'
@@ -165,69 +165,86 @@ export const mockStaff: Staff[] = [
 export const mockCustomers: Customer[] = [
   {
     id: 'c-01',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Chị Đặng Thu Thảo',
     phone: '0988112233',
     email: 'thuthao.dang@gmail.com',
     gender: 'female',
     birthday: '1992-05-18',
     address: 'Vinhomes Central Park, Bình Thạnh',
-    primaryBranchId: 'br-01',
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     vipTier: 'diamond',
     totalSpent: 45000000,
     debt: 0,
     creditBalance: 2500000,
-    notes: 'Khách VIP, da nhạy cảm dị ứng cồn',
+    notes: 'Khách VIP toàn chuỗi, da nhạy cảm dị ứng cồn',
     createdAt: '2025-10-12'
   },
   {
     id: 'c-02',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Anh Trần Tuấn Anh',
     phone: '0977223344',
     email: 'tuananh.tran@gmail.com',
     gender: 'male',
     birthday: '1988-11-24',
     address: 'Quận 2, TP.HCM',
-    primaryBranchId: 'br-01',
+    primaryBranchId: '22222222-2222-2222-2222-222222222221',
     vipTier: 'gold',
     totalSpent: 18500000,
     debt: 1500000,
     creditBalance: 0,
-    notes: 'Đang làm gói cấy Implant răng hàm',
+    notes: 'Đang làm gói cấy Implant răng hàm tại Q1',
     createdAt: '2025-12-05'
   },
   {
     id: 'c-03',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Chị Hoàng Bảo Ngọc',
     phone: '0966334455',
     gender: 'female',
     birthday: '1996-03-08',
     address: 'Quận 7, TP.HCM',
-    primaryBranchId: 'br-01',
+    primaryBranchId: '22222222-2222-2222-2222-222222222222',
     vipTier: 'silver',
     totalSpent: 8200000,
     debt: 0,
     creditBalance: 0,
-    notes: 'Đang theo liệu trình trị mụn chuẩn y khoa',
+    notes: 'Đang theo liệu trình trị mụn chuẩn y khoa tại Q7',
     createdAt: '2026-01-15'
   },
   {
     id: 'c-04',
-    orgId: 'org-01',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Cô Nguyễn Thị Hoa',
     phone: '0911445566',
     gender: 'female',
     birthday: '1975-08-20',
-    address: 'Quận 3, TP.HCM',
-    primaryBranchId: 'br-01',
+    address: 'Võ Văn Ngân, Thủ Đức',
+    primaryBranchId: '22222222-2222-2222-2222-222222222223',
     vipTier: 'standard',
     totalSpent: 3500000,
     debt: 500000,
     creditBalance: 0,
-    notes: 'Khách vãng lai chăm sóc da cơ bản',
+    notes: 'Khách hàng thân thiết cơ sở Thủ Đức',
     createdAt: '2026-02-10'
+  },
+  {
+    id: 'c-05',
+    orgId: '11111111-1111-1111-1111-111111111111',
+    name: 'Chị Lê Khánh Chi',
+    phone: '0933778899',
+    email: 'khanhchi.le@gmail.com',
+    gender: 'female',
+    birthday: '1994-07-12',
+    address: 'Phú Mỹ Hưng, Quận 7',
+    primaryBranchId: '22222222-2222-2222-2222-222222222222',
+    vipTier: 'gold',
+    totalSpent: 12400000,
+    debt: 0,
+    creditBalance: 1200000,
+    notes: 'Khách hàng VIP Quận 7',
+    createdAt: '2026-03-01'
   }
 ];
 
@@ -304,8 +321,8 @@ export const mockBranchServicePrices: BranchServicePrice[] = [
 
 export const mockProducts: Product[] = [
   {
-    id: 'prd-01',
-    orgId: 'org-01',
+    id: '44444444-4444-4444-4444-444444444441',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Serum Phục Hồi B5 + HA Hyaluronic Booster 50ml',
     code: 'SP-B5-50',
     category: 'Dược Mỹ Phẩm',
@@ -317,8 +334,8 @@ export const mockProducts: Product[] = [
     isActive: true
   },
   {
-    id: 'prd-02',
-    orgId: 'org-01',
+    id: '44444444-4444-4444-4444-444444444442',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Kem Chống Nắng Phổ Rộng Broad Spectrum SPF50+',
     code: 'SP-SUN-50',
     category: 'Dược Mỹ Phẩm',
@@ -330,8 +347,8 @@ export const mockProducts: Product[] = [
     isActive: true
   },
   {
-    id: 'prd-03',
-    orgId: 'org-01',
+    id: '44444444-4444-4444-4444-444444444443',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Kem Đánh Răng Chống Ê Buốt Nha Khoa Sensodyne Pro',
     code: 'SP-DENT-PASTE',
     category: 'Chăm Sóc Răng Miệng',
@@ -343,8 +360,8 @@ export const mockProducts: Product[] = [
     isActive: true
   },
   {
-    id: 'prd-04',
-    orgId: 'org-01',
+    id: '44444444-4444-4444-4444-444444444444',
+    orgId: '11111111-1111-1111-1111-111111111111',
     name: 'Mặt Nạ Sinh Học Bio-Cellulose Cấp Ẩm Tức Thì',
     code: 'SP-MASK-BIO',
     category: 'Mặt Nạ Spa',
@@ -359,22 +376,22 @@ export const mockProducts: Product[] = [
 
 export const mockBranchStocks: BranchInventoryStock[] = [
   // Chi Nhánh Quận 1 (HCM-Q1)
-  { id: 'bs-01', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-01', stockOnHand: 48, minStock: 10 },
-  { id: 'bs-02', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-02', stockOnHand: 35, minStock: 8 },
-  { id: 'bs-03', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-03', stockOnHand: 22, minStock: 15 },
-  { id: 'bs-04', branchId: '22222222-2222-2222-2222-222222222221', productId: 'prd-04', stockOnHand: 60, minStock: 20 },
+  { id: 'bs-01', branchId: '22222222-2222-2222-2222-222222222221', productId: '44444444-4444-4444-4444-444444444441', stockOnHand: 48, minStock: 10 },
+  { id: 'bs-02', branchId: '22222222-2222-2222-2222-222222222221', productId: '44444444-4444-4444-4444-444444444442', stockOnHand: 35, minStock: 8 },
+  { id: 'bs-03', branchId: '22222222-2222-2222-2222-222222222221', productId: '44444444-4444-4444-4444-444444444443', stockOnHand: 22, minStock: 15 },
+  { id: 'bs-04', branchId: '22222222-2222-2222-2222-222222222221', productId: '44444444-4444-4444-4444-444444444444', stockOnHand: 60, minStock: 20 },
 
   // Chi Nhánh Quận 7 - Phú Mỹ Hưng (HCM-Q7)
-  { id: 'bs-05', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-01', stockOnHand: 15, minStock: 10 },
-  { id: 'bs-06', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-02', stockOnHand: 6, minStock: 8 },
-  { id: 'bs-07', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-03', stockOnHand: 18, minStock: 15 },
-  { id: 'bs-08', branchId: '22222222-2222-2222-2222-222222222222', productId: 'prd-04', stockOnHand: 25, minStock: 20 },
+  { id: 'bs-05', branchId: '22222222-2222-2222-2222-222222222222', productId: '44444444-4444-4444-4444-444444444441', stockOnHand: 15, minStock: 10 },
+  { id: 'bs-06', branchId: '22222222-2222-2222-2222-222222222222', productId: '44444444-4444-4444-4444-444444444442', stockOnHand: 6, minStock: 8 },
+  { id: 'bs-07', branchId: '22222222-2222-2222-2222-222222222222', productId: '44444444-4444-4444-4444-444444444443', stockOnHand: 18, minStock: 15 },
+  { id: 'bs-08', branchId: '22222222-2222-2222-2222-222222222222', productId: '44444444-4444-4444-4444-444444444444', stockOnHand: 25, minStock: 20 },
 
   // Chi Nhánh TP. Thủ Đức (HCM-TD)
-  { id: 'bs-09', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-01', stockOnHand: 5, minStock: 10 },
-  { id: 'bs-10', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-02', stockOnHand: 28, minStock: 8 },
-  { id: 'bs-11', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-03', stockOnHand: 4, minStock: 15 },
-  { id: 'bs-12', branchId: '22222222-2222-2222-2222-222222222223', productId: 'prd-04', stockOnHand: 8, minStock: 20 }
+  { id: 'bs-09', branchId: '22222222-2222-2222-2222-222222222223', productId: '44444444-4444-4444-4444-444444444441', stockOnHand: 5, minStock: 10 },
+  { id: 'bs-10', branchId: '22222222-2222-2222-2222-222222222223', productId: '44444444-4444-4444-4444-444444444442', stockOnHand: 28, minStock: 8 },
+  { id: 'bs-11', branchId: '22222222-2222-2222-2222-222222222223', productId: '44444444-4444-4444-4444-444444444443', stockOnHand: 4, minStock: 15 },
+  { id: 'bs-12', branchId: '22222222-2222-2222-2222-222222222223', productId: '44444444-4444-4444-4444-444444444444', stockOnHand: 8, minStock: 20 }
 ];
 
 export const mockPackages: PackageCombo[] = [
@@ -417,6 +434,8 @@ export const mockCustomerCourses: CustomerCourse[] = [
     startDate: '2026-02-01',
     expiryDate: '2026-06-01',
     saleId: 'sale-001',
+    soldBranchId: '22222222-2222-2222-2222-222222222221',
+    allowInterBranch: true,
     status: 'active'
   },
   {
@@ -431,6 +450,24 @@ export const mockCustomerCourses: CustomerCourse[] = [
     startDate: '2026-01-20',
     expiryDate: '2026-07-20',
     saleId: 'sale-002',
+    soldBranchId: '22222222-2222-2222-2222-222222222222',
+    allowInterBranch: false,
+    status: 'active'
+  },
+  {
+    id: 'crs-03',
+    customerId: 'c-04',
+    packageId: 'pkg-01',
+    serviceId: 'svc-02',
+    name: 'Phác Đồ Phục Hồi Da Cơ Bản (5 Buổi)',
+    totalSessions: 5,
+    usedSessions: 1,
+    price: 3500000,
+    startDate: '2026-02-15',
+    expiryDate: '2026-08-15',
+    saleId: 'sale-004',
+    soldBranchId: '22222222-2222-2222-2222-222222222223',
+    allowInterBranch: true,
     status: 'active'
   }
 ];
@@ -443,18 +480,28 @@ export const mockSessionDeductions: SessionDeduction[] = [
     staffId: 'st-03',
     sessionsDeducted: 1,
     performedAt: '2026-02-01 14:30',
-    notes: 'Buổi 1: Bắn Laser Toning mức năng lượng 1.2J. Da ửng nhẹ, đã đắp mask B5.',
+    notes: 'Buổi 1: Bắn Laser Toning mức năng lượng 1.2J tại Q1. Da ửng nhẹ, đã đắp mask B5.',
     customerSignature: 'Đặng Thu Thảo'
   },
   {
     id: 'ded-02',
     courseId: 'crs-01',
-    branchId: '22222222-2222-2222-2222-222222222221',
-    staffId: 'st-03',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    staffId: 'st-06',
     sessionsDeducted: 1,
     performedAt: '2026-02-18 15:00',
-    notes: 'Buổi 2: Tăng mức năng lượng lên 1.4J. Da đáp ứng rất tốt.',
+    notes: 'Buổi 2: Làm liên chi nhánh tại Quận 7 (BS. Đức). Tăng năng lượng lên 1.4J. Da đáp ứng rất tốt.',
     customerSignature: 'Đặng Thu Thảo'
+  },
+  {
+    id: 'ded-03',
+    courseId: 'crs-02',
+    branchId: '22222222-2222-2222-2222-222222222222',
+    staffId: 'st-06',
+    sessionsDeducted: 1,
+    performedAt: '2026-01-20 10:30',
+    notes: 'Buổi 1: Lấy nhân mụn chuẩn y khoa & chiếu đèn sinh học tại Q7.',
+    customerSignature: 'Hoàng Bảo Ngọc'
   }
 ];
 
@@ -602,7 +649,7 @@ export const mockSales: Sale[] = [
     staffName: 'Phạm Thu Hà',
     items: [
       { id: 'it-1', type: 'service', refId: 'svc-04', name: 'Cạo Vôi Răng Siêu Âm', price: 350000, qty: 1, staffId: 'st-03' },
-      { id: 'it-2', type: 'product', refId: 'prd-01', name: 'Serum Phục Hồi B5 + HA Booster', price: 680000, qty: 1 }
+      { id: 'it-2', type: 'product', refId: '44444444-4444-4444-4444-444444444441', name: 'Serum Phục Hồi B5 + HA Booster', price: 680000, qty: 1 }
     ],
     subtotal: 1030000,
     discountPct: 0,
@@ -691,7 +738,7 @@ export const mockSales: Sale[] = [
     staffName: 'Đặng Kim Chi',
     items: [
       { id: 'it-5', type: 'service', refId: 'svc-04', name: 'Cạo Vôi Răng Siêu Âm', price: 350000, qty: 1, staffId: 'st-03' },
-      { id: 'it-6', type: 'product', refId: 'prd-02', name: 'Kem Chống Nắng Broad Spectrum', price: 520000, qty: 1 }
+      { id: 'it-6', type: 'product', refId: '44444444-4444-4444-4444-444444444442', name: 'Kem Chống Nắng Broad Spectrum', price: 520000, qty: 1 }
     ],
     subtotal: 870000,
     discountPct: 0,
@@ -814,15 +861,15 @@ export const mockPurchaseOrders: PurchaseOrder[] = [
     totalAmount: 18500000,
     status: 'completed',
     items: [
-      { productId: 'prd-01', productName: 'Serum B5 Booster', qtyOrdered: 30, qtyReceived: 30, unitPrice: 320000 },
-      { productId: 'prd-02', productName: 'Kem Chống Nắng Broad Spectrum', qtyOrdered: 25, qtyReceived: 25, unitPrice: 240000 }
+      { productId: '44444444-4444-4444-4444-444444444441', productName: 'Serum B5 Booster', qtyOrdered: 30, qtyReceived: 30, unitPrice: 320000 },
+      { productId: '44444444-4444-4444-4444-444444444442', productName: 'Kem Chống Nắng Broad Spectrum', qtyOrdered: 25, qtyReceived: 25, unitPrice: 240000 }
     ]
   },
   {
     id: 'po-02',
     orgId: '11111111-1111-1111-1111-111111111111',
     branchId: '22222222-2222-2222-2222-222222222222',
-    supplierId: 'sup-01',
+    supplierId: '33333333-3333-3333-3333-333333333331',
     supplierName: 'MedSkin VN',
     poNumber: 'PO-202609-02',
     orderDate: '2026-09-25',
@@ -830,7 +877,7 @@ export const mockPurchaseOrders: PurchaseOrder[] = [
     totalAmount: 8500000,
     status: 'ordered',
     items: [
-      { productId: 'prd-04', productName: 'Mặt Nạ Bio-Cellulose', qtyOrdered: 100, qtyReceived: 0, unitPrice: 35000 }
+      { productId: '44444444-4444-4444-4444-444444444444', productName: 'Mặt Nạ Bio-Cellulose', qtyOrdered: 100, qtyReceived: 0, unitPrice: 35000 }
     ]
   }
 ];
@@ -841,7 +888,7 @@ export const mockGoodsReceipts: GoodsReceiptNote[] = [
     orgId: '11111111-1111-1111-1111-111111111111',
     branchId: '22222222-2222-2222-2222-222222222221',
     poId: 'po-01',
-    supplierId: 'sup-01',
+    supplierId: '33333333-3333-3333-3333-333333333331',
     supplierName: 'MedSkin VN',
     grnNumber: 'PNK-202609-01',
     receivedDate: '2026-09-24',
@@ -850,8 +897,8 @@ export const mockGoodsReceipts: GoodsReceiptNote[] = [
     paidAmount: 6000000,
     status: 'completed',
     items: [
-      { productId: 'prd-01', productName: 'Serum B5 Booster', qty: 30, unitPrice: 320000 },
-      { productId: 'prd-02', productName: 'Kem Chống Nắng Broad Spectrum', qty: 25, unitPrice: 240000 }
+      { productId: '44444444-4444-4444-4444-444444444441', productName: 'Serum B5 Booster', qty: 30, unitPrice: 320000 },
+      { productId: '44444444-4444-4444-4444-444444444442', productName: 'Kem Chống Nắng Broad Spectrum', qty: 25, unitPrice: 240000 }
     ]
   }
 ];
@@ -947,7 +994,7 @@ export const mockPromotions: Promotion[] = [
     id: 'prm-01',
     orgId: '11111111-1111-1111-1111-111111111111',
     code: 'VIPDIAMOND',
-    title: 'Giảm 15% Dành Riêng Cho Khách Hàng VIP Diamond',
+    title: 'Giảm 15% Dành Riêng Cho Khách Hàng VIP Diamond (Toàn Chuỗi)',
     discountType: 'pct',
     discountValue: 15,
     minOrderValue: 1000000,
@@ -955,13 +1002,18 @@ export const mockPromotions: Promotion[] = [
     usedCount: 14,
     startDate: '2026-01-01',
     endDate: '2026-12-31',
+    applicableBranchIds: [
+      '22222222-2222-2222-2222-222222222221',
+      '22222222-2222-2222-2222-222222222222',
+      '22222222-2222-2222-2222-222222222223'
+    ],
     isActive: true
   },
   {
     id: 'prm-02',
     orgId: '11111111-1111-1111-1111-111111111111',
     code: 'WELCOME50K',
-    title: 'Tặng 50.000đ Cho Khách Hàng Lần Đầu Trải Nghiệm',
+    title: 'Tặng 50.000đ Cho Khách Trải Nghiệm Cơ Sở Thủ Đức',
     discountType: 'fixed',
     discountValue: 50000,
     minOrderValue: 300000,
@@ -969,6 +1021,7 @@ export const mockPromotions: Promotion[] = [
     usedCount: 88,
     startDate: '2026-09-01',
     endDate: '2026-10-31',
+    applicableBranchIds: ['22222222-2222-2222-2222-222222222223'],
     isActive: true
   }
 ];

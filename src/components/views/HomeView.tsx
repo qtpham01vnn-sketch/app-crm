@@ -48,17 +48,17 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
     <div className="space-y-6 animate-fade-in pb-8">
       {/* Top Banner Greeting - Dynamically adapts to active Theme */}
       <div
-        className={`rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border transition-all duration-300 ${
+        className={`rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border transition-all duration-300 ${
           isSoftLight
-            ? 'bg-gradient-to-r from-[#F3EFE5] via-[#FFFEFA] to-[#F5E4E7] border-[#E8E3D8] text-[#303833]'
-            : 'text-white border-white/10 shadow-xl'
+            ? 'bg-white border-[#E5E7E4] text-[#26342F]'
+            : 'text-white border-white/10 shadow-lg'
         }`}
         style={
           isSoftLight
-            ? { boxShadow: `0 8px 24px ${currentTheme.ringColor}` }
+            ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' }
             : {
                 background: currentTheme.heroGradient,
-                boxShadow: `0 10px 25px ${currentTheme.ringColor}`
+                boxShadow: '0 4px 14px rgba(0,0,0,0.08)'
               }
         }
       >
@@ -66,32 +66,32 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
           <span
             className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
               isSoftLight
-                ? 'bg-white/80 text-[#234737] border-[#E8E3D8]'
+                ? 'bg-[#FFF1F5] text-[#244B3C] border-[#E5E7E4]'
                 : 'text-white bg-white/20 border-white/30 backdrop-blur-xs'
             }`}
           >
-            {currentBranch.name}
+            Chi nhánh {currentBranch.name}
           </span>
           <h1
             className={`text-xl md:text-2xl font-black mt-2 tracking-tight ${
-              isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-white'
+              isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-white'
             }`}
           >
             Xin chào! Chúc một ngày làm việc hiệu quả ✨
           </h1>
           <p
             className={`text-xs mt-1 ${
-              isSoftLight ? 'text-[#70776F]' : 'text-slate-200'
+              isSoftLight ? 'text-[#59665F]' : 'text-slate-200'
             }`}
           >
-            Giao diện: <b className="underline font-bold" style={{ color: isSoftLight ? currentTheme.secondaryColor : '#ffffff' }}>{currentTheme.name}</b> • Hệ thống phục vụ {todayBranchAppts.length} lượt hẹn hôm nay.
+            Giao diện: <b className="font-bold" style={{ color: isSoftLight ? currentTheme.primaryColor : '#ffffff' }}>{currentTheme.name}</b> • Hệ thống phục vụ {todayBranchAppts.length} lượt hẹn hôm nay.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2.5 shrink-0">
           <button
             onClick={() => setActiveTab('pos')}
-            className="text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center space-x-1.5 transition-all hover:opacity-90 active:scale-95 cursor-pointer"
+            className="text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center space-x-1.5 transition-all hover:opacity-90 active:scale-95 cursor-pointer"
             style={{ backgroundColor: currentTheme.buttonBg }}
           >
             <CreditCard className="w-4 h-4" />
@@ -101,7 +101,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             onClick={onOpenNewAppt}
             className={`font-semibold text-xs px-4 py-2.5 rounded-xl border flex items-center space-x-1.5 transition-all cursor-pointer ${
               isSoftLight
-                ? 'bg-white hover:bg-[#F3EFE5] text-[#234737] border-[#E8E3D8] shadow-xs'
+                ? 'bg-white hover:bg-[#FFF1F5] text-[#244B3C] border-[#E5E7E4]'
                 : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
             }`}
           >
@@ -115,12 +115,13 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Revenue */}
         <div
-          className={`rounded-2xl p-5 border shadow-xs hover:shadow-md transition-shadow ${
-            isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+          className={`rounded-2xl p-5 border transition-shadow ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
           }`}
+          style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#70776F]">Doanh Thu Thực Thu</span>
+            <span className={`text-xs font-bold uppercase tracking-wider ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>Doanh Thu Thực Thu</span>
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center font-bold"
               style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
@@ -129,7 +130,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             </div>
           </div>
           <div className="mt-3">
-            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>
+            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>
               {todayRevenue > 0 ? todayRevenue.toLocaleString('vi-VN') + ' đ' : totalRevenue.toLocaleString('vi-VN') + ' đ'}
             </p>
             <p className="text-[11px] font-semibold mt-1 flex items-center text-slate-500">
@@ -138,7 +139,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                   <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> Hôm nay ({todaySales.length} hóa đơn)
                 </span>
               ) : (
-                <span className="text-slate-500">Lũy kế toàn thời gian ({branchSales.length} hóa đơn)</span>
+                <span className={isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}>Lũy kế toàn thời gian ({branchSales.length} hóa đơn)</span>
               )}
             </p>
           </div>
@@ -146,12 +147,13 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
 
         {/* Metric 2: Appointments */}
         <div
-          className={`rounded-2xl p-5 border shadow-xs hover:shadow-md transition-shadow ${
-            isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+          className={`rounded-2xl p-5 border transition-shadow ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
           }`}
+          style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#70776F]">Lịch Hẹn Hôm Nay</span>
+            <span className={`text-xs font-bold uppercase tracking-wider ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>Lịch Hẹn Hôm Nay</span>
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center font-bold"
               style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
@@ -160,7 +162,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             </div>
           </div>
           <div className="mt-3">
-            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{todayBranchAppts.length} Lượt</p>
+            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{todayBranchAppts.length} Lượt</p>
             <p className="text-[11px] font-bold mt-1" style={{ color: currentTheme.primaryColor }}>
               {todayBranchAppts.filter((a) => a.status === 'in_progress').length} đang làm • {todayBranchAppts.filter((a) => a.status === 'done').length} hoàn thành
             </p>
@@ -169,12 +171,13 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
 
         {/* Metric 3: Customers */}
         <div
-          className={`rounded-2xl p-5 border shadow-xs hover:shadow-md transition-shadow ${
-            isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+          className={`rounded-2xl p-5 border transition-shadow ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
           }`}
+          style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#70776F]">Khách Hàng Toàn Chuỗi</span>
+            <span className={`text-xs font-bold uppercase tracking-wider ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>Khách Hàng Toàn Chuỗi</span>
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center font-bold"
               style={{ backgroundColor: currentTheme.iconBg, color: currentTheme.primaryColor }}
@@ -183,8 +186,8 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
             </div>
           </div>
           <div className="mt-3">
-            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{customers.length} Khách</p>
-            <p className="text-[11px] font-semibold mt-1 text-slate-500">
+            <p className={`text-2xl font-black tracking-tight ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{customers.length} Khách</p>
+            <p className={`text-[11px] font-semibold mt-1 ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
               {newCustomersThisMonth > 0 ? `+${newCustomersThisMonth} khách mới tháng này` : `Nợ cần thu: ${totalDebt.toLocaleString('vi-VN')} đ`}
             </p>
           </div>
@@ -192,21 +195,28 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
 
         {/* Metric 4: Inventory Alerts */}
         <div
-          className={`rounded-2xl p-5 border shadow-xs hover:shadow-md transition-shadow ${
-            isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+          className={`rounded-2xl p-5 border transition-shadow ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
           }`}
+          style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#70776F]">Cảnh Báo Tồn Kho</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <span className={`text-xs font-bold uppercase tracking-wider ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>Cảnh Báo Tồn Kho</span>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+              lowStockItems.length > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+            }`}>
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-black text-rose-600 tracking-tight">
+            <p className={`text-2xl font-black tracking-tight ${
+              lowStockItems.length > 0 ? 'text-rose-600' : isSoftLight ? 'text-[#244B3C]' : 'text-emerald-700'
+            }`}>
               {lowStockItems.length} Mặt Hàng
             </p>
-            <p className="text-[11px] text-slate-500 font-medium mt-1">
+            <p className={`text-[11px] font-medium mt-1 ${
+              lowStockItems.length > 0 ? 'text-rose-600' : 'text-emerald-700 font-semibold'
+            }`}>
               {lowStockItems.length > 0 ? 'Cần tạo đơn PO nhập thêm' : 'Tồn kho an toàn'}
             </p>
           </div>
@@ -217,14 +227,15 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 spans): Today's Schedule */}
         <div
-          className={`lg:col-span-2 rounded-2xl p-5 border shadow-xs ${
-            isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+          className={`lg:col-span-2 rounded-2xl p-5 border ${
+            isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
           }`}
+          style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4" style={{ color: currentTheme.primaryColor }} />
-              <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-slate-800'}`}>
+              <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-800'}`}>
                 Lịch Hẹn Phục Vụ Chi Nhánh
               </h3>
             </div>
@@ -238,26 +249,26 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
           </div>
 
           {todayBranchAppts.length === 0 ? (
-            <div className="py-12 px-4 text-center flex flex-col items-center justify-center rounded-xl bg-[#F8F6EF]/60 border border-dashed border-[#E8E3D8]">
+            <div className="py-12 px-4 text-center flex flex-col items-center justify-center rounded-xl bg-[#FFF1F5]/40 border border-dashed border-[#E5E7E4]">
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xs"
+                className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
                 style={{ backgroundColor: currentTheme.badgeBg, color: currentTheme.primaryColor }}
               >
                 <Calendar className="w-6 h-6" />
               </div>
-              <h4 className={`font-bold text-sm mb-1 ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>
+              <h4 className={`font-bold text-sm mb-1 ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}`}>
                 Chưa có lịch hẹn nào hôm nay
               </h4>
-              <p className="text-xs text-slate-500 mb-4 max-w-sm">
+              <p className={`text-xs mb-4 max-w-sm ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
                 Chi nhánh {currentBranch.name} chưa có lịch tiếp đón trong ngày. Bấm nút bên dưới để tạo lịch hẹn mới cho khách.
               </p>
               <button
                 onClick={onOpenNewAppt}
-                className="px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all hover:opacity-90 cursor-pointer active:scale-95"
+                className="px-4 py-2 text-white font-bold text-xs rounded-xl flex items-center space-x-1.5 transition-all hover:opacity-90 cursor-pointer active:scale-95"
                 style={{ backgroundColor: currentTheme.buttonBg }}
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Đặt Lịch Mới Ngay</span>
+                <span>Đặt Lịch Mới Ngay</span>
               </button>
             </div>
           ) : (
@@ -277,35 +288,35 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                     key={appt.id}
                     className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl transition-colors border gap-3 ${
                       isSoftLight
-                        ? 'bg-[#F8F6EF]/70 hover:bg-[#F3EFE5] border-[#E8E3D8]'
+                        ? 'bg-white hover:bg-[#FFF1F5]/50 border-[#E5E7E4]'
                         : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200/60'
                     }`}
                   >
                     <div className="flex items-start space-x-3 min-w-0">
                       <div
-                        className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold shadow-xs shrink-0 border ${
-                          isSoftLight ? 'bg-white border-[#E8E3D8]' : 'bg-white border-slate-200'
+                        className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold shrink-0 border ${
+                          isSoftLight ? 'bg-[#FFF1F5] border-[#E5E7E4]' : 'bg-white border-slate-200'
                         }`}
                       >
                         <span className="text-xs font-bold" style={{ color: currentTheme.primaryColor }}>{appt.time}</span>
-                        <span className="text-[10px] text-slate-400 font-normal">{appt.durationMinutes}p</span>
+                        <span className={`text-[10px] font-normal ${isSoftLight ? 'text-[#59665F]' : 'text-slate-400'}`}>{appt.durationMinutes}p</span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <p className={`font-bold text-xs truncate ${isSoftLight ? 'text-[#234737]' : 'text-slate-900'}`}>{appt.customerName}</p>
+                          <p className={`font-bold text-xs truncate ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{appt.customerName}</p>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.bg} ${badge.text}`}>
                             {badge.label}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">{appt.serviceName}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                          KTV: <span className="font-semibold text-slate-700">{appt.staffName}</span> • {appt.roomOrBed}
+                        <p className={`text-xs font-medium mt-0.5 truncate ${isSoftLight ? 'text-[#26342F]' : 'text-slate-600'}`}>{appt.serviceName}</p>
+                        <p className={`text-[11px] mt-0.5 truncate ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
+                          KTV: <span className={`font-semibold ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-700'}`}>{appt.staffName}</span> • {appt.roomOrBed}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200/80 shrink-0">
-                      <span className="font-bold text-xs text-slate-900">
+                      <span className={`font-bold text-xs ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>
                         {(appt.priceSnapshot || 0).toLocaleString('vi-VN')} đ
                       </span>
                       <button
@@ -331,25 +342,28 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
         <div className="space-y-6">
           {/* Low Stock Warning Card */}
           <div
-            className={`rounded-2xl p-5 border shadow-xs ${
-              isSoftLight ? 'bg-[#FFFEFA] border-[#E8E3D8]' : 'bg-white border-slate-200/80'
+            className={`rounded-2xl p-5 border ${
+              isSoftLight ? 'bg-white border-[#E5E7E4]' : 'bg-white border-slate-200/80'
             }`}
+            style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-rose-500" />
-                <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#234737]' : 'text-slate-800'}`}>Cảnh Báo Tồn Kho</h3>
+                <AlertTriangle className={`w-4 h-4 ${lowStockItems.length > 0 ? 'text-rose-500' : 'text-emerald-600'}`} />
+                <h3 className={`font-bold text-sm ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}`}>Cảnh Báo Tồn Kho</h3>
               </div>
-              <button
-                onClick={() => setActiveTab('po')}
-                className="text-xs text-rose-600 hover:text-rose-700 font-bold cursor-pointer"
-              >
-                Nhập hàng
-              </button>
+              {lowStockItems.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('po')}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-bold cursor-pointer"
+                >
+                  Nhập hàng
+                </button>
+              )}
             </div>
 
             {lowStockItems.length === 0 ? (
-              <p className="text-xs text-slate-500 py-3 text-center">Tồn kho các mặt hàng đều an toàn.</p>
+              <p className={`text-xs py-3 text-center ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>Tồn kho các mặt hàng đều an toàn.</p>
             ) : (
               <div className="space-y-2.5">
                 {lowStockItems.map((item, idx) => (
@@ -377,15 +391,16 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
 
           {/* Quick Shortcuts */}
           <div
-            className={`rounded-2xl p-5 shadow-sm border transition-colors ${
+            className={`rounded-2xl p-5 border transition-colors ${
               isSoftLight
-                ? 'bg-[#FFFEFA] border-[#E8E3D8] text-[#303833]'
+                ? 'bg-white border-[#E5E7E4] text-[#26342F]'
                 : 'bg-slate-900 text-white border-slate-800 shadow-lg'
             }`}
+            style={isSoftLight ? { boxShadow: '0 2px 8px rgba(24,39,32,0.04)' } : undefined}
           >
             <h3
               className={`font-bold text-sm mb-3 flex items-center gap-2 ${
-                isSoftLight ? 'text-[#234737] font-serif-heading' : 'text-white'
+                isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-white'
               }`}
             >
               <Sparkles className="w-4 h-4" style={{ color: currentTheme.primaryColor }} /> Thao Tác Nhanh
@@ -395,7 +410,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                 onClick={() => setActiveTab('pos')}
                 className={`p-3 rounded-xl text-left font-semibold transition-colors cursor-pointer border ${
                   isSoftLight
-                    ? 'bg-[#F8F6EF] hover:bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+                    ? 'bg-[#FAFAF8] hover:bg-[#FFF1F5] text-[#26342F] border-[#E5E7E4]'
                     : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
                 }`}
               >
@@ -405,7 +420,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                 onClick={() => setActiveTab('courses')}
                 className={`p-3 rounded-xl text-left font-semibold transition-colors cursor-pointer border ${
                   isSoftLight
-                    ? 'bg-[#F8F6EF] hover:bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+                    ? 'bg-[#FAFAF8] hover:bg-[#FFF1F5] text-[#26342F] border-[#E5E7E4]'
                     : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
                 }`}
               >
@@ -415,7 +430,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                 onClick={() => setActiveTab('times')}
                 className={`p-3 rounded-xl text-left font-semibold transition-colors cursor-pointer border ${
                   isSoftLight
-                    ? 'bg-[#F8F6EF] hover:bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+                    ? 'bg-[#FAFAF8] hover:bg-[#FFF1F5] text-[#26342F] border-[#E5E7E4]'
                     : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
                 }`}
               >
@@ -425,7 +440,7 @@ export const HomeView: React.FC<{ onOpenNewAppt: () => void }> = ({ onOpenNewApp
                 onClick={() => setActiveTab('reports')}
                 className={`p-3 rounded-xl text-left font-semibold transition-colors cursor-pointer border ${
                   isSoftLight
-                    ? 'bg-[#F8F6EF] hover:bg-[#F3EFE5] text-[#303833] border-[#E8E3D8]'
+                    ? 'bg-[#FAFAF8] hover:bg-[#FFF1F5] text-[#26342F] border-[#E5E7E4]'
                     : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
                 }`}
               >
