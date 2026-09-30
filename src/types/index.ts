@@ -770,3 +770,100 @@ export interface SalesCashflowReport {
   }>;
 }
 
+export interface ServiceBom {
+  id: string;
+  orgId: string;
+  serviceId: string;
+  productId: string;
+  productName?: string;
+  standardQuantity: number;
+  unitOfMeasure: string;
+  conversionRate: number;
+  version: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  isActive: boolean;
+  notes?: string;
+}
+
+export interface SessionMaterialUsage {
+  id: string;
+  orgId: string;
+  branchId: string;
+  serviceId: string;
+  serviceName?: string;
+  sessionDeductionId?: string;
+  saleId?: string;
+  appointmentId?: string;
+  productId: string;
+  productName?: string;
+  lotNumber?: string;
+  standardQuantity: number;
+  actualQuantity: number;
+  unitOfMeasure: string;
+  baseQuantityDeducted: number;
+  costPriceSnapshot: number;
+  totalCost: number;
+  isMissingCostSnapshot: boolean;
+  performerStaffId?: string;
+  performerName?: string;
+  notes?: string;
+  usedAt: string;
+}
+
+export interface CogsAndProfitReport {
+  period: {
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  summary: {
+    recognizedRevenue: number;
+    cogsProducts: number;
+    materialCost: number;
+    directCommission: number;
+    directContribution: number;
+    marginPct: number | null;
+    missingCostWarningCount: number;
+    disclaimer: string;
+  };
+  serviceBreakdown: Array<{
+    serviceId: string;
+    serviceName: string;
+    category: string;
+    sessionCount: number;
+    recognizedRevenue: number;
+    materialCost: number;
+    directContribution: number;
+    marginPct: number | null;
+  }>;
+  varianceBreakdown: {
+    bomVariance: number;
+    auditShrinkage: number;
+    damagedExpiredLoss: number;
+    transferVariance: number;
+    unassignedUsage: number;
+  };
+  drilldown: {
+    totalRecords: number;
+    page: number;
+    pageSize: number;
+    items: Array<{
+      id: string;
+      usedAt: string;
+      branchName: string;
+      serviceName: string;
+      productName: string;
+      standardQty: number;
+      actualQty: number;
+      unit: string;
+      costPriceSnapshot: number;
+      totalCost: number;
+      isMissingCostSnapshot: boolean;
+      performerName?: string;
+      notes?: string;
+    }>;
+  };
+}
+
+

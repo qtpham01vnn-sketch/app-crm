@@ -1,5 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport, CogsAndProfitReport } from '../types';
+
+
 
 const isUUID = (val?: string | null): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -3112,8 +3114,151 @@ export const masterDataService = {
         createdAt: pay.created_at
       }))
     };
+  },
+
+  /**
+   * P7.2: Ghi nhận tiêu hao vật tư ca dịch vụ (Trừ kho tức thì, snapshot giá vốn)
+   */
+  async recordServiceMaterialUsage(params: {
+    orgId: string;
+    branchId: string;
+    serviceId: string;
+    staffId?: string | null;
+    sessionDeductionId?: string | null;
+    saleId?: string | null;
+    appointmentId?: string | null;
+    items: Array<{
+      productId: string;
+      actualQuantity: number;
+      unitOfMeasure?: string;
+      lotNumber?: string;
+    }>;
+    idempotencyKey?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; itemsDeducted?: number; totalMaterialCost?: number; message?: string }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_record_service_material_usage', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_service_id: params.serviceId,
+      p_staff_id: isUUID(params.staffId) ? params.staffId : null,
+      p_session_deduction_id: isUUID(params.sessionDeductionId) ? params.sessionDeductionId : null,
+      p_sale_id: isUUID(params.saleId) ? params.saleId : null,
+      p_appointment_id: isUUID(params.appointmentId) ? params.appointmentId : null,
+      p_items: params.items.map(i => ({
+        product_id: i.productId,
+        actual_quantity: i.actualQuantity,
+        unit_of_measure: i.unitOfMeasure || 'don_vi',
+        lot_number: i.lotNumber || null
+      })),
+      p_idempotency_key: params.idempotencyKey || null,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_record_service_material_usage:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      itemsDeducted: res?.items_deducted,
+      totalMaterialCost: res?.total_material_cost,
+      message: res?.message
+    };
+  },
+
+  /**
+   * P7.2 BI ANALYTICS: Báo cáo Giá Vốn (COGS), Định Mức Vật Tư & Chênh Lệch Lợi Nhuận Trực Tiếp
+   */
+  async getCogsAndGrossProfitReport(params: {
+    orgId: string;
+    branchId?: string | null;
+    startDate?: string;
+    endDate?: string;
+    serviceId?: string | null;
+    category?: string | null;
+    page?: number;
+    pageSize?: number;
+  }): Promise<CogsAndProfitReport | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      return null;
+    }
+    const { data, error } = await supabase.rpc('rpc_get_cogs_and_gross_profit_report', {
+      p_org_id: params.orgId,
+      p_branch_id: isUUID(params.branchId) ? params.branchId : null,
+      p_start_date: params.startDate || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+      p_end_date: params.endDate || new Date().toISOString().split('T')[0],
+      p_service_id: isUUID(params.serviceId) ? params.serviceId : null,
+      p_category: params.category || null,
+      p_page: params.page || 1,
+      p_page_size: params.pageSize || 50
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_get_cogs_and_gross_profit_report:', error);
+      throw error;
+    }
+    const res = data as any;
+    if (!res) return null;
+
+    return {
+      period: {
+        startDate: res.period?.start_date,
+        endDate: res.period?.end_date,
+        timezone: res.period?.timezone || 'Asia/Ho_Chi_Minh (UTC+7)'
+      },
+      summary: {
+        recognizedRevenue: Number(res.summary?.recognized_revenue) || 0,
+        cogsProducts: Number(res.summary?.cogs_products) || 0,
+        materialCost: Number(res.summary?.material_cost) || 0,
+        directCommission: Number(res.summary?.direct_commission) || 0,
+        directContribution: Number(res.summary?.direct_contribution) || 0,
+        marginPct: res.summary?.margin_pct !== null && res.summary?.margin_pct !== undefined ? Number(res.summary?.margin_pct) : null,
+        missingCostWarningCount: Number(res.summary?.missing_cost_warning_count) || 0,
+        disclaimer: res.summary?.disclaimer || ''
+      },
+      serviceBreakdown: (res.service_breakdown || []).map((sb: any) => ({
+        serviceId: sb.service_id,
+        serviceName: sb.service_name,
+        category: sb.category,
+        sessionCount: Number(sb.session_count) || 0,
+        recognizedRevenue: Number(sb.recognized_revenue) || 0,
+        materialCost: Number(sb.material_cost) || 0,
+        directContribution: Number(sb.direct_contribution) || 0,
+        marginPct: sb.margin_pct !== null && sb.margin_pct !== undefined ? Number(sb.margin_pct) : null
+      })),
+      varianceBreakdown: {
+        bomVariance: Number(res.variance_breakdown?.bom_variance) || 0,
+        auditShrinkage: Number(res.variance_breakdown?.audit_shrinkage) || 0,
+        damagedExpiredLoss: Number(res.variance_breakdown?.damaged_expired_loss) || 0,
+        transferVariance: Number(res.variance_breakdown?.transfer_variance) || 0,
+        unassignedUsage: Number(res.variance_breakdown?.unassigned_usage) || 0
+      },
+      drilldown: {
+        totalRecords: Number(res.drilldown?.total_records) || 0,
+        page: Number(res.drilldown?.page) || 1,
+        pageSize: Number(res.drilldown?.page_size) || 50,
+        items: (res.drilldown?.items || []).map((item: any) => ({
+          id: item.id,
+          usedAt: item.used_at,
+          branchName: item.branch_name,
+          serviceName: item.service_name,
+          productName: item.product_name,
+          standardQty: Number(item.standard_qty) || 0,
+          actualQty: Number(item.actual_qty) || 0,
+          unit: item.unit,
+          costPriceSnapshot: Number(item.cost_price_snapshot) || 0,
+          totalCost: Number(item.total_cost) || 0,
+          isMissingCostSnapshot: Boolean(item.is_missing_cost_snapshot),
+          performerName: item.performer_name,
+          notes: item.notes
+        }))
+      }
+    };
   }
 };
+
 
 
 
