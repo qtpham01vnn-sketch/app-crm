@@ -2851,8 +2851,181 @@ export const masterDataService = {
       approvedHours: Number(res?.approved_hours) || 0,
       message: res?.message
     };
+  },
+
+  /**
+   * 33. P6.4 COMMISSIONS & PAYROLL MANAGEMENT
+   */
+  async getPayrollOverview(params: {
+    branchId?: string;
+    periodId?: string;
+  }): Promise<{
+    periods: any[];
+    selectedPeriodId?: string;
+    records: any[];
+    commissions: any[];
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { periods: [], records: [], commissions: [] };
+    }
+    const validBranchId = isUUID(params.branchId) ? params.branchId : null;
+    const validPeriodId = isUUID(params.periodId) ? params.periodId : null;
+
+    const { data, error } = await supabase.rpc('rpc_get_payroll_overview', {
+      p_branch_id: validBranchId,
+      p_period_id: validPeriodId
+    });
+    if (error) {
+      console.error('Lỗi lấy tổng quan bảng lương:', error);
+      return { periods: [], records: [], commissions: [] };
+    }
+    const res = data as any;
+    return {
+      periods: (res?.periods || []).map((p: any) => ({
+        id: p.id,
+        periodName: p.period_name,
+        startDate: p.start_date,
+        endDate: p.end_date,
+        status: p.status,
+        totalStaff: p.total_staff,
+        totalBaseSalary: Number(p.total_base_salary) || 0,
+        totalCommission: Number(p.total_commission) || 0,
+        totalAllowance: Number(p.total_allowance) || 0,
+        totalDeduction: Number(p.total_deduction) || 0,
+        totalNetSalary: Number(p.total_net_salary) || 0,
+        createdAt: p.created_at
+      })),
+      selectedPeriodId: res?.selected_period_id,
+      records: (res?.records || []).map((r: any) => ({
+        id: r.id,
+        payrollPeriodId: r.payroll_period_id,
+        staffId: r.staff_id,
+        staffName: r.staff_name,
+        staffCode: r.staff_code,
+        branchId: r.branch_id,
+        baseSalary: Number(r.base_salary) || 0,
+        actualWorkingHours: Number(r.actual_working_hours) || 0,
+        salaryByHours: Number(r.salary_by_hours) || 0,
+        commissionTotal: Number(r.commission_total) || 0,
+        allowance: Number(r.allowance) || 0,
+        deduction: Number(r.deduction) || 0,
+        netSalary: Number(r.net_salary) || 0,
+        status: r.status,
+        adjustmentNotes: r.adjustment_notes,
+        paymentMethod: r.payment_method,
+        paidAt: r.paid_at
+      })),
+      commissions: (res?.commissions || []).map((c: any) => ({
+        id: c.id,
+        staffId: c.staff_id,
+        staffName: c.staff_name,
+        serviceOrProductName: c.service_or_product_name,
+        itemType: c.item_type,
+        itemRevenue: Number(c.item_revenue) || 0,
+        appliedRate: Number(c.applied_rate) || 0,
+        finalCommission: Number(c.final_commission) || 0,
+        status: c.status,
+        occurredAt: c.occurred_at
+      }))
+    };
+  },
+
+  async generatePayrollPeriodRPC(params: {
+    orgId: string;
+    branchId: string;
+    periodName: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<{
+    success: boolean;
+    payrollPeriodId?: string;
+    totalStaff?: number;
+    totalNetSalary?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_generate_payroll_period', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_period_name: params.periodName,
+      p_start_date: params.startDate,
+      p_end_date: params.endDate
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_generate_payroll_period:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      payrollPeriodId: res?.payroll_period_id,
+      totalStaff: res?.total_staff,
+      totalNetSalary: Number(res?.total_net_salary) || 0,
+      message: res?.message
+    };
+  },
+
+  async updatePayrollRecordAdjustmentsRPC(params: {
+    recordId: string;
+    allowance: number;
+    deduction: number;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    newNetSalary?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_update_payroll_record_adjustments', {
+      p_record_id: params.recordId,
+      p_allowance: params.allowance,
+      p_deduction: params.deduction,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_update_payroll_record_adjustments:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      newNetSalary: Number(res?.new_net_salary) || 0,
+      message: res?.message
+    };
+  },
+
+  async processPayrollPeriodStatusRPC(params: {
+    periodId: string;
+    action: 'lock' | 'approve' | 'pay';
+    managerStaffId?: string;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_process_payroll_period_status', {
+      p_period_id: params.periodId,
+      p_action: params.action,
+      p_manager_staff_id: isUUID(params.managerStaffId) ? params.managerStaffId : null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_process_payroll_period_status:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      message: res?.message
+    };
   }
 };
+
 
 
 

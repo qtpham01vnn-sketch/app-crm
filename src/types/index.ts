@@ -428,13 +428,26 @@ export interface CommissionRecord {
   orgId: string;
   branchId: string;
   staffId: string;
-  staffName: string;
-  saleId: string;
+  staffName?: string;
+  saleId?: string;
+  customerId?: string;
   serviceOrProductName: string;
-  itemValue: number;
-  commissionPct: number;
-  commissionAmount: number;
-  date: string;
+  itemType?: 'service' | 'product' | 'package' | 'course_deduct';
+  itemRevenue?: number;
+  itemValue?: number;
+  appliedRate?: number;
+  commissionPct?: number;
+  appliedFixedAmount?: number;
+  calculatedAmount?: number;
+  commissionAmount?: number;
+  splitRatio?: number;
+  finalCommission?: number;
+  status?: 'expected' | 'eligible' | 'approved' | 'paid' | 'reversed';
+  reversalReason?: string;
+  payrollPeriodId?: string;
+  occurredAt?: string;
+  date?: string;
+  createdAt?: string;
 }
 
 export interface PayrollRecord {
@@ -652,5 +665,46 @@ export interface AttendanceAdjustment {
   createdAt: string;
 }
 
+export interface PayrollPeriod {
+  id: string;
+  orgId?: string;
+  branchId?: string;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  status: 'draft' | 'locked' | 'approved' | 'paid';
+  totalStaff: number;
+  totalBaseSalary: number;
+  totalCommission: number;
+  totalAllowance: number;
+  totalDeduction: number;
+  totalNetSalary: number;
+  lockedAt?: string;
+  lockedBy?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  paidAt?: string;
+  notes?: string;
+  createdAt: string;
+}
 
-
+export interface PayrollRecordDetail {
+  id: string;
+  orgId?: string;
+  payrollPeriodId: string;
+  branchId: string;
+  staffId: string;
+  staffName?: string;
+  staffCode?: string;
+  baseSalary: number;
+  actualWorkingHours: number;
+  salaryByHours: number;
+  commissionTotal: number;
+  allowance: number;
+  deduction: number;
+  netSalary: number;
+  status: 'draft' | 'approved' | 'paid';
+  adjustmentNotes?: string;
+  paidAt?: string;
+  paymentMethod?: string;
+}
