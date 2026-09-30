@@ -48,8 +48,11 @@ export const InvView: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [isResolveDifferenceOpen, setIsResolveDifferenceOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<BranchTransfer | null>(null);
+  const [resolutionType, setResolutionType] = useState<'approved_write_off' | 'return_missing_to_sender' | 'close_with_audit_note'>('approved_write_off');
+  const [resolutionNotes, setResolutionNotes] = useState('');
 
   // ─── Modals State: Stage C Audits ───
   const [isCreateAuditOpen, setIsCreateAuditOpen] = useState(false);
@@ -429,6 +432,54 @@ export const InvView: React.FC = () => {
     } catch (err: unknown) {
       const errorObj = err as any;
       const msg = errorObj?.message || errorObj?.details || 'Lỗi khi xác nhận nhập kho.';
+      setServerError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ─── STAGE B: RESOLVE DIFFERENCE HANDLER ───
+  const handleOpenResolveDifference = (transfer: BranchTransfer) => {
+    setSelectedTransfer(transfer);
+    setServerError(null);
+    setResolutionType('approved_write_off');
+    setResolutionNotes('');
+    setIsResolveDifferenceOpen(true);
+  };
+
+  const handleSubmitResolveDifference = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTransfer) return;
+    setServerError(null);
+
+    if (!resolutionNotes.trim()) {
+      setServerError('Vui lòng nhập lý do và chỉ đạo phê duyệt xử lý chênh lệch.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const staffId = currentUser?.id || org?.id || '';
+      const res = await masterDataService.resolveBranchTransferDifferenceRPC({
+        orgId: org?.id || selectedTransfer.orgId,
+        transferId: selectedTransfer.id,
+        staffId,
+        resolutionType,
+        notes: resolutionNotes.trim()
+      });
+
+      if (!res.success) {
+        throw new Error(res.message || 'Lỗi xử lý chênh lệch điều chuyển.');
+      }
+
+      showToast(`✅ Đã phê duyệt xử lý chênh lệch phiếu #${selectedTransfer.transferNumber}!`, 'success');
+      await reloadData();
+      setIsResolveDifferenceOpen(false);
+      setSelectedTransfer(null);
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      const msg = errorObj?.message || errorObj?.details || 'Lỗi khi xử lý chênh lệch.';
       setServerError(msg);
       showToast(`❌ ${msg}`, 'error');
     } finally {
@@ -955,7 +1006,9 @@ export const InvView: React.FC = () => {
                                 : t.status === 'dispatched'
                                 ? 'bg-sky-50 text-sky-700 border border-sky-200 animate-pulse'
                                 : t.status === 'partially_received'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : t.status === 'difference_pending'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-300 font-black animate-pulse'
                                 : t.status === 'difference_resolved'
                                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
                                 : 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -967,8 +1020,10 @@ export const InvView: React.FC = () => {
                               ? '🚚 Đang Đi Đường'
                               : t.status === 'partially_received'
                               ? '📦 Nhận Một Phần'
+                              : t.status === 'difference_pending'
+                              ? '⚠️ Chờ Xử Lý Chênh Lệch'
                               : t.status === 'difference_resolved'
-                              ? '⚠️ Đã Xử Lý Chênh Lệch'
+                              ? '✅ Đã Xử Lý Chênh Lệch'
                               : '📝 Bản Nháp'}
                           </span>
                         </td>
@@ -1010,6 +1065,18 @@ export const InvView: React.FC = () => {
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>Nhận Hàng</span>
+                              </button>
+                            )}
+
+                            {/* Xử lý chênh lệch (Khi có hàng hỏng/thiếu đang chờ xử lý) */}
+                            {t.status === 'difference_pending' && (
+                              <button
+                                onClick={() => handleOpenResolveDifference(t)}
+                                className="px-2.5 py-1 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-2xs transition-colors flex items-center space-x-1"
+                                title="Phê duyệt xử lý chênh lệch hàng hỏng/thiếu"
+                              >
+                                <FileCheck2 className="w-3.5 h-3.5" />
+                                <span>Xử Lý Chênh Lệch</span>
                               </button>
                             )}
                           </div>
@@ -2255,7 +2322,102 @@ export const InvView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ─── STAGE B MODAL: PHÊ DUYỆT XỬ LÝ CHÊNH LỆCH ĐIỀU CHUYỂN ─── */}
+      {isResolveDifferenceOpen && selectedTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                  <FileCheck2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Phê Duyệt Xử Lý Chênh Lệch</h3>
+                  <p className="text-xs text-slate-500">Phiếu chuyển #{selectedTransfer.transferNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setIsResolveDifferenceOpen(false); setSelectedTransfer(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {serverError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                {serverError}
+              </div>
+            )}
+
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="font-bold text-amber-950">Tóm Tắt Chênh Lệch Kiểm Nhận:</div>
+              {selectedTransfer.items.map((it) => (
+                <div key={it.id} className="flex justify-between items-center text-slate-800">
+                  <span>{it.productName}:</span>
+                  <span className="font-mono">
+                    Đã xuất: <b>{it.quantityDispatched}</b> | Nhận đạt: <b className="text-emerald-700">{it.quantityAccepted}</b>
+                    {it.quantityDamaged > 0 && <span className="text-rose-600 ml-1 font-bold">({it.quantityDamaged} hỏng cách ly)</span>}
+                    {it.quantityMissing > 0 && <span className="text-amber-700 ml-1 font-bold">({it.quantityMissing} thiếu)</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleSubmitResolveDifference} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Phương Án Xử Lý *
+                </label>
+                <select
+                  value={resolutionType}
+                  onChange={(e: any) => setResolutionType(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                  required
+                >
+                  <option value="approved_write_off">1. Ghi nhận tổn thất / Hao hụt vận chuyển đã duyệt</option>
+                  <option value="return_missing_to_sender">2. Xác nhận gửi hoàn số lượng thiếu/hỏng về kho gửi</option>
+                  <option value="close_with_audit_note">3. Đóng phiếu kèm biên bản giải trình sự vụ</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Ý Kiến Phê Duyệt / Chỉ Đạo Xử Lý *
+                </label>
+                <textarea
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  placeholder="Nhập lý do chênh lệch, biên bản làm việc với đơn vị vận chuyển hoặc chỉ đạo giải quyết..."
+                  rows={3}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsResolveDifferenceOpen(false); setSelectedTransfer(null); }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center space-x-1"
+                >
+                  <span>{isSubmitting ? 'Đang Xử Lý...' : '✅ Xác Nhận Đã Xử Lý Chênh Lệch'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 

@@ -1955,6 +1955,50 @@ export const masterDataService = {
   },
 
   /**
+   * 26b. RESOLVE BRANCH TRANSFER DIFFERENCE (AUTHORIZATION & AUDIT TRAIL)
+   */
+  async resolveBranchTransferDifferenceRPC(params: {
+    orgId: string;
+    transferId: string;
+    staffId: string;
+    resolutionType: 'approved_write_off' | 'return_missing_to_sender' | 'close_with_audit_note';
+    notes: string;
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    transferNumber?: string;
+    status?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_resolve_transfer_difference', {
+      p_org_id: params.orgId,
+      p_transfer_id: params.transferId,
+      p_staff_id: validStaffId,
+      p_resolution_type: params.resolutionType,
+      p_notes: params.notes
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_resolve_transfer_difference:', error);
+      const err = new Error(error.message || error.details || 'Lỗi duyệt xử lý chênh lệch điều chuyển.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      transferId: res?.transfer_id,
+      transferNumber: res?.transfer_number,
+      status: res?.status,
+      message: res?.message
+    };
+  },
+
+  /**
    * 27. INVENTORY PHASE C — FETCH INVENTORY AUDITS
    */
   async getInventoryAudits(branchId?: string): Promise<InventoryAudit[]> {

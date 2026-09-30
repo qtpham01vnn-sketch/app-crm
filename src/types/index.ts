@@ -475,7 +475,7 @@ export interface BranchTransfer {
   toBranchId: string;
   toBranchName?: string;
   transferNumber: string;
-  status: 'draft' | 'dispatched' | 'partially_received' | 'completed' | 'difference_resolved' | 'cancelled';
+  status: 'draft' | 'dispatched' | 'partially_received' | 'difference_pending' | 'completed' | 'difference_resolved' | 'cancelled';
   totalItems: number;
   totalValue: number;
   dispatchDate?: string;
