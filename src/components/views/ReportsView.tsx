@@ -17,18 +17,20 @@ import {
   RefreshCw,
   PieChart,
   Package,
-  Activity
+  Activity,
+  UserCheck,
+  Users
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
-import type { SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport } from '../../types';
+import type { SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport, CustomerRetentionAndCohortReport } from '../../types';
 
 
 export const ReportsView: React.FC = () => {
   const { org, branches, sales, payments, customers, suppliers } = useApp();
 
   // Navigation Subtabs
-  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'cogs' | 'utilization' | 'earned' | 'debt'>('sales');
+  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'cogs' | 'utilization' | 'retention' | 'earned' | 'debt'>('sales');
 
   // Filter States
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all'); // 'all' or specific branchId
@@ -39,18 +41,20 @@ export const ReportsView: React.FC = () => {
   });
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+  const [customerSegmentFilter, setCustomerSegmentFilter] = useState<string>('all');
 
   // Report Data & Loading State
   const [reportData, setReportData] = useState<SalesCashflowReport | null>(null);
   const [cogsReportData, setCogsReportData] = useState<CogsAndProfitReport | null>(null);
   const [staffReportData, setStaffReportData] = useState<StaffAndResourceUtilizationReport | null>(null);
+  const [customerReportData, setCustomerReportData] = useState<CustomerRetentionAndCohortReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Drilldown Modal State
   const [drilldownModal, setDrilldownModal] = useState<{
     isOpen: boolean;
-    type: 'invoices' | 'payments' | 'cogs_materials' | 'staff_sessions';
+    type: 'invoices' | 'payments' | 'cogs_materials' | 'staff_sessions' | 'retention_customers';
     title: string;
     subtitle: string;
   }>({
@@ -94,7 +98,7 @@ export const ReportsView: React.FC = () => {
       const branchIdParam = selectedBranchId === 'all' ? null : selectedBranchId;
       const methodParam = paymentMethodFilter === 'all' ? null : paymentMethodFilter;
       
-      const [salesRes, cogsRes, staffRes] = await Promise.all([
+      const [salesRes, cogsRes, staffRes, customerRes] = await Promise.all([
         masterDataService.getSalesAndCashflowReport({
           orgId: org.id,
           branchId: branchIdParam,
@@ -113,19 +117,27 @@ export const ReportsView: React.FC = () => {
           branchId: branchIdParam || undefined,
           startDate,
           endDate
-        })
+        }),
+        masterDataService.getCustomerRetentionAndCohortReport(
+          org.id,
+          branchIdParam || undefined,
+          startDate,
+          endDate,
+          customerSegmentFilter
+        )
       ]);
 
       setReportData(salesRes);
       setCogsReportData(cogsRes);
       setStaffReportData(staffRes);
+      setCustomerReportData(customerRes);
     } catch (err: any) {
       console.error('Lỗi tải báo cáo BI:', err);
       setErrorMsg(err.message || 'Không thể tải báo cáo từ máy chủ.');
     } finally {
       setLoading(false);
     }
-  }, [org?.id, selectedBranchId, startDate, endDate, paymentMethodFilter]);
+  }, [org?.id, selectedBranchId, startDate, endDate, paymentMethodFilter, customerSegmentFilter]);
 
   useEffect(() => {
     fetchReport();
@@ -347,21 +359,41 @@ export const ReportsView: React.FC = () => {
         </div>
 
         {/* Payment Method Filter */}
-        <div className="flex items-center space-x-2">
-          <Filter className="w-4 h-4 text-slate-500" />
-          <span className="text-xs font-bold text-slate-700">PTTT:</span>
-          <select
-            value={paymentMethodFilter}
-            onChange={(e) => setPaymentMethodFilter(e.target.value)}
-            className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
-          >
-            <option value="all">Tất cả phương thức</option>
-            <option value="cash">Tiền mặt</option>
-            <option value="transfer_vietqr">Chuyển khoản VietQR</option>
-            <option value="card">Thẻ POS</option>
-            <option value="deposit_credit">Cấn trừ cọc / Điểm</option>
-          </select>
-        </div>
+        {reportTab !== 'retention' ? (
+          <div className="flex items-center space-x-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <span className="text-xs font-bold text-slate-700">PTTT:</span>
+            <select
+              value={paymentMethodFilter}
+              onChange={(e) => setPaymentMethodFilter(e.target.value)}
+              className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+            >
+              <option value="all">Tất cả phương thức</option>
+              <option value="cash">Tiền mặt</option>
+              <option value="transfer_vietqr">Chuyển khoản VietQR</option>
+              <option value="card">Thẻ POS</option>
+              <option value="deposit_credit">Cấn trừ cọc / Điểm</option>
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Users className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-bold text-slate-700">Phân nhóm RFM:</span>
+            <select
+              value={customerSegmentFilter}
+              onChange={(e) => setCustomerSegmentFilter(e.target.value)}
+              className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+            >
+              <option value="all">Tất cả phân nhóm ({customerReportData?.summary?.totalCustomersInSystem || 0})</option>
+              <option value="vip_champion">VIP / Champion</option>
+              <option value="loyal">Khách hàng trung thành</option>
+              <option value="promising_active">Khách mới & Đang hoạt động</option>
+              <option value="at_risk_care_needed">Cần xem xét chăm sóc (60-120 ngày)</option>
+              <option value="inactive_dormant">Chưa quay lại (&gt;120 ngày)</option>
+              <option value="unengaged_no_history">Chưa phát sinh giao dịch</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {errorMsg && (
@@ -421,7 +453,19 @@ export const ReportsView: React.FC = () => {
           }`}
         >
           <Activity className="w-4 h-4" />
-          <span>4. Hiệu Suất Nhân Sự & Phòng/Ghế (P7.3)</span>
+          <span>4. Hiệu Suất Nhân Sự (P7.3)</span>
+        </button>
+
+        <button
+          onClick={() => setReportTab('retention')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            reportTab === 'retention'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>5. Giữ Chân & Cohort Khách Hàng (P7.4)</span>
         </button>
 
         <button
@@ -433,7 +477,7 @@ export const ReportsView: React.FC = () => {
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>5. Liệu Trình Trừ Buổi</span>
+          <span>6. Liệu Trình Trừ Buổi</span>
         </button>
 
         <button
@@ -445,7 +489,7 @@ export const ReportsView: React.FC = () => {
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>6. Sổ Công Nợ (AR / AP)</span>
+          <span>7. Sổ Công Nợ (AR / AP)</span>
         </button>
       </div>
 
@@ -639,8 +683,308 @@ export const ReportsView: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: BÁN HÀNG & HÓA ĐƠN */}
+      {/* TAB 5: GIỮ CHÂN & COHORT KHÁCH HÀNG (PHASE P7.4) */}
       {/* ========================================================================= */}
+      {reportTab === 'retention' && (
+        <div className="space-y-6">
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-2xl border border-blue-200">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Tổng Khách Trong Hệ Thống</span>
+              <p className="text-2xl font-black text-blue-700 mt-2">
+                {(customerReportData?.summary?.totalCustomersInSystem || 0).toLocaleString('vi-VN')} <span className="text-sm font-bold text-slate-500">khách</span>
+              </p>
+              <p className="text-[11px] text-blue-600 font-semibold mt-1">Đã đăng ký hồ sơ trên toàn tổ chức</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-indigo-50 to-indigo-100/60 rounded-2xl border border-indigo-200">
+              <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Khách Phát Sinh Hoạt Động</span>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Mua Hàng</span>
+                  <p className="text-xl font-black text-indigo-700">
+                    {(customerReportData?.summary?.totalActivePeriodBuyers || 0).toLocaleString('vi-VN')}
+                  </p>
+                </div>
+                <div className="border-l border-indigo-200 pl-4">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Được Phục Vụ</span>
+                  <p className="text-xl font-black text-indigo-700">
+                    {(customerReportData?.summary?.totalActivePeriodServed || 0).toLocaleString('vi-VN')}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-indigo-600 font-semibold mt-1">Tách bạch mua mới vs thực hiện liệu trình</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-teal-50 to-teal-100/60 rounded-2xl border border-teal-200">
+              <span className="text-xs font-bold text-teal-800 uppercase tracking-wider">Khách Mới vs Khách Quay Lại</span>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Mới Chuỗi / CN</span>
+                  <p className="text-xl font-black text-teal-700">
+                    {customerReportData?.summary?.newOrgCustomers || 0} / {customerReportData?.summary?.newBranchCustomers || 0}
+                  </p>
+                </div>
+                <div className="border-l border-teal-200 pl-4">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Quay Lại Mua</span>
+                  <p className="text-xl font-black text-teal-700">
+                    {customerReportData?.summary?.returningBuyers || 0}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-teal-600 font-semibold mt-1">Lần đầu mua lịch sử vs Mua lần 2 trở đi</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100/60 rounded-2xl border border-emerald-200">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Tỷ Lệ Khách Mua Lại (Repurchase)</span>
+              <p className="text-2xl font-black text-emerald-700 mt-2">
+                {customerReportData?.summary?.repurchaseRatePct !== null && customerReportData?.summary?.repurchaseRatePct !== undefined
+                  ? `${customerReportData.summary.repurchaseRatePct}%`
+                  : 'N/A'}
+              </p>
+              <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                {customerReportData?.summary?.returningBuyers || 0} khách mua lại / {((customerReportData?.summary?.newOrgCustomers || 0) + (customerReportData?.summary?.returningBuyers || 0))} khách mua trong kỳ
+              </p>
+            </div>
+          </div>
+
+          {/* RFM Segments Breakdown */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <Users className="w-4 h-4 text-blue-600" />
+              <span>Phân Nhóm Giá Trị & Tần Suất Khách Hàng (RFM Segmentation)</span>
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(customerReportData?.rfmSegments || []).map((seg) => (
+                <div key={seg.segmentKey} className="p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800">{seg.segmentName}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                      {seg.customerCount} khách
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500">Tổng chi tiêu:</span>
+                      <p className="font-bold text-indigo-700">{seg.totalHistoricalSpend.toLocaleString('vi-VN')}đ</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500">Recency TB:</span>
+                      <p className="font-bold text-slate-700">{seg.avgRecencyDays !== null ? `${seg.avgRecencyDays} ngày` : 'Chưa có'}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cohort Tables: Service Retention & Repurchase */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Cohort Quay Lại Phục Vụ */}
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                  <Activity className="w-4 h-4 text-emerald-600" />
+                  <span>Cohort Quay Lại Phục Vụ (Service Retention)</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Tỷ lệ khách quay lại làm dịch vụ/liệu trình sau lần đầu</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                      <th className="pb-3 px-2">Tháng Cohort</th>
+                      <th className="pb-3 px-2 text-center">Tổng Khách</th>
+                      <th className="pb-3 px-2 text-center">30 Ngày</th>
+                      <th className="pb-3 px-2 text-center">60 Ngày</th>
+                      <th className="pb-3 px-2 text-center">90 Ngày</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(customerReportData?.cohortServiceRetention || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-400">Chưa có dữ liệu cohort phục vụ</td>
+                      </tr>
+                    ) : (
+                      (customerReportData?.cohortServiceRetention || []).map((c) => (
+                        <tr key={c.cohortMonth} className="hover:bg-slate-50">
+                          <td className="py-3 px-2 font-bold text-slate-800">{c.cohortMonth}</td>
+                          <td className="py-3 px-2 text-center font-bold text-slate-700">{c.totalCohortCustomers}</td>
+                          <td className="py-3 px-2 text-center">
+                            {c.retention30d.status === 'ready' ? (
+                              <span className="font-bold text-emerald-700">
+                                {c.retention30d.returned}/{c.retention30d.eligible} ({c.retention30d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {c.retention60d.status === 'ready' ? (
+                              <span className="font-bold text-emerald-700">
+                                {c.retention60d.returned}/{c.retention60d.eligible} ({c.retention60d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {c.retention90d.status === 'ready' ? (
+                              <span className="font-bold text-emerald-700">
+                                {c.retention90d.returned}/{c.retention90d.eligible} ({c.retention90d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Cohort Mua Lại */}
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                  <span>Cohort Mua Lại (Repurchase Retention)</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Tỷ lệ khách phát sinh đơn mua hàng mới sau đơn đầu tiên</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                      <th className="pb-3 px-2">Tháng Cohort</th>
+                      <th className="pb-3 px-2 text-center">Tổng Khách</th>
+                      <th className="pb-3 px-2 text-center">30 Ngày</th>
+                      <th className="pb-3 px-2 text-center">60 Ngày</th>
+                      <th className="pb-3 px-2 text-center">90 Ngày</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(customerReportData?.cohortRepurchaseRetention || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-400">Chưa có dữ liệu cohort mua lại</td>
+                      </tr>
+                    ) : (
+                      (customerReportData?.cohortRepurchaseRetention || []).map((c) => (
+                        <tr key={c.cohortMonth} className="hover:bg-slate-50">
+                          <td className="py-3 px-2 font-bold text-slate-800">{c.cohortMonth}</td>
+                          <td className="py-3 px-2 text-center font-bold text-slate-700">{c.totalCohortCustomers}</td>
+                          <td className="py-3 px-2 text-center">
+                            {c.repurchase30d.status === 'ready' ? (
+                              <span className="font-bold text-blue-700">
+                                {c.repurchase30d.repurchased}/{c.repurchase30d.eligible} ({c.repurchase30d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {c.repurchase60d.status === 'ready' ? (
+                              <span className="font-bold text-blue-700">
+                                {c.repurchase60d.repurchased}/{c.repurchase60d.eligible} ({c.repurchase60d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {c.repurchase90d.status === 'ready' ? (
+                              <span className="font-bold text-blue-700">
+                                {c.repurchase90d.repurchased}/{c.repurchase90d.eligible} ({c.repurchase90d.pct}%)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Chưa đủ thời gian</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Customer Drilldown & Care Recommendations */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <UserCheck className="w-4 h-4 text-indigo-600" />
+                <span>Danh Sách Khách Hàng & Khuyến Nghị Chăm Sóc (Re-engagement)</span>
+              </h4>
+              <span className="text-xs text-slate-500">
+                Tổng cộng: {customerReportData?.drilldown?.totalRecords || 0} khách hàng
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="pb-3 px-2">Khách Hàng</th>
+                    <th className="pb-3 px-2">SĐT</th>
+                    <th className="pb-3 px-2">Hạng</th>
+                    <th className="pb-3 px-2 text-center">Recency (Ngày)</th>
+                    <th className="pb-3 px-2 text-center">Đơn Mua Kỳ</th>
+                    <th className="pb-3 px-2 text-center">Ca Phục Vụ Kỳ</th>
+                    <th className="pb-3 px-2 text-right">Chi Tiêu Lịch Sử</th>
+                    <th className="pb-3 px-2 text-center">Buổi Liệu Trình Còn</th>
+                    <th className="pb-3 px-2">Khuyến Nghị Chăm Sóc</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(customerReportData?.drilldown?.items || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-6 text-center text-slate-400">Không có khách hàng nào</td>
+                    </tr>
+                  ) : (
+                    (customerReportData?.drilldown?.items || []).map((c) => (
+                      <tr key={c.customerId} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-2 font-bold text-slate-800">{c.fullName}</td>
+                        <td className="py-3 px-2 font-mono text-slate-600">{c.phone}</td>
+                        <td className="py-3 px-2">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">
+                            {c.tier}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center font-bold text-slate-700">
+                          {c.recencyDays !== null ? `${c.recencyDays} ngày` : 'Chưa có'}
+                        </td>
+                        <td className="py-3 px-2 text-center font-mono font-bold text-indigo-700">{c.periodPurchaseCount}</td>
+                        <td className="py-3 px-2 text-center font-mono font-bold text-emerald-700">{c.periodServiceCount}</td>
+                        <td className="py-3 px-2 text-right font-bold text-blue-700">
+                          {c.historicalNetSpend.toLocaleString('vi-VN')}đ
+                        </td>
+                        <td className="py-3 px-2 text-center font-mono font-bold text-purple-700">
+                          {c.activeRemainingSessions} buổi
+                        </td>
+                        <td className="py-3 px-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            c.careRecommendation === 'Đã có lịch hẹn sắp tới'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : c.careRecommendation.includes('Còn liệu trình')
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : c.careRecommendation.includes('Cần xem xét')
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {c.careRecommendation}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {reportTab === 'sales' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

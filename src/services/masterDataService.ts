@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport, CustomerRetentionAndCohortReport } from '../types';
 
 
 
@@ -3348,6 +3348,127 @@ export const masterDataService = {
           sessionSource: item.session_source,
           allocatedRevenue: Number(item.allocated_revenue) || 0,
           durationHours: Number(item.duration_hours) || 0
+        }))
+      }
+    };
+  },
+
+  async getCustomerRetentionAndCohortReport(
+    orgId: string,
+    branchId?: string,
+    startDate?: string,
+    endDate?: string,
+    segmentFilter?: string,
+    page: number = 1,
+    pageSize: number = 50
+  ): Promise<CustomerRetentionAndCohortReport | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+
+    const { data, error } = await supabase.rpc('rpc_get_customer_retention_and_cohort_report', {
+      p_org_id: orgId,
+      p_branch_id: branchId || null,
+      p_start_date: startDate || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+      p_end_date: endDate || new Date().toISOString().split('T')[0],
+      p_segment_filter: segmentFilter || 'all',
+      p_page: page,
+      p_page_size: pageSize
+    });
+
+    if (error) {
+      console.error('Error fetching P7.4 customer retention report:', error);
+      throw error;
+    }
+
+    const res = data as any;
+    return {
+      timezone: res.timezone || 'Asia/Ho_Chi_Minh (UTC+7)',
+      startDate: res.start_date,
+      endDate: res.end_date,
+      summary: {
+        totalCustomersInSystem: Number(res.summary?.total_customers_in_system) || 0,
+        totalActivePeriodBuyers: Number(res.summary?.total_active_period_buyers) || 0,
+        totalActivePeriodServed: Number(res.summary?.total_active_period_served) || 0,
+        newOrgCustomers: Number(res.summary?.new_org_customers) || 0,
+        newBranchCustomers: Number(res.summary?.new_branch_customers) || 0,
+        returningBuyers: Number(res.summary?.returning_buyers) || 0,
+        returningServedOnly: Number(res.summary?.returning_served_only) || 0,
+        repurchaseRatePct: res.summary?.repurchase_rate_pct !== null && res.summary?.repurchase_rate_pct !== undefined ? Number(res.summary?.repurchase_rate_pct) : null,
+        disclaimer: res.summary?.disclaimer || ''
+      },
+      rfmSegments: (res.rfm_segments || []).map((seg: any) => ({
+        segmentKey: seg.segment_key,
+        segmentName: seg.segment_name,
+        customerCount: Number(seg.customer_count) || 0,
+        totalHistoricalSpend: Number(seg.total_historical_spend) || 0,
+        avgRecencyDays: seg.avg_recency_days !== null && seg.avg_recency_days !== undefined ? Number(seg.avg_recency_days) : null
+      })),
+      cohortServiceRetention: (res.cohort_service_retention || []).map((c: any) => ({
+        cohortMonth: c.cohort_month,
+        totalCohortCustomers: Number(c.total_cohort_customers) || 0,
+        retention30d: {
+          eligible: Number(c.retention_30d?.eligible) || 0,
+          returned: Number(c.retention_30d?.returned) || 0,
+          pct: c.retention_30d?.pct !== null && c.retention_30d?.pct !== undefined ? Number(c.retention_30d?.pct) : null,
+          status: c.retention_30d?.status || 'ready'
+        },
+        retention60d: {
+          eligible: Number(c.retention_60d?.eligible) || 0,
+          returned: Number(c.retention_60d?.returned) || 0,
+          pct: c.retention_60d?.pct !== null && c.retention_60d?.pct !== undefined ? Number(c.retention_60d?.pct) : null,
+          status: c.retention_60d?.status || 'ready'
+        },
+        retention90d: {
+          eligible: Number(c.retention_90d?.eligible) || 0,
+          returned: Number(c.retention_90d?.returned) || 0,
+          pct: c.retention_90d?.pct !== null && c.retention_90d?.pct !== undefined ? Number(c.retention_90d?.pct) : null,
+          status: c.retention_90d?.status || 'ready'
+        }
+      })),
+      cohortRepurchaseRetention: (res.cohort_repurchase_retention || []).map((c: any) => ({
+        cohortMonth: c.cohort_month,
+        totalCohortCustomers: Number(c.total_cohort_customers) || 0,
+        repurchase30d: {
+          eligible: Number(c.repurchase_30d?.eligible) || 0,
+          repurchased: Number(c.repurchase_30d?.repurchased) || 0,
+          pct: c.repurchase_30d?.pct !== null && c.repurchase_30d?.pct !== undefined ? Number(c.repurchase_30d?.pct) : null,
+          status: c.repurchase_30d?.status || 'ready'
+        },
+        repurchase60d: {
+          eligible: Number(c.repurchase_60d?.eligible) || 0,
+          repurchased: Number(c.repurchase_60d?.repurchased) || 0,
+          pct: c.repurchase_60d?.pct !== null && c.repurchase_60d?.pct !== undefined ? Number(c.repurchase_60d?.pct) : null,
+          status: c.repurchase_60d?.status || 'ready'
+        },
+        repurchase90d: {
+          eligible: Number(c.repurchase_90d?.eligible) || 0,
+          repurchased: Number(c.repurchase_90d?.repurchased) || 0,
+          pct: c.repurchase_90d?.pct !== null && c.repurchase_90d?.pct !== undefined ? Number(c.repurchase_90d?.pct) : null,
+          status: c.repurchase_90d?.status || 'ready'
+        }
+      })),
+      drilldown: {
+        totalRecords: Number(res.pagination?.total_records) || 0,
+        page: Number(res.pagination?.page) || 1,
+        pageSize: Number(res.pagination?.page_size) || 50,
+        items: (res.customer_drilldown || []).map((item: any) => ({
+          customerId: item.customer_id,
+          fullName: item.full_name,
+          phone: item.phone,
+          tier: item.tier || 'standard',
+          registeredAt: item.registered_at,
+          firstPurchaseOrgAt: item.first_purchase_org_at,
+          firstServiceAt: item.first_service_at,
+          lastPurchaseAt: item.last_purchase_at,
+          lastServiceAt: item.last_service_at,
+          recencyDays: item.recency_days !== null && item.recency_days !== undefined ? Number(item.recency_days) : null,
+          periodPurchaseCount: Number(item.period_purchase_count) || 0,
+          periodServiceCount: Number(item.period_service_count) || 0,
+          historicalNetSpend: Number(item.historical_net_spend) || 0,
+          activeRemainingSessions: Number(item.active_remaining_sessions) || 0,
+          hasUpcomingAppointment: Boolean(item.has_upcoming_appointment),
+          periodCustomerType: item.period_customer_type,
+          rfmSegment: item.rfm_segment,
+          careRecommendation: item.care_recommendation || 'Bình thường'
         }))
       }
     };

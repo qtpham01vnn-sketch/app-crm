@@ -930,4 +930,68 @@ export interface StaffAndResourceUtilizationReport {
   };
 }
 
+export interface CustomerRetentionAndCohortReport {
+  timezone: string;
+  startDate: string;
+  endDate: string;
+  summary: {
+    totalCustomersInSystem: number;
+    totalActivePeriodBuyers: number;
+    totalActivePeriodServed: number;
+    newOrgCustomers: number;
+    newBranchCustomers: number;
+    returningBuyers: number;
+    returningServedOnly: number;
+    repurchaseRatePct: number | null;
+    disclaimer: string;
+  };
+  rfmSegments: Array<{
+    segmentKey: string;
+    segmentName: string;
+    customerCount: number;
+    totalHistoricalSpend: number;
+    avgRecencyDays: number | null;
+  }>;
+  cohortServiceRetention: Array<{
+    cohortMonth: string;
+    totalCohortCustomers: number;
+    retention30d: { eligible: number; returned: number; pct: number | null; status: string };
+    retention60d: { eligible: number; returned: number; pct: number | null; status: string };
+    retention90d: { eligible: number; returned: number; pct: number | null; status: string };
+  }>;
+  cohortRepurchaseRetention: Array<{
+    cohortMonth: string;
+    totalCohortCustomers: number;
+    repurchase30d: { eligible: number; repurchased: number; pct: number | null; status: string };
+    repurchase60d: { eligible: number; repurchased: number; pct: number | null; status: string };
+    repurchase90d: { eligible: number; repurchased: number; pct: number | null; status: string };
+  }>;
+  drilldown: {
+    totalRecords: number;
+    page: number;
+    pageSize: number;
+    items: Array<{
+      customerId: string;
+      fullName: string;
+      phone: string;
+      tier: string;
+      registeredAt: string;
+      firstPurchaseOrgAt: string | null;
+      firstServiceAt: string | null;
+      lastPurchaseAt: string | null;
+      lastServiceAt: string | null;
+      recencyDays: number | null;
+      periodPurchaseCount: number;
+      periodServiceCount: number;
+      historicalNetSpend: number;
+      activeRemainingSessions: number;
+      hasUpcomingAppointment: boolean;
+      periodCustomerType: string;
+      rfmSegment: string;
+      careRecommendation: string;
+    }>;
+  };
+}
+
+
 
