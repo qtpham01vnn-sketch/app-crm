@@ -52,22 +52,31 @@ DECLARE
     v_payments_drilldown JSONB;
 BEGIN
     -- 1. TỔNG HỢP GIÁ TRỊ BÁN HÀNG TRÊN HÓA ĐƠN (SALES INVOICING KPI)
-    -- Lọc theo ngày tạo hóa đơn (created_at trong ranh giới thời gian)
+    -- Không duplicate khi hóa đơn có nhiều item; tính chuẩn Gross, Discount, Net, Debt & Package
     SELECT jsonb_build_object(
-        'gross_sales', COALESCE(SUM(si.line_total + si.line_discount), 0),
-        'total_discount', COALESCE(SUM(s.discount_amount), 0),
-        'net_invoiced_sales', COALESCE(SUM(s.total_amount), 0),
-        'invoice_count', COUNT(DISTINCT s.id),
-        'avg_order_value', CASE WHEN COUNT(DISTINCT s.id) > 0 THEN ROUND(COALESCE(SUM(s.total_amount), 0) / COUNT(DISTINCT s.id)) ELSE 0 END,
-        'new_customer_debt', COALESCE(SUM(GREATEST(0, s.total_amount - s.paid_amount)), 0),
-        'package_course_sales', COALESCE(SUM(CASE WHEN si.item_type = 'package' THEN si.line_total ELSE 0 END), 0)
+        'gross_sales', COALESCE(SUM(inv.total_amount + inv.discount_amount), 0),
+        'total_discount', COALESCE(SUM(inv.discount_amount), 0),
+        'net_invoiced_sales', COALESCE(SUM(inv.total_amount), 0),
+        'invoice_count', COUNT(inv.id),
+        'avg_order_value', CASE WHEN COUNT(inv.id) > 0 THEN ROUND(COALESCE(SUM(inv.total_amount), 0) / COUNT(inv.id)) ELSE 0 END,
+        'new_customer_debt', COALESCE(SUM(GREATEST(0, inv.total_amount - inv.paid_amount)), 0),
+        'package_course_sales', COALESCE(
+            (
+                SELECT SUM(si.line_total)
+                FROM sale_items si
+                JOIN sales s2 ON s2.id = si.sale_id
+                WHERE s2.organization_id = p_org_id
+                  AND (p_branch_id IS NULL OR s2.branch_id = p_branch_id)
+                  AND s2.created_at BETWEEN v_start_ts AND v_end_ts
+                  AND s2.status <> 'cancelled'
+                  AND si.item_type = 'package'
+            ), 0)
     ) INTO v_sales_summary
-    FROM sales s
-    LEFT JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.organization_id = p_org_id
-      AND (p_branch_id IS NULL OR s.branch_id = p_branch_id)
-      AND s.created_at BETWEEN v_start_ts AND v_end_ts
-      AND s.status <> 'cancelled';
+    FROM sales inv
+    WHERE inv.organization_id = p_org_id
+      AND (p_branch_id IS NULL OR inv.branch_id = p_branch_id)
+      AND inv.created_at BETWEEN v_start_ts AND v_end_ts
+      AND inv.status <> 'cancelled';
 
     -- 2. TỔNG HỢP DÒNG TIỀN THỰC TẾ & ĐỐI SOÁT (CASHFLOW & SETTLEMENT KPI)
     -- Lọc theo thời điểm phát sinh phiếu thu/chi thực tế
@@ -113,19 +122,25 @@ BEGIN
     SELECT COALESCE(
         jsonb_agg(
             jsonb_build_object(
-                'payment_method', p.payment_method,
-                'total_amount', SUM(p.amount),
-                'transaction_count', COUNT(*)
+                'payment_method', mb.payment_method,
+                'total_amount', mb.total_amount,
+                'transaction_count', mb.transaction_count
             )
         ), '[]'::jsonb
     ) INTO v_method_breakdown
-    FROM payments p
-    WHERE p.organization_id = p_org_id
-      AND (p_branch_id IS NULL OR p.branch_id = p_branch_id)
-      AND p.created_at BETWEEN v_start_ts AND v_end_ts
-      AND p.payment_type IN ('sale', 'deposit', 'debt_collection')
-      AND p.reconciliation_status = 'confirmed'
-    GROUP BY p.payment_method;
+    FROM (
+        SELECT 
+            p.payment_method,
+            SUM(p.amount) AS total_amount,
+            COUNT(*) AS transaction_count
+        FROM payments p
+        WHERE p.organization_id = p_org_id
+          AND (p_branch_id IS NULL OR p.branch_id = p_branch_id)
+          AND p.created_at BETWEEN v_start_ts AND v_end_ts
+          AND p.payment_type IN ('sale', 'deposit', 'debt_collection')
+          AND p.reconciliation_status = 'confirmed'
+        GROUP BY p.payment_method
+    ) mb;
 
     -- 4. DOANH THU THỰC HIỆN DỊCH VỤ / TRỪ THẺ LIỆU TRÌNH (EARNED REVENUE)
     SELECT jsonb_build_object(
@@ -217,3 +232,70 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION rpc_get_sales_and_cashflow_report(UUID, UUID, DATE, DATE, VARCHAR) TO authenticated, anon;
+
+-- -----------------------------------------------------------------------------
+-- 3. RPC TẠO DỮ LIỆU KIỂM THỬ TỰ ĐỘNG CHO P7.1 BI ANALYTICS (E2E TEST HELPER)
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION rpc_test_p7_1_scenarios(
+    p_org_id UUID,
+    p_branch_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_cust_id UUID;
+    v_sale_id UUID;
+    v_inv_no VARCHAR(100);
+BEGIN
+    -- 1. Lấy hoặc tạo khách hàng kiểm thử
+    SELECT id INTO v_cust_id FROM customers WHERE organization_id = p_org_id LIMIT 1;
+    IF v_cust_id IS NULL THEN
+        INSERT INTO customers (organization_id, primary_branch_id, full_name, phone)
+        VALUES (p_org_id, p_branch_id, 'Khách Kiểm Thử BI P7.1', '0988776655')
+        RETURNING id INTO v_cust_id;
+    END IF;
+
+    -- 2. Tạo Đơn Hàng Test (Gross 2tr, giảm 200k, Net 1.8tr, Đã thanh toán 1tr, nợ 800k)
+    v_inv_no := 'TEST-INV-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT;
+    INSERT INTO sales (organization_id, branch_id, customer_id, invoice_number, total_amount, discount_amount, paid_amount, status, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, v_inv_no, 1800000, 200000, 1000000, 'partial', NOW())
+    RETURNING id INTO v_sale_id;
+
+    -- Ghi dòng hàng gói liệu trình
+    INSERT INTO sale_items (sale_id, item_id, item_name, item_type, quantity, unit_price, line_discount, line_total)
+    VALUES (v_sale_id, '00000000-0000-0000-0000-000000000001', 'Gói Trị Liệu Trẻ Hóa 10 Buổi Test', 'package', 1, 2000000, 200000, 1800000);
+
+    -- 3. Ghi phiếu thu tiền mặt đã xác nhận (1,000,000đ)
+    INSERT INTO payments (organization_id, branch_id, customer_id, sale_id, payment_number, amount, payment_method, payment_type, reconciliation_status, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, v_sale_id, 'TEST-PAY-01', 1000000, 'cash', 'sale', 'confirmed', NOW());
+
+    -- 4. Ghi giao dịch QR chờ xác nhận (500,000đ - Pending)
+    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-QR-02', 500000, 'transfer_vietqr', 'sale', 'pending_reconciliation', 'Khách quét QR chờ ngân hàng', NOW());
+
+    -- 5. Ghi nhận cọc mới (300,000đ)
+    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-DEP-03', 300000, 'cash', 'deposit', 'confirmed', 'Khách nạp cọc mới', NOW());
+
+    -- 6. Ghi nhận cọc cũ cấn trừ (300,000đ)
+    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-RED-04', 300000, 'deposit_credit', 'sale', 'confirmed', 'Cấn trừ cọc vào đơn', NOW());
+
+    -- 7. Ghi nhận thu nợ cũ (400,000đ)
+    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-DEBT-05', 400000, 'cash', 'debt_collection', 'confirmed', 'Thu nợ hóa đơn trước', NOW());
+
+    -- 8. Ghi nhận hoàn tiền (150,000đ)
+    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
+    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-REF-06', 150000, 'cash', 'refund', 'confirmed', 'Hoàn tiền khách hủy dịch vụ', NOW());
+
+    -- Gọi lại hàm báo cáo và trả về toàn bộ kết quả
+    RETURN rpc_get_sales_and_cashflow_report(p_org_id, p_branch_id, CURRENT_DATE, CURRENT_DATE);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION rpc_test_p7_1_scenarios(UUID, UUID) TO authenticated, anon;
+
