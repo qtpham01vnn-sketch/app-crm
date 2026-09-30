@@ -161,7 +161,7 @@ BEGIN
                 'invoice_number', s.invoice_number,
                 'branch_id', s.branch_id,
                 'branch_name', b.name,
-                'customer_name', c.name,
+                'customer_name', c.full_name,
                 'customer_phone', c.phone,
                 'total_amount', s.total_amount,
                 'paid_amount', s.paid_amount,
@@ -192,7 +192,7 @@ BEGIN
                 'payment_number', p.payment_number,
                 'branch_id', p.branch_id,
                 'branch_name', b.name,
-                'customer_name', c.name,
+                'customer_name', c.full_name,
                 'amount', p.amount,
                 'payment_method', p.payment_method,
                 'payment_type', p.payment_type,
@@ -214,6 +214,7 @@ BEGIN
     ) p
     JOIN branches b ON b.id = p.branch_id
     JOIN customers c ON c.id = p.customer_id;
+
 
     RETURN jsonb_build_object(
         'period', jsonb_build_object(
