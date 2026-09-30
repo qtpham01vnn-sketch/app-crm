@@ -29,15 +29,64 @@ async function runStageBTests() {
   console.log(`  - Chi nhánh nhận B: ${branchB.name} (${branchB.id.slice(0, 8)}...)`);
   console.log(`  - Sản phẩm chuyển: ${product.name} (Giá vốn: ${product.cost_price}đ)\n`);
 
-  // Đảm bảo chi nhánh A có đủ tồn kho để chuyển (Ví dụ: 100 SP)
+  // Đảm bảo tồn kho và lô hàng thử nghiệm có sẵn tại chi nhánh A
+  const testLot = 'LOT-STAGEB-AUTO';
+  const { data: existingLot } = await supabase
+    .from('inventory_lot_stocks')
+    .select('id, quantity_on_hand')
+    .eq('branch_id', branchA.id)
+    .eq('product_id', product.id)
+    .eq('lot_number', testLot)
+    .maybeSingle();
+
+  if (!existingLot) {
+    await supabase.from('inventory_lot_stocks').insert({
+      organization_id: orgId,
+      branch_id: branchA.id,
+      product_id: product.id,
+      lot_number: testLot,
+      expiry_date: '2028-12-31',
+      quantity_on_hand: 50,
+      cost_price: product.cost_price || 100000,
+      status: 'active'
+    });
+  } else if (existingLot.quantity_on_hand < 15) {
+    await supabase
+      .from('inventory_lot_stocks')
+      .update({ quantity_on_hand: 50 })
+      .eq('id', existingLot.id);
+  }
+
+  // Đảm bảo chi nhánh A có đủ tồn kho tổng hợp để chuyển (ít nhất 50 SP)
   const { data: stockAInit } = await supabase
     .from('inventory_stocks')
-    .select('stock_on_hand')
+    .select('id, stock_on_hand')
     .eq('branch_id', branchA.id)
     .eq('product_id', product.id)
     .maybeSingle();
 
-  const stockABefore = stockAInit?.stock_on_hand || 0;
+  if (!stockAInit) {
+    await supabase.from('inventory_stocks').insert({
+      organization_id: orgId,
+      branch_id: branchA.id,
+      product_id: product.id,
+      stock_on_hand: 100,
+      cost_price: product.cost_price || 100000
+    });
+  } else if (stockAInit.stock_on_hand < 20) {
+    await supabase
+      .from('inventory_stocks')
+      .update({ stock_on_hand: 100 })
+      .eq('id', stockAInit.id);
+  }
+
+  const { data: stockAAfterSetup } = await supabase
+    .from('inventory_stocks')
+    .select('stock_on_hand')
+    .eq('branch_id', branchA.id)
+    .eq('product_id', product.id)
+    .single();
+  const stockABefore = stockAAfterSetup.stock_on_hand;
 
   const { data: stockBInit } = await supabase
     .from('inventory_stocks')
@@ -60,8 +109,8 @@ async function runStageBTests() {
     p_items: [
       {
         product_id: product.id,
-        lot_number: 'LOT-TRANSFER-TEST-01',
-        expiry_date: '2028-06-30',
+        lot_number: null,
+        expiry_date: null,
         quantity: 10,
         unit_cost: product.cost_price || 100000,
         notes: 'Chuyển hỗ trợ chi nhánh B cuối tuần'

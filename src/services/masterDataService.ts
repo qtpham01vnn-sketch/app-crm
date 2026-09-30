@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit } from '../types';
 
 const isUUID = (val?: string | null): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -1952,7 +1952,267 @@ export const masterDataService = {
       hasDifference: res?.has_difference,
       message: res?.message
     };
+  },
+
+  /**
+   * 27. INVENTORY PHASE C — FETCH INVENTORY AUDITS
+   */
+  async getInventoryAudits(branchId?: string): Promise<InventoryAudit[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_inventory_audits', {
+        p_branch_id: branchId || null
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData.map((a: any) => ({
+          id: a.id as string,
+          orgId: a.organization_id as string,
+          branchId: a.branch_id as string,
+          branchName: a.branch_name as string,
+          auditNumber: a.audit_number as string,
+          status: a.status as InventoryAudit['status'],
+          snapshotAt: a.snapshot_at ? (a.snapshot_at as string).split('T')[0] : '',
+          auditorName: a.auditor_name as string,
+          approvedByName: a.approved_by_name as string,
+          approvedAt: a.approved_at ? (a.approved_at as string).split('T')[0] : undefined,
+          totalItems: Number(a.total_items || 0),
+          totalBookQuantity: Number(a.total_book_quantity || 0),
+          totalActualQuantity: Number(a.total_actual_quantity || 0),
+          totalDifferenceQuantity: Number(a.total_difference_quantity || 0),
+          totalDifferenceValue: Number(a.total_difference_value || 0),
+          notes: a.notes as string | undefined,
+          createdAt: a.created_at ? (a.created_at as string).split('T')[0] : '',
+          items: ((a.items || []) as any[]).map((it) => ({
+            id: it.id,
+            productId: it.product_id,
+            productName: it.product_name || 'Sản phẩm',
+            productCode: it.product_code,
+            productUnit: it.product_unit,
+            lotNumber: it.lot_number,
+            expiryDate: it.expiry_date,
+            unitCost: Number(it.unit_cost || 0),
+            systemQuantity: Number(it.system_quantity || 0),
+            actualQuantity: Number(it.actual_quantity || 0),
+            differenceQuantity: Number(it.difference_quantity || 0),
+            differenceValue: Number(it.difference_value || 0),
+            reason: it.reason,
+            notes: it.notes
+          })),
+          events: ((a.events || []) as any[]).map((ev) => ({
+            id: ev.id,
+            eventType: ev.event_type,
+            actorName: ev.actor_name,
+            details: ev.details,
+            createdAt: ev.created_at
+          }))
+        }));
+      }
+    } catch {
+      // Fallback xuống PostgREST
+    }
+
+    let query = supabase
+      .from('inventory_audits')
+      .select(`
+        id, organization_id, branch_id, audit_number, status, snapshot_at, total_items, total_book_quantity, total_actual_quantity, total_difference_quantity, total_difference_value, notes, created_at,
+        branches:branch_id (name),
+        items:inventory_audit_items (
+          id, product_id, lot_number, expiry_date, unit_cost, system_quantity, actual_quantity, difference_quantity, difference_value, reason, notes,
+          products:product_id (name, code, unit)
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching inventory audits:', error);
+      return [];
+    }
+
+    return (data || []).map((a: any) => ({
+      id: a.id,
+      orgId: a.organization_id,
+      branchId: a.branch_id,
+      branchName: a.branches?.name || 'Chi nhánh',
+      auditNumber: a.audit_number,
+      status: a.status,
+      snapshotAt: a.snapshot_at ? a.snapshot_at.split('T')[0] : '',
+      auditorName: '',
+      approvedByName: '',
+      totalItems: Number(a.total_items || 0),
+      totalBookQuantity: Number(a.total_book_quantity || 0),
+      totalActualQuantity: Number(a.total_actual_quantity || 0),
+      totalDifferenceQuantity: Number(a.total_difference_quantity || 0),
+      totalDifferenceValue: Number(a.total_difference_value || 0),
+      notes: a.notes || undefined,
+      createdAt: a.created_at ? a.created_at.split('T')[0] : '',
+      items: (a.items || []).map((it: any) => ({
+        id: it.id,
+        productId: it.product_id,
+        productName: it.products?.name || 'Sản phẩm',
+        productCode: it.products?.code || '',
+        productUnit: it.products?.unit || 'đơn vị',
+        lotNumber: it.lot_number,
+        expiryDate: it.expiry_date,
+        unitCost: Number(it.unit_cost || 0),
+        systemQuantity: Number(it.system_quantity || 0),
+        actualQuantity: Number(it.actual_quantity || 0),
+        differenceQuantity: Number(it.difference_quantity || 0),
+        differenceValue: Number(it.difference_value || 0),
+        reason: it.reason,
+        notes: it.notes
+      }))
+    }));
+  },
+
+  /**
+   * 28. CREATE INVENTORY AUDIT & SNAPSHOT VIA RPC
+   */
+  async createInventoryAuditRPC(params: {
+    orgId: string;
+    branchId: string;
+    staffId: string;
+    productIds?: string[];
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    auditId?: string;
+    auditNumber?: string;
+    totalItems?: number;
+    totalBookQuantity?: number;
+    status?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_create_inventory_audit', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_staff_id: validStaffId,
+      p_product_ids: params.productIds || null,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_create_inventory_audit:', error);
+      const err = new Error(error.message || error.details || 'Lỗi tạo phiếu kiểm kê kho.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      auditId: res?.audit_id,
+      auditNumber: res?.audit_number,
+      totalItems: res?.total_items,
+      totalBookQuantity: res?.total_book_quantity,
+      status: res?.status,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 29. SUBMIT INVENTORY AUDIT ACTUAL COUNTS VIA RPC
+   */
+  async submitInventoryAuditCountsRPC(params: {
+    orgId: string;
+    auditId: string;
+    staffId: string;
+    items: Array<{
+      item_id: string;
+      actual_quantity: number;
+      reason?: string;
+      notes?: string;
+    }>;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    auditId?: string;
+    status?: string;
+    totalActualQuantity?: number;
+    totalDifferenceQuantity?: number;
+    totalDifferenceValue?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_submit_inventory_audit_counts', {
+      p_org_id: params.orgId,
+      p_audit_id: params.auditId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_submit_inventory_audit_counts:', error);
+      const err = new Error(error.message || error.details || 'Lỗi lưu số lượng kiểm đếm.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      auditId: res?.audit_id,
+      status: res?.status,
+      totalActualQuantity: res?.total_actual_quantity,
+      totalDifferenceQuantity: res?.total_difference_quantity,
+      totalDifferenceValue: res?.total_difference_value,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 30. APPROVE INVENTORY AUDIT & ADJUST STOCK VIA RPC
+   */
+  async approveInventoryAuditRPC(params: {
+    orgId: string;
+    auditId: string;
+    staffId: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    auditId?: string;
+    auditNumber?: string;
+    status?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_approve_inventory_audit', {
+      p_org_id: params.orgId,
+      p_audit_id: params.auditId,
+      p_staff_id: validStaffId,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_approve_inventory_audit:', error);
+      const err = new Error(error.message || error.details || 'Lỗi duyệt kiểm kê kho.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      auditId: res?.audit_id,
+      auditNumber: res?.audit_number,
+      status: res?.status,
+      message: res?.message
+    };
   }
 };
+
 
 

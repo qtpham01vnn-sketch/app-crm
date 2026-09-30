@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Boxes,
   Plus,
   Search,
   ArrowRightLeft,
@@ -13,11 +12,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  History
+  History,
+  ClipboardList,
+  FileCheck2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
-import type { BranchTransfer } from '../../types';
+import type { BranchTransfer, InventoryAudit } from '../../types';
 
 export const InvView: React.FC = () => {
   const { products, branchStocks, currentBranch, branches, currentUser, isLiveMode, org, showToast } = useApp();
@@ -28,6 +29,7 @@ export const InvView: React.FC = () => {
   // ─── Live Data States ───
   const [transfers, setTransfers] = useState<BranchTransfer[]>([]);
   const [inventoryLots, setInventoryLots] = useState<any[]>([]);
+  const [audits, setAudits] = useState<InventoryAudit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -42,12 +44,19 @@ export const InvView: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // ─── Modals State ───
+  // ─── Modals State: Stage B Transfers ───
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<BranchTransfer | null>(null);
+
+  // ─── Modals State: Stage C Audits ───
+  const [isCreateAuditOpen, setIsCreateAuditOpen] = useState(false);
+  const [isCountingModalOpen, setIsCountingModalOpen] = useState(false);
+  const [isApproveAuditOpen, setIsApproveAuditOpen] = useState(false);
+  const [isAuditDetailOpen, setIsAuditDetailOpen] = useState(false);
+  const [selectedAudit, setSelectedAudit] = useState<InventoryAudit | null>(null);
 
   // ─── Form State: Create Transfer ───
   const [fromBranchId, setFromBranchId] = useState<string>('');
@@ -80,19 +89,46 @@ export const InvView: React.FC = () => {
   >([]);
   const [receiveNotes, setReceiveNotes] = useState('');
 
-  // ─── Helper: Fetch all transfer & inventory data ───
+  // ─── Form State: Create Audit (Stage C) ───
+  const [auditBranchId, setAuditBranchId] = useState<string>('');
+  const [auditScope, setAuditScope] = useState<'all' | 'custom'>('all');
+  const [auditSelectedProdIds, setAuditSelectedProdIds] = useState<string[]>([]);
+  const [auditCreateNotes, setAuditCreateNotes] = useState('');
+
+  // ─── Form State: Audit Counting (Stage C) ───
+  const [auditCountingEntries, setAuditCountingEntries] = useState<
+    Array<{
+      item_id: string;
+      product_name: string;
+      product_code?: string;
+      product_unit?: string;
+      unit_cost: number;
+      system_quantity: number;
+      actual_quantity: number;
+      difference_quantity: number;
+      difference_value: number;
+      reason: string;
+      notes: string;
+    }>
+  >([]);
+  const [auditCountNotes, setAuditCountNotes] = useState('');
+  const [auditApproveNotes, setAuditApproveNotes] = useState('');
+
+  // ─── Helper: Fetch all transfer, inventory & audit data ───
   const reloadData = useCallback(async () => {
     if (!isLiveMode) return;
     setIsLoading(true);
     try {
-      const [transferData, lotData] = await Promise.all([
+      const [transferData, lotData, auditData] = await Promise.all([
         masterDataService.getBranchTransfers(currentBranch?.id),
-        masterDataService.getInventoryLotStocks(currentBranch?.id)
+        masterDataService.getInventoryLotStocks(currentBranch?.id),
+        masterDataService.getInventoryAudits(currentBranch?.id)
       ]);
       setTransfers(transferData);
       setInventoryLots(lotData);
+      setAudits(auditData);
     } catch (err) {
-      console.error('Lỗi tải dữ liệu kho vận:', err);
+      console.error('Lỗi tải dữ liệu kho vận & kiểm kê:', err);
     } finally {
       setIsLoading(false);
     }
@@ -398,6 +434,163 @@ export const InvView: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // ─── STAGE C: AUDIT HANDLERS ───
+  const handleOpenCreateAudit = () => {
+    setServerError(null);
+    setAuditBranchId(currentBranch?.id || branches[0]?.id || '');
+    setAuditScope('all');
+    setAuditSelectedProdIds([]);
+    setAuditCreateNotes('');
+    setIsCreateAuditOpen(true);
+  };
+
+  const handleSubmitCreateAudit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError(null);
+    if (!auditBranchId) {
+      setServerError('Vui lòng chọn chi nhánh cần kiểm kê.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const staffId = currentUser?.id || org?.id || '';
+      const prodIds = auditScope === 'custom' && auditSelectedProdIds.length > 0 ? auditSelectedProdIds : undefined;
+
+      const res = await masterDataService.createInventoryAuditRPC({
+        orgId: org?.id || '',
+        branchId: auditBranchId,
+        staffId,
+        productIds: prodIds,
+        notes: auditCreateNotes.trim() || undefined
+      });
+
+      if (!res.success) {
+        throw new Error(res.message || 'Lỗi tạo phiếu kiểm kê.');
+      }
+
+      showToast(`📋 Đã tạo phiếu kiểm kê #${res.auditNumber}! Snapshot ${res.totalItems} mặt hàng thành công.`, 'success');
+      await reloadData();
+      setIsCreateAuditOpen(false);
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      const msg = errorObj?.message || errorObj?.details || 'Lỗi khi tạo phiếu kiểm kê.';
+      setServerError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenCounting = (audit: InventoryAudit) => {
+    setSelectedAudit(audit);
+    setServerError(null);
+    setAuditCountNotes(audit.notes || '');
+
+    const entries = audit.items.map((it) => ({
+      item_id: it.id,
+      product_name: it.productName,
+      product_code: it.productCode,
+      product_unit: it.productUnit,
+      unit_cost: it.unitCost,
+      system_quantity: it.systemQuantity,
+      actual_quantity: it.actualQuantity,
+      difference_quantity: it.differenceQuantity,
+      difference_value: it.differenceValue,
+      reason: it.reason || '',
+      notes: it.notes || ''
+    }));
+
+    setAuditCountingEntries(entries);
+    setIsCountingModalOpen(true);
+  };
+
+  const handleSubmitCounting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAudit) return;
+    setServerError(null);
+
+    setIsSubmitting(true);
+    try {
+      const staffId = currentUser?.id || org?.id || '';
+      const payloadItems = auditCountingEntries.map((it) => ({
+        item_id: it.item_id,
+        actual_quantity: it.actual_quantity,
+        reason: it.reason.trim() || undefined,
+        notes: it.notes.trim() || undefined
+      }));
+
+      const res = await masterDataService.submitInventoryAuditCountsRPC({
+        orgId: org?.id || selectedAudit.orgId,
+        auditId: selectedAudit.id,
+        staffId,
+        items: payloadItems,
+        notes: auditCountNotes.trim() || undefined
+      });
+
+      if (!res.success) {
+        throw new Error(res.message || 'Lỗi lưu số lượng kiểm đếm.');
+      }
+
+      showToast(`📝 Đã lưu kết quả kiểm đếm phiếu #${selectedAudit.auditNumber}!`, 'success');
+      await reloadData();
+      setIsCountingModalOpen(false);
+      setSelectedAudit(null);
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      const msg = errorObj?.message || errorObj?.details || 'Lỗi khi lưu kết quả kiểm đếm.';
+      setServerError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenApproveAudit = (audit: InventoryAudit) => {
+    setSelectedAudit(audit);
+    setServerError(null);
+    setAuditApproveNotes('');
+    setIsApproveAuditOpen(true);
+  };
+
+  const handleSubmitApproveAudit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAudit) return;
+    setServerError(null);
+
+    setIsSubmitting(true);
+    try {
+      const staffId = currentUser?.id || org?.id || '';
+      const res = await masterDataService.approveInventoryAuditRPC({
+        orgId: org?.id || selectedAudit.orgId,
+        auditId: selectedAudit.id,
+        staffId,
+        notes: auditApproveNotes.trim() || undefined
+      });
+
+      if (!res.success) {
+        throw new Error(res.message || 'Lỗi duyệt kiểm kê kho.');
+      }
+
+      showToast(`✅ Đã phê duyệt phiếu kiểm kê #${selectedAudit.auditNumber}! Toàn bộ chênh lệch đã được cân bằng tự động.`, 'success');
+      await reloadData();
+      setIsApproveAuditOpen(false);
+      setSelectedAudit(null);
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      const msg = errorObj?.message || errorObj?.details || 'Lỗi khi duyệt kiểm kê kho.';
+      setServerError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenAuditDetail = (audit: InventoryAudit) => {
+    setSelectedAudit(audit);
+    setIsAuditDetailOpen(true);
   };
 
   // ─── HELPER: Render Pagination Controls ───
@@ -891,56 +1084,157 @@ export const InvView: React.FC = () => {
         </div>
       )}
 
-      {/* ─── TAB 3: KIỂM KÊ KHO ĐỊNH KỲ (ĐỢT C SẴN SÀNG) ─── */}
+      {/* ─── TAB 3: KIỂM KÊ KHO ĐỊNH KỲ (STAGE C AUDITS & STOCK ADJUSTMENTS) ─── */}
       {activeTab === 'stocktake' && (
         <div className="space-y-4">
-          <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-200 space-y-2">
-            <h4 className="font-bold text-sm text-purple-900 flex items-center space-x-2">
-              <Boxes className="w-5 h-5 text-purple-700" />
-              <span>Phân Hệ Kiểm Kê & Cân Bằng Tồn Kho Định Kỳ (Đợt C)</span>
-            </h4>
-            <p className="text-xs text-purple-800/80">
-              Kiến trúc chốt số liệu snapshot ➔ Nhập số đếm thực tế ➔ Tự động tính chênh lệch thừa/thiếu ➔ Duyệt sinh bút toán điều chỉnh kho minh bạch.
-            </p>
+          {/* Header & KPI Summary */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-purple-50/70 border border-purple-200/80 rounded-2xl p-4 shadow-2xs">
+            <div className="space-y-1">
+              <h4 className="font-bold text-sm text-purple-900 flex items-center space-x-2">
+                <ClipboardList className="w-5 h-5 text-purple-700" />
+                <span>Kiểm Kê & Cân Bằng Tồn Kho Thực Tế (Stage C Audits)</span>
+              </h4>
+              <p className="text-xs text-purple-800/80">
+                Quy trình chuẩn: Chốt snapshot tồn sổ sách ➔ Nhập số đếm thực tế ➔ Tự động tính chênh lệch ➔ Phê duyệt cân bằng sổ cái kho.
+              </p>
+            </div>
+
+            <button
+              onClick={handleOpenCreateAudit}
+              className="text-xs bg-purple-700 hover:bg-purple-800 text-white font-bold px-3.5 py-2 rounded-xl shadow-xs flex items-center space-x-1.5 transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Lập Phiếu Kiểm Kê Mới</span>
+            </button>
           </div>
 
+          {/* Table of Audits */}
           <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                  <th className="p-3">Sản Phẩm</th>
-                  <th className="p-3 text-center">Đơn Vị</th>
-                  <th className="p-3 text-center">Tồn Hệ Thống (Snapshot)</th>
-                  <th className="p-3 text-center">Tồn Thực Tế (Kiểm Đếm)</th>
-                  <th className="p-3 text-center">Chênh Lệch Thừa/Thiếu</th>
+                  <th className="p-3">Mã Phiếu KK</th>
+                  <th className="p-3">Chi Nhánh</th>
+                  <th className="p-3">Ngày Snapshot</th>
+                  <th className="p-3 text-center">Mặt Hàng</th>
+                  <th className="p-3 text-center">Tồn Sổ Sách</th>
+                  <th className="p-3 text-center">Đếm Thực Tế</th>
+                  <th className="p-3 text-center">Chênh Lệch (+/-)</th>
+                  <th className="p-3 text-right">Giá Trị Chênh</th>
                   <th className="p-3 text-center">Trạng Thái</th>
+                  <th className="p-3 text-center">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {products.map((p) => {
-                  const stk = branchStocks.find((s) => s.branchId === currentBranch?.id && s.productId === p.id);
-                  const sysStock = stk?.stockOnHand ?? 0;
-
-                  return (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-bold text-slate-900">
-                        <p>{p.name}</p>
-                        <span className="text-[10px] text-slate-400 font-mono font-normal">{p.code}</span>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                      Đang tải danh sách phiếu kiểm kê...
+                    </td>
+                  </tr>
+                ) : audits.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                      Chưa có phiếu kiểm kê nào tại chi nhánh này. Bấm <b>"+ Lập Phiếu Kiểm Kê Mới"</b> để bắt đầu đợt kiểm kê.
+                    </td>
+                  </tr>
+                ) : (
+                  audits.map((a) => (
+                    <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-3 font-mono font-bold text-purple-700 whitespace-nowrap">
+                        {a.auditNumber}
                       </td>
-                      <td className="p-3 text-center text-slate-500">{p.unit}</td>
-                      <td className="p-3 text-center font-bold text-slate-800">{sysStock}</td>
-                      <td className="p-3 text-center">
-                        <span className="font-bold text-slate-800">{sysStock}</span>
+                      <td className="p-3 font-bold text-slate-800">
+                        {a.branchName || 'Chi nhánh'}
                       </td>
-                      <td className="p-3 text-center font-bold text-emerald-600">0</td>
-                      <td className="p-3 text-center">
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          Khớp 100%
+                      <td className="p-3 text-slate-600 whitespace-nowrap">
+                        {a.snapshotAt || a.createdAt}
+                      </td>
+                      <td className="p-3 text-center font-bold text-slate-700">
+                        {a.totalItems} SP
+                      </td>
+                      <td className="p-3 text-center font-bold text-slate-800 font-mono">
+                        {a.totalBookQuantity}
+                      </td>
+                      <td className="p-3 text-center font-black text-slate-900 font-mono">
+                        {a.totalActualQuantity}
+                      </td>
+                      <td className="p-3 text-center font-mono">
+                        <span
+                          className={`font-black text-xs px-2 py-0.5 rounded-full ${
+                            a.totalDifferenceQuantity === 0
+                              ? 'text-emerald-700 bg-emerald-50'
+                              : a.totalDifferenceQuantity < 0
+                              ? 'text-rose-700 bg-rose-50'
+                              : 'text-amber-700 bg-amber-50'
+                          }`}
+                        >
+                          {a.totalDifferenceQuantity > 0 ? `+${a.totalDifferenceQuantity}` : a.totalDifferenceQuantity}
                         </span>
                       </td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
+                        {a.totalDifferenceValue !== 0 ? `${a.totalDifferenceValue.toLocaleString('vi-VN')}đ` : '0đ'}
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            a.status === 'completed'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : a.status === 'counting'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                              : a.status === 'cancelled'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          {a.status === 'completed'
+                            ? '✅ Đã Duyệt & Cân Bằng'
+                            : a.status === 'counting'
+                            ? '📝 Đang Kiểm Đếm'
+                            : a.status === 'cancelled'
+                            ? '❌ Đã Hủy'
+                            : '📋 Đã Snapshot'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          {/* Xem chi tiết */}
+                          <button
+                            onClick={() => handleOpenAuditDetail(a)}
+                            className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                            title="Xem chi tiết phiếu kiểm kê"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          {/* Nhập số đếm thực tế (Khi chưa duyệt) */}
+                          {a.status !== 'completed' && a.status !== 'cancelled' && (
+                            <button
+                              onClick={() => handleOpenCounting(a)}
+                              className="px-2.5 py-1 text-[11px] bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow-2xs transition-colors flex items-center space-x-1"
+                              title="Nhập số lượng đếm thực tế"
+                            >
+                              <ClipboardList className="w-3.5 h-3.5" />
+                              <span>Đếm Thực Tế</span>
+                            </button>
+                          )}
+
+                          {/* Phê duyệt & Cân bằng tồn kho (Khi đang đếm hoặc draft) */}
+                          {a.status === 'counting' && (
+                            <button
+                              onClick={() => handleOpenApproveAudit(a)}
+                              className="px-2.5 py-1 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs transition-colors flex items-center space-x-1"
+                              title="Phê duyệt điều chỉnh tồn kho tự động"
+                            >
+                              <FileCheck2 className="w-3.5 h-3.5" />
+                              <span>Duyệt Cân Bằng</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
-                  );
-                })}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -1497,6 +1791,471 @@ export const InvView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ─── STAGE C MODAL 1: TẠO PHIẾU KIỂM KÊ KHO MỚI ─── */}
+      {isCreateAuditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">Khởi Tạo Đợt Kiểm Kê Kho Mới</h3>
+                <p className="text-xs text-slate-500">
+                  Hệ thống sẽ tự động chụp snapshot số lượng tồn sổ sách hiện hành của kho.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateAuditOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {serverError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                {serverError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitCreateAudit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Chi Nhánh Kiểm Kê *
+                </label>
+                <select
+                  value={auditBranchId}
+                  onChange={(e) => setAuditBranchId(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                  required
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Phạm Vi Kiểm Kê
+                </label>
+                <div className="flex items-center space-x-4 text-xs font-medium text-slate-700">
+                  <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="auditScope"
+                      checked={auditScope === 'all'}
+                      onChange={() => setAuditScope('all')}
+                      className="text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>Toàn bộ sản phẩm trong kho</span>
+                  </label>
+                  <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="auditScope"
+                      checked={auditScope === 'custom'}
+                      onChange={() => setAuditScope('custom')}
+                      className="text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>Tùy chọn danh mục SP</span>
+                  </label>
+                </div>
+              </div>
+
+              {auditScope === 'custom' && (
+                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                  <span className="text-[11px] font-bold text-slate-500 block">Chọn sản phẩm kiểm kê:</span>
+                  {products.map((p) => (
+                    <label key={p.id} className="flex items-center space-x-2 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={auditSelectedProdIds.includes(p.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAuditSelectedProdIds((prev) => [...prev, p.id]);
+                          } else {
+                            setAuditSelectedProdIds((prev) => prev.filter((id) => id !== p.id));
+                          }
+                        }}
+                        className="rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-slate-800">{p.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Ghi Chú / Mục Đích Kiểm Kê
+                </label>
+                <textarea
+                  value={auditCreateNotes}
+                  onChange={(e) => setAuditCreateNotes(e.target.value)}
+                  placeholder="Ví dụ: Kiểm kê định kỳ chốt số liệu cuối tháng / Quý..."
+                  rows={2}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateAuditOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 rounded-xl shadow-xs disabled:opacity-50 flex items-center space-x-1"
+                >
+                  <span>{isSubmitting ? 'Đang Snapshot...' : '📸 Tạo Phiếu & Snapshot Tồn'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── STAGE C MODAL 2: NHẬP SỐ LƯỢNG ĐẾM THỰC TẾ ─── */}
+      {isCountingModalOpen && selectedAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">Nhập Kết Quả Kiểm Đếm #{selectedAudit.auditNumber}</h3>
+                <p className="text-xs text-slate-500">
+                  Chi nhánh: <span className="font-bold text-slate-700">{selectedAudit.branchName}</span> — Ngày snapshot: {selectedAudit.snapshotAt}
+                </p>
+              </div>
+              <button
+                onClick={() => { setIsCountingModalOpen(false); setSelectedAudit(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {serverError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                {serverError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitCounting} className="space-y-4">
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                      <th className="p-2.5">Sản Phẩm</th>
+                      <th className="p-2.5 text-center">Tồn Sổ Sách</th>
+                      <th className="p-2.5 text-center w-28">Đếm Thực Tế *</th>
+                      <th className="p-2.5 text-center">Chênh Lệch</th>
+                      <th className="p-2.5">Lý Do Chênh Lệch (Nếu có)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {auditCountingEntries.map((item, idx) => {
+                      const diff = item.actual_quantity - item.system_quantity;
+
+                      return (
+                        <tr key={item.item_id} className="hover:bg-slate-50/80">
+                          <td className="p-2.5 font-bold text-slate-900">
+                            {item.product_name}
+                            <span className="text-[10px] text-slate-400 font-normal block">ĐV: {item.product_unit || 'cái'}</span>
+                          </td>
+                          <td className="p-2.5 text-center font-bold text-slate-700 font-mono">
+                            {item.system_quantity}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.actual_quantity}
+                              onChange={(e) => {
+                                const act = Math.max(0, parseInt(e.target.value) || 0);
+                                setAuditCountingEntries((prev) =>
+                                  prev.map((it, i) =>
+                                    i === idx
+                                      ? {
+                                          ...it,
+                                          actual_quantity: act,
+                                          difference_quantity: act - it.system_quantity,
+                                          difference_value: (act - it.system_quantity) * it.unit_cost
+                                        }
+                                      : it
+                                  )
+                                );
+                              }}
+                              className="w-24 bg-white border border-purple-300 rounded-lg px-2 py-1 text-xs font-black text-slate-900 text-center focus:ring-2 focus:ring-purple-500"
+                              required
+                            />
+                          </td>
+                          <td className="p-2.5 text-center font-mono">
+                            <span
+                              className={`font-black text-xs px-2 py-0.5 rounded-full ${
+                                diff === 0
+                                  ? 'text-emerald-700 bg-emerald-50'
+                                  : diff < 0
+                                  ? 'text-rose-700 bg-rose-50'
+                                  : 'text-amber-700 bg-amber-50'
+                              }`}
+                            >
+                              {diff > 0 ? `+${diff}` : diff}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                            <input
+                              type="text"
+                              value={item.reason}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAuditCountingEntries((prev) =>
+                                  prev.map((it, i) => (i === idx ? { ...it, reason: val } : it))
+                                );
+                              }}
+                              placeholder={diff !== 0 ? 'Nhập lý do chênh lệch (Hao hụt, vỡ, nhầm...)' : 'Khớp tồn'}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Ghi Chú Đợt Đếm
+                </label>
+                <textarea
+                  value={auditCountNotes}
+                  onChange={(e) => setAuditCountNotes(e.target.value)}
+                  placeholder="Ghi chú thêm về điều kiện kiểm đếm..."
+                  rows={2}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsCountingModalOpen(false); setSelectedAudit(null); }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center space-x-1"
+                >
+                  <span>{isSubmitting ? 'Đang Lưu...' : '💾 Lưu Số Liệu Kiểm Đếm'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── STAGE C MODAL 3: PHÊ DUYỆT & CÂN BẰNG TỒN KHO ─── */}
+      {isApproveAuditOpen && selectedAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <FileCheck2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Phê Duyệt Điều Chỉnh Tồn Kho</h3>
+                  <p className="text-xs text-slate-500">Phiếu kiểm kê #{selectedAudit.auditNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setIsApproveAuditOpen(false); setSelectedAudit(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {serverError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                {serverError}
+              </div>
+            )}
+
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between font-bold text-emerald-950">
+                <span>Tổng Mặt Hàng:</span>
+                <span>{selectedAudit.totalItems} sản phẩm</span>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span>Tồn sổ sách snapshot:</span>
+                <span className="font-mono font-bold">{selectedAudit.totalBookQuantity}</span>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span>Tồn kiểm đếm thực tế:</span>
+                <span className="font-mono font-black text-slate-900">{selectedAudit.totalActualQuantity}</span>
+              </div>
+              <div className="flex justify-between font-bold pt-2 border-t border-emerald-200">
+                <span className="text-emerald-950">Tổng Chênh Lệch Điều Chỉnh:</span>
+                <span className={`font-mono ${selectedAudit.totalDifferenceQuantity < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                  {selectedAudit.totalDifferenceQuantity > 0 ? `+${selectedAudit.totalDifferenceQuantity}` : selectedAudit.totalDifferenceQuantity} đv ({selectedAudit.totalDifferenceValue.toLocaleString('vi-VN')}đ)
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 italic">
+              * Khi duyệt, hệ thống sẽ tự động sinh các bút toán nhật ký điều chỉnh kho (<code>audit_adjustment</code>) và cập nhật số tồn thực tế vào sổ cái. Hành động này không thể hoàn tác.
+            </p>
+
+            <form onSubmit={handleSubmitApproveAudit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Ý Kiến Phê Duyệt / Lý Do
+                </label>
+                <textarea
+                  value={auditApproveNotes}
+                  onChange={(e) => setAuditApproveNotes(e.target.value)}
+                  placeholder="Xác nhận số liệu kiểm kê chính xác, đồng ý cân đối sổ sách..."
+                  rows={2}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsApproveAuditOpen(false); setSelectedAudit(null); }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center space-x-1"
+                >
+                  <span>{isSubmitting ? 'Đang Xử Lý...' : '✅ Phê Duyệt & Cân Bằng Kho'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── STAGE C MODAL 4: CHI TIẾT PHIẾU KIỂM KÊ & TIMELINE ─── */}
+      {isAuditDetailOpen && selectedAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">Chi Tiết Phiếu Kiểm Kê #{selectedAudit.auditNumber}</h3>
+                <p className="text-xs text-slate-500">
+                  Chi nhánh: <span className="font-bold text-slate-700">{selectedAudit.branchName}</span> — Trạng thái: <span className="font-bold capitalize">{selectedAudit.status}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => { setIsAuditDetailOpen(false); setSelectedAudit(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Bảng chi tiết mặt hàng */}
+            <div className="space-y-2">
+              <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Danh Sách Mặt Hàng Kiểm Kê</h4>
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                      <th className="p-2.5">Sản Phẩm</th>
+                      <th className="p-2.5 text-center">Tồn Sổ Sách</th>
+                      <th className="p-2.5 text-center">Đếm Thực Tế</th>
+                      <th className="p-2.5 text-center">Chênh Lệch</th>
+                      <th className="p-2.5 text-right">Giá Trị Chênh</th>
+                      <th className="p-2.5">Lý Do</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedAudit.items.map((it) => (
+                      <tr key={it.id} className="hover:bg-slate-50/80">
+                        <td className="p-2.5 font-bold text-slate-900">
+                          {it.productName}
+                          <span className="text-[10px] text-slate-400 font-normal block">{it.productCode || ''} ({it.productUnit || 'cái'})</span>
+                        </td>
+                        <td className="p-2.5 text-center text-slate-700 font-bold font-mono">{it.systemQuantity}</td>
+                        <td className="p-2.5 text-center text-slate-900 font-black font-mono">{it.actualQuantity}</td>
+                        <td className="p-2.5 text-center font-mono">
+                          <span
+                            className={`font-black text-xs px-2 py-0.5 rounded-full ${
+                              it.differenceQuantity === 0
+                                ? 'text-emerald-700 bg-emerald-50'
+                                : it.differenceQuantity < 0
+                                ? 'text-rose-700 bg-rose-50'
+                                : 'text-amber-700 bg-amber-50'
+                            }`}
+                          >
+                            {it.differenceQuantity > 0 ? `+${it.differenceQuantity}` : it.differenceQuantity}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-800">
+                          {it.differenceValue.toLocaleString('vi-VN')}đ
+                        </td>
+                        <td className="p-2.5 text-slate-600 italic">
+                          {it.reason || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Nhật ký kiểm toán Timeline */}
+            {selectedAudit.events && selectedAudit.events.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
+                  <History className="w-4 h-4 text-purple-600" />
+                  <span>Lịch Sử Tác Nghiệp & Nhật Ký Kiểm Toán (Audit Trail)</span>
+                </h4>
+                <div className="space-y-2">
+                  {selectedAudit.events.map((ev) => (
+                    <div key={ev.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs flex items-start justify-between">
+                      <div>
+                        <span className="font-bold text-slate-800 capitalize">
+                          {ev.eventType === 'created' ? '📋 Tạo phiếu & Snapshot tồn' : ev.eventType === 'counted' ? '📝 Cập nhật số liệu đếm' : ev.eventType === 'approved_and_adjusted' ? '✅ Phê duyệt & Cân bằng tồn kho' : ev.eventType}
+                        </span>
+                        <span className="text-[11px] text-slate-500 block">Thực hiện bởi: {ev.actorName}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{ev.createdAt?.slice(0, 19).replace('T', ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setIsAuditDetailOpen(false); setSelectedAudit(null); }}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

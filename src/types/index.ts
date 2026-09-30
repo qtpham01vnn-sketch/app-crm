@@ -486,3 +486,53 @@ export interface BranchTransfer {
   events?: BranchTransferEvent[];
 }
 
+export interface InventoryAuditItem {
+  id: string;
+  auditId?: string;
+  productId: string;
+  productName: string;
+  productCode?: string;
+  productUnit?: string;
+  lotNumber?: string;
+  expiryDate?: string;
+  unitCost: number;
+  systemQuantity: number;
+  actualQuantity: number;
+  differenceQuantity: number;
+  differenceValue: number;
+  reason?: string;
+  notes?: string;
+}
+
+export interface InventoryAuditEvent {
+  id: string;
+  auditId?: string;
+  eventType: string;
+  actorName: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface InventoryAudit {
+  id: string;
+  orgId: string;
+  branchId: string;
+  branchName?: string;
+  auditNumber: string;
+  status: 'draft' | 'counting' | 'completed' | 'cancelled';
+  snapshotAt: string;
+  auditorName?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  totalItems: number;
+  totalBookQuantity: number;
+  totalActualQuantity: number;
+  totalDifferenceQuantity: number;
+  totalDifferenceValue: number;
+  notes?: string;
+  createdAt: string;
+  items: InventoryAuditItem[];
+  events?: InventoryAuditEvent[];
+}
+
+
