@@ -563,8 +563,47 @@ export const masterDataService = {
   /**
    * 7. STAFF PROFILES & MEMBERSHIPS
    */
-  async getStaff(): Promise<Staff[]> {
+  async getStaff(branchId?: string): Promise<Staff[]> {
     if (!isSupabaseConfigured || !supabase) return [];
+
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_staff_directory', {
+        p_branch_id: branchId || null
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData.map((s: any) => ({
+          id: s.id,
+          orgId: s.org_id,
+          name: s.name,
+          code: s.code,
+          phone: s.phone,
+          email: s.email || '',
+          title: s.title || '',
+          role: (s.role || 'technician_doctor') as Staff['role'],
+          branchIds: Array.isArray(s.branch_ids) ? s.branch_ids : [],
+          primaryBranchId: s.primary_branch_id || (Array.isArray(s.branch_ids) ? s.branch_ids[0] : ''),
+          baseSalary: Number(s.base_salary || 0),
+          commissionRate: Number(s.commission_rate || 0),
+          status: s.is_active ? 'active' : 'inactive',
+          employmentStatus: s.employment_status || 'active',
+          assignedBranches: (s.assigned_branches || []).map((ab: any) => ({
+            branchId: ab.branch_id,
+            branchName: ab.branch_name,
+            isPrimary: ab.is_primary,
+            effectiveFrom: ab.effective_from,
+            effectiveTo: ab.effective_to
+          })),
+          skills: (s.skills || []).map((sk: any) => ({
+            serviceId: sk.service_id,
+            serviceName: sk.service_name,
+            proficiencyLevel: sk.proficiency_level
+          }))
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
     const { data, error } = await supabase
       .from('staff_profiles')
       .select(`
@@ -574,6 +613,11 @@ export const masterDataService = {
         code,
         phone,
         email,
+        title,
+        base_salary,
+        commission_rate,
+        employment_status,
+        is_active,
         organization_memberships (
           role,
           assigned_branch_ids
@@ -586,8 +630,8 @@ export const masterDataService = {
       return [];
     }
 
-    return (data || []).map((s) => {
-      const membership = (s as unknown as { organization_memberships: Array<{ role: string; assigned_branch_ids: string[] }> }).organization_memberships?.[0];
+    return (data || []).map((s: any) => {
+      const membership = s.organization_memberships?.[0];
       const branchIds = membership?.assigned_branch_ids || [];
       return {
         id: s.id,
@@ -595,15 +639,83 @@ export const masterDataService = {
         name: s.full_name,
         code: s.code,
         email: s.email || '',
+        phone: s.phone,
+        title: s.title || '',
         role: (membership?.role || 'technician_doctor') as Staff['role'],
         branchIds: branchIds,
-        primaryBranchId: branchIds[0] || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-        baseSalary: 8000000,
-        commissionRate: 10,
-        status: 'active',
-        phone: s.phone
+        primaryBranchId: branchIds[0] || '',
+        baseSalary: Number(s.base_salary || 8000000),
+        commissionRate: Number(s.commission_rate || 10),
+        status: s.is_active ? 'active' : 'inactive',
+        employmentStatus: s.employment_status || 'active'
       };
     });
+  },
+
+  /**
+   * 7b. UPSERT STAFF PROFILE VIA RPC (P6.1)
+   */
+  async upsertStaffProfileRPC(params: {
+    orgId: string;
+    staffId?: string;
+    fullName: string;
+    code?: string;
+    phone: string;
+    email?: string;
+    title?: string;
+    role: Staff['role'];
+    primaryBranchId?: string;
+    branchIds: string[];
+    baseSalary?: number;
+    commissionRate?: number;
+    employmentStatus?: 'active' | 'on_leave' | 'terminated';
+    pinCode?: string;
+    skillIds?: string[];
+    effectiveFrom?: string;
+  }): Promise<{
+    success: boolean;
+    staffId?: string;
+    code?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_upsert_staff_profile', {
+      p_org_id: params.orgId,
+      p_staff_id: params.staffId || null,
+      p_full_name: params.fullName,
+      p_code: params.code || '',
+      p_phone: params.phone,
+      p_email: params.email || null,
+      p_title: params.title || null,
+      p_role: params.role,
+      p_primary_branch_id: params.primaryBranchId || null,
+      p_branch_ids: params.branchIds,
+      p_base_salary: params.baseSalary || 0,
+      p_commission_rate: params.commissionRate || 0,
+      p_employment_status: params.employmentStatus || 'active',
+      p_pin_code: params.pinCode || null,
+      p_skill_ids: params.skillIds || [],
+      p_effective_from: params.effectiveFrom || new Date().toISOString().split('T')[0]
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_upsert_staff_profile:', error);
+      const err = new Error(error.message || error.details || 'Lỗi lưu thông tin nhân sự.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      staffId: res?.staff_id,
+      code: res?.code,
+      message: res?.message
+    };
   },
 
   /**

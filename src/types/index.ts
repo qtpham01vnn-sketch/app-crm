@@ -37,6 +37,7 @@ export interface Staff {
   code: string;
   phone: string;
   email: string;
+  title?: string;
   role: UserRole;
   branchIds: string[];
   primaryBranchId: string;
@@ -44,6 +45,19 @@ export interface Staff {
   commissionRate: number;
   avatar?: string;
   status: 'active' | 'inactive';
+  employmentStatus?: 'active' | 'on_leave' | 'terminated';
+  assignedBranches?: Array<{
+    branchId: string;
+    branchName: string;
+    isPrimary: boolean;
+    effectiveFrom: string;
+    effectiveTo?: string;
+  }>;
+  skills?: Array<{
+    serviceId: string;
+    serviceName: string;
+    proficiencyLevel: string;
+  }>;
 }
 
 export interface Customer {
