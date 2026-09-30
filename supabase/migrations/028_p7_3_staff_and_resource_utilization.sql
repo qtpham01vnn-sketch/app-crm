@@ -71,9 +71,9 @@ BEGIN
     staff_service_exec AS (
         -- Doanh thu thực hiện dịch vụ lẻ (POS Service Execution)
         SELECT 
-            COALESCE(s.cashier_staff_id, sd.staff_id) AS staff_id,
+            sd.staff_id,
             sd.branch_id,
-            sd.id AS session_id,
+            sd.session_id,
             sd.customer_id,
             sd.service_id,
             sd.session_revenue,
@@ -83,9 +83,8 @@ BEGIN
         FROM (
             -- Dịch vụ lẻ làm tại POS
             SELECT 
-                si.id AS line_id,
+                si.id AS session_id,
                 s.id AS sale_id,
-                NULL::UUID AS session_deduction_id,
                 s.cashier_staff_id AS staff_id,
                 s.customer_id,
                 s.branch_id,
@@ -107,9 +106,8 @@ BEGIN
 
             -- Trừ buổi gói liệu trình thực tế
             SELECT 
-                sd.id AS line_id,
+                sd.id AS session_id,
                 cc.sale_id,
-                sd.id AS session_deduction_id,
                 sd.staff_id,
                 cc.customer_id,
                 sd.branch_id,
@@ -142,8 +140,20 @@ BEGIN
         SELECT 
             sp.id AS staff_id,
             sp.full_name,
-            sp.job_title,
-            b.name AS primary_branch_name,
+            COALESCE(sp.title, 'Chuyên viên') AS job_title,
+            COALESCE(
+                (SELECT b.name 
+                 FROM staff_branch_assignments sba 
+                 JOIN branches b ON b.id = sba.branch_id 
+                 WHERE sba.staff_id = sp.id AND sba.is_primary = TRUE AND sba.is_active = TRUE 
+                 LIMIT 1),
+                (SELECT b.name 
+                 FROM branches b 
+                 WHERE b.organization_id = sp.organization_id 
+                 ORDER BY b.is_headquarters DESC, b.created_at ASC 
+                 LIMIT 1),
+                'Toàn hệ thống'
+            ) AS primary_branch_name,
             COALESCE(ss.sales_invoiced, 0) AS sales_invoiced,
             COALESCE(SUM(se.session_revenue), 0) AS service_execution_revenue,
             COUNT(DISTINCT se.session_id) AS sessions_completed_count,
@@ -151,15 +161,20 @@ BEGIN
             COALESCE(SUM(se.duration_hours), 0) AS hands_on_hours,
             COALESCE(MAX(sha.approved_work_hours), 0) AS approved_work_hours
         FROM staff_profiles sp
-        JOIN branches b ON b.id = sp.primary_branch_id
         LEFT JOIN staff_sales ss ON ss.staff_id = sp.id
         LEFT JOIN staff_service_exec se ON se.staff_id = sp.id
         LEFT JOIN staff_hours_approved sha ON sha.staff_id = sp.id
         WHERE sp.organization_id = p_org_id
-          AND (p_branch_id IS NULL OR sp.primary_branch_id = p_branch_id)
+          AND (p_branch_id IS NULL OR EXISTS (
+              SELECT 1 FROM staff_branch_assignments sba 
+              WHERE sba.staff_id = sp.id AND sba.branch_id = p_branch_id AND sba.is_active = TRUE
+          ) OR EXISTS (
+              SELECT 1 FROM organization_memberships om
+              WHERE om.staff_id = sp.id AND (p_branch_id = ANY(om.assigned_branch_ids) OR om.assigned_branch_ids = '{}' OR om.role = 'owner_admin')
+          ))
           AND (p_staff_id IS NULL OR sp.id = p_staff_id)
           AND sp.is_active = TRUE
-        GROUP BY sp.id, sp.full_name, sp.job_title, b.name, ss.sales_invoiced
+        GROUP BY sp.id, sp.full_name, sp.title, sp.organization_id, ss.sales_invoiced
     )
     SELECT COALESCE(
         jsonb_agg(
@@ -352,8 +367,8 @@ BEGIN
               AND sa.status = 'completed'
               AND si.item_type = 'service'
               AND (p_staff_id IS NULL OR sa.cashier_staff_id = p_staff_id)
-        ) s
-        ORDER BY s.performed_at DESC
+        ) sub_s
+        ORDER BY sub_s.performed_at DESC
         LIMIT v_limit OFFSET v_offset
     )
     SELECT COALESCE(

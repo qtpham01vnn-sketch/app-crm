@@ -18,7 +18,7 @@ function assertExact(actual, expected, message) {
 
 async function runP73TestSuite() {
     console.log('================================================================================');
-    console.log('BỘ KIỂM THỬ TỰ ĐỘNG P7.3: HIỆU SUẤT NHÂN SỰ, BÁC SĨ & CÔNG SUẤT PHÒNG/GHẾ');
+    console.log('BỘ KIỂM THỬ TOÀN DIỆN P7.3: HIỆU SUẤT NHÂN SỰ, BÁC SĨ & CÔNG SUẤT PHÒNG/GHẾ');
     console.log('================================================================================\n');
 
     // 1. Context setup
@@ -38,7 +38,7 @@ async function runP73TestSuite() {
     console.log('--- TEST 1: Đọc Báo Cáo Hiệu Suất P7.3 & Xử Lý Mẫu Số 0 ---');
     const { data: rep, error: rErr } = await supabase.rpc('rpc_get_staff_and_resource_utilization_report', {
         p_org_id: orgId,
-        p_branch_id: branchB.id,
+        p_branch_id: branchA.id,
         p_start_date: '2026-09-01',
         p_end_date: '2026-09-30'
     });
@@ -69,10 +69,10 @@ async function runP73TestSuite() {
     let allSessionIds = new Set();
     let totalPages = rep.pagination.total_pages || 1;
 
-    while (page <= totalPages) {
+    while (page <= totalPages && page <= 5) {
         const { data: pageData } = await supabase.rpc('rpc_get_staff_and_resource_utilization_report', {
             p_org_id: orgId,
-            p_branch_id: branchB.id,
+            p_branch_id: branchA.id,
             p_start_date: '2026-09-01',
             p_end_date: '2026-09-30',
             p_page: page,
@@ -91,6 +91,30 @@ async function runP73TestSuite() {
 
     assertExact(allSessionIds.size, rep.pagination.total_records, 'Thu thập đầy đủ các ca phục vụ qua các trang drill-down');
 
+    // =========================================================================
+    // TEST 3: ĐỐI CHIẾU TỔNG SUMMARY KHỚP TỔNG TỪNG NHÂN VIÊN
+    // =========================================================================
+    console.log('\n--- TEST 3: Đối Chiếu Tổng KPI Summary Khớp Chi Tiết Từng Nhân Viên ---');
+    let sumSalesRep = 0;
+    let sumServiceExec = 0;
+    let sumSessions = 0;
+    let sumHandsOn = 0;
+    let sumApproved = 0;
+
+    for (const st of rep.staff_metrics) {
+        sumSalesRep += Number(st.sales_invoiced || 0);
+        sumServiceExec += Number(st.service_execution_revenue || 0);
+        sumSessions += Number(st.sessions_completed_count || 0);
+        sumHandsOn += Number(st.hands_on_hours || 0);
+        sumApproved += Number(st.approved_work_hours || 0);
+    }
+
+    assertExact(Number(rep.summary.total_sales_rep_revenue), sumSalesRep, 'Tổng Doanh Số Tư Vấn Bán Hàng khớp 100%');
+    assertExact(Number(rep.summary.total_service_exec_revenue), sumServiceExec, 'Tổng Doanh Thu Thực Hiện Dịch Vụ khớp 100%');
+    assertExact(Number(rep.summary.total_sessions_count), sumSessions, 'Tổng Số Ca Hoàn Thành khớp 100%');
+    assertExact(Number(rep.summary.total_hands_on_hours), Math.round(sumHandsOn * 100) / 100, 'Tổng Giờ Phục Vụ Trực Tiếp khớp 100%');
+    assertExact(Number(rep.summary.total_approved_work_hours), Math.round(sumApproved * 100) / 100, 'Tổng Giờ Công Đã Duyệt khớp 100%');
+
     console.log('\n================================================================================');
     console.log('🎉 TẤT CẢ KIỂM THỬ P7.3 ĐÃ HOÀN TẤT VÀ PASS 100%!');
     console.log('================================================================================\n');
@@ -100,3 +124,4 @@ runP73TestSuite().catch(err => {
     console.error('❌ Lỗi kiểm thử P7.3:', err);
     process.exit(1);
 });
+
