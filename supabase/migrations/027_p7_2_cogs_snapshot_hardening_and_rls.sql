@@ -307,7 +307,7 @@ BEGIN
 
     -- C. Doanh thu Trừ buổi Liệu trình thực tế tại chi nhánh phục vụ
     v_total_recognized_revenue := v_total_recognized_revenue + COALESCE((
-        SELECT SUM(ROUND((sd.sessions_deducted::NUMERIC / NULLIF(cc.total_sessions, 0)) * COALESCE(s.final_amount, s.total_amount, 0)))
+        SELECT SUM(ROUND((sd.sessions_deducted::NUMERIC / NULLIF(cc.total_sessions, 0)) * COALESCE(s.total_amount, 0)))
         FROM session_deductions sd
         JOIN customer_courses cc ON cc.id = sd.course_id
         LEFT JOIN sales s ON s.id = cc.sale_id
@@ -378,7 +378,7 @@ BEGIN
             s.name AS service_name,
             s.category,
             COUNT(DISTINCT sd.id) AS session_count,
-            COALESCE(SUM(ROUND((sd.sessions_deducted::NUMERIC / NULLIF(cc.total_sessions, 0)) * COALESCE(sa.final_amount, sa.total_amount, 0))), 0) AS revenue,
+            COALESCE(SUM(ROUND((sd.sessions_deducted::NUMERIC / NULLIF(cc.total_sessions, 0)) * COALESCE(sa.total_amount, 0))), 0) AS revenue,
             COALESCE(SUM(ROUND(smu.base_quantity_deducted * smu.cost_price_snapshot)), 0) AS material_cost
         FROM services s
         LEFT JOIN session_deductions sd ON sd.course_id IN (SELECT id FROM customer_courses WHERE service_id = s.id)
