@@ -708,3 +708,65 @@ export interface PayrollRecordDetail {
   paidAt?: string;
   paymentMethod?: string;
 }
+
+export interface SalesCashflowReport {
+  period: {
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  salesSummary: {
+    grossSales: number;
+    totalDiscount: number;
+    netInvoicedSales: number;
+    invoiceCount: number;
+    avgOrderValue: number;
+    newCustomerDebt: number;
+    packageCourseSales: number;
+  };
+  cashflowSummary: {
+    confirmedCashCollected: number;
+    pendingBankTransfers: number;
+    newDepositsCollected: number;
+    depositRedeemed: number;
+    debtRecovered: number;
+    totalRefundsPaid: number;
+    netSalesCashflow: number;
+  };
+  methodBreakdown: Array<{
+    paymentMethod: string;
+    totalAmount: number;
+    transactionCount: number;
+  }>;
+  earnedSummary: {
+    totalSessionsPerformed: number;
+    earnedSessionRevenue: number;
+  };
+  invoicesDrilldown: Array<{
+    id: string;
+    invoiceNumber: string;
+    branchId: string;
+    branchName: string;
+    customerName: string;
+    customerPhone: string;
+    totalAmount: number;
+    paidAmount: number;
+    debtAmount: number;
+    status: string;
+    createdAt: string;
+  }>;
+  paymentsDrilldown: Array<{
+    id: string;
+    paymentNumber: string;
+    branchId: string;
+    branchName: string;
+    customerName: string;
+    amount: number;
+    paymentMethod: string;
+    paymentType: string;
+    reconciliationStatus: string;
+    note?: string;
+    createdAt: string;
+  }>;
+}
+

@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport } from '../types';
 
 const isUUID = (val?: string | null): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -3023,8 +3023,98 @@ export const masterDataService = {
       success: res?.success ?? false,
       message: res?.message
     };
+  },
+
+  /**
+   * P7.1 BI ANALYTICS: Báo cáo Bán Hàng & Dòng Tiền Đa Chi Nhánh
+   */
+  async getSalesAndCashflowReport(params: {
+    orgId: string;
+    branchId?: string | null;
+    startDate?: string;
+    endDate?: string;
+    paymentMethod?: string | null;
+  }): Promise<SalesCashflowReport | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      return null;
+    }
+    const { data, error } = await supabase.rpc('rpc_get_sales_and_cashflow_report', {
+      p_org_id: params.orgId,
+      p_branch_id: isUUID(params.branchId) ? params.branchId : null,
+      p_start_date: params.startDate || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+      p_end_date: params.endDate || new Date().toISOString().split('T')[0],
+      p_payment_method: params.paymentMethod || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_get_sales_and_cashflow_report:', error);
+      throw error;
+    }
+    const res = data as any;
+    if (!res) return null;
+
+    return {
+      period: {
+        startDate: res.period?.start_date,
+        endDate: res.period?.end_date,
+        timezone: res.period?.timezone || 'Asia/Ho_Chi_Minh (UTC+7)'
+      },
+      salesSummary: {
+        grossSales: Number(res.sales_summary?.gross_sales) || 0,
+        totalDiscount: Number(res.sales_summary?.total_discount) || 0,
+        netInvoicedSales: Number(res.sales_summary?.net_invoiced_sales) || 0,
+        invoiceCount: Number(res.sales_summary?.invoice_count) || 0,
+        avgOrderValue: Number(res.sales_summary?.avg_order_value) || 0,
+        newCustomerDebt: Number(res.sales_summary?.new_customer_debt) || 0,
+        packageCourseSales: Number(res.sales_summary?.package_course_sales) || 0
+      },
+      cashflowSummary: {
+        confirmedCashCollected: Number(res.cashflow_summary?.confirmed_cash_collected) || 0,
+        pendingBankTransfers: Number(res.cashflow_summary?.pending_bank_transfers) || 0,
+        newDepositsCollected: Number(res.cashflow_summary?.new_deposits_collected) || 0,
+        depositRedeemed: Number(res.cashflow_summary?.deposit_redeemed) || 0,
+        debtRecovered: Number(res.cashflow_summary?.debt_recovered) || 0,
+        totalRefundsPaid: Number(res.cashflow_summary?.total_refunds_paid) || 0,
+        netSalesCashflow: Number(res.cashflow_summary?.net_sales_cashflow) || 0
+      },
+      methodBreakdown: (res.method_breakdown || []).map((m: any) => ({
+        paymentMethod: m.payment_method,
+        totalAmount: Number(m.total_amount) || 0,
+        transactionCount: Number(m.transaction_count) || 0
+      })),
+      earnedSummary: {
+        totalSessionsPerformed: Number(res.earned_summary?.total_sessions_performed) || 0,
+        earnedSessionRevenue: Number(res.earned_summary?.earned_session_revenue) || 0
+      },
+      invoicesDrilldown: (res.invoices_drilldown || []).map((inv: any) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoice_number,
+        branchId: inv.branch_id,
+        branchName: inv.branch_name,
+        customerName: inv.customer_name,
+        customerPhone: inv.customer_phone,
+        totalAmount: Number(inv.total_amount) || 0,
+        paidAmount: Number(inv.paid_amount) || 0,
+        debtAmount: Number(inv.debt_amount) || 0,
+        status: inv.status,
+        createdAt: inv.created_at
+      })),
+      paymentsDrilldown: (res.payments_drilldown || []).map((pay: any) => ({
+        id: pay.id,
+        paymentNumber: pay.payment_number,
+        branchId: pay.branch_id,
+        branchName: pay.branch_name,
+        customerName: pay.customer_name,
+        amount: Number(pay.amount) || 0,
+        paymentMethod: pay.payment_method,
+        paymentType: pay.payment_type,
+        reconciliationStatus: pay.reconciliation_status,
+        note: pay.note,
+        createdAt: pay.created_at
+      }))
+    };
   }
 };
+
 
 
 
