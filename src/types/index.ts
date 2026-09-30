@@ -866,4 +866,68 @@ export interface CogsAndProfitReport {
   };
 }
 
+export interface StaffAndResourceUtilizationReport {
+  period: {
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  summary: {
+    totalSalesRepRevenue: number;
+    totalServiceExecRevenue: number;
+    totalSessionsCount: number;
+    totalHandsOnHours: number;
+    totalApprovedWorkHours: number;
+    overallUtilizationPct: number | null;
+    disclaimer: string;
+  };
+  staffMetrics: Array<{
+    staffId: string;
+    fullName: string;
+    jobTitle: string;
+    primaryBranchName: string;
+    salesInvoiced: number;
+    serviceExecutionRevenue: number;
+    sessionsCompletedCount: number;
+    uniqueClientsServed: number;
+    handsOnHours: number;
+    approvedWorkHours: number;
+    utilizationPct: number | null;
+    ratingAvg: number | null;
+    ratingCount: number;
+    ratingStatus: string;
+  }>;
+  resourceMetrics: Array<{
+    resourceId: string;
+    code: string;
+    resourceName: string;
+    resourceType: string;
+    capacity: number;
+    branchName: string;
+    availableSeatHours: number;
+    maintenanceSeatHours: number;
+    bookedSeatHours: number;
+    actualUsedSeatHours: number;
+    bookedUtilizationPct: number | null;
+    actualUtilizationPct: number | null;
+  }>;
+  drilldown: {
+    totalRecords: number;
+    page: number;
+    pageSize: number;
+    items: Array<{
+      sessionId: string;
+      performedAt: string;
+      branchName: string;
+      customerName: string;
+      customerPhone: string;
+      serviceName: string;
+      staffName: string;
+      sessionSource: string;
+      allocatedRevenue: number;
+      durationHours: number;
+    }>;
+  };
+}
+
 

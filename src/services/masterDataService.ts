@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport, CogsAndProfitReport } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer, InventoryAudit, SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport } from '../types';
 
 
 
@@ -3253,6 +3253,101 @@ export const masterDataService = {
           isMissingCostSnapshot: Boolean(item.is_missing_cost_snapshot),
           performerName: item.performer_name,
           notes: item.notes
+        }))
+      }
+    };
+  },
+
+  async getStaffAndResourceUtilizationReport(params: {
+    orgId: string;
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+    staffId?: string;
+    resourceId?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<StaffAndResourceUtilizationReport | null> {
+    if (!isSupabaseConfigured || !supabase) return null;
+
+    const { data, error } = await supabase.rpc('rpc_get_staff_and_resource_utilization_report', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId || null,
+      p_start_date: params.startDate,
+      p_end_date: params.endDate,
+      p_staff_id: params.staffId || null,
+      p_resource_id: params.resourceId || null,
+      p_page: params.page || 1,
+      p_page_size: params.pageSize || 50
+    });
+
+    if (error) {
+      console.error('Lỗi khi lấy báo cáo hiệu suất nhân sự và tài nguyên P7.3:', error);
+      throw error;
+    }
+    const res = data as any;
+    if (!res) return null;
+
+    return {
+      period: {
+        startDate: res.start_date,
+        endDate: res.end_date,
+        timezone: res.timezone || 'Asia/Ho_Chi_Minh (UTC+7)'
+      },
+      summary: {
+        totalSalesRepRevenue: Number(res.summary?.total_sales_rep_revenue) || 0,
+        totalServiceExecRevenue: Number(res.summary?.total_service_exec_revenue) || 0,
+        totalSessionsCount: Number(res.summary?.total_sessions_count) || 0,
+        totalHandsOnHours: Number(res.summary?.total_hands_on_hours) || 0,
+        totalApprovedWorkHours: Number(res.summary?.total_approved_work_hours) || 0,
+        overallUtilizationPct: res.summary?.overall_utilization_pct !== null && res.summary?.overall_utilization_pct !== undefined ? Number(res.summary?.overall_utilization_pct) : null,
+        disclaimer: res.summary?.disclaimer || ''
+      },
+      staffMetrics: (res.staff_metrics || []).map((sm: any) => ({
+        staffId: sm.staff_id,
+        fullName: sm.full_name,
+        jobTitle: sm.job_title || 'Nhân viên',
+        primaryBranchName: sm.primary_branch_name || 'Chi nhánh chính',
+        salesInvoiced: Number(sm.sales_invoiced) || 0,
+        serviceExecutionRevenue: Number(sm.service_execution_revenue) || 0,
+        sessionsCompletedCount: Number(sm.sessions_completed_count) || 0,
+        uniqueClientsServed: Number(sm.unique_clients_served) || 0,
+        handsOnHours: Number(sm.hands_on_hours) || 0,
+        approvedWorkHours: Number(sm.approved_work_hours) || 0,
+        utilizationPct: sm.utilization_pct !== null && sm.utilization_pct !== undefined ? Number(sm.utilization_pct) : null,
+        ratingAvg: sm.rating_avg !== null && sm.rating_avg !== undefined ? Number(sm.rating_avg) : null,
+        ratingCount: Number(sm.rating_count) || 0,
+        ratingStatus: sm.rating_status || 'Chưa triển khai nguồn dữ liệu đánh giá'
+      })),
+      resourceMetrics: (res.resource_metrics || []).map((rm: any) => ({
+        resourceId: rm.resource_id,
+        code: rm.code,
+        resourceName: rm.resource_name,
+        resourceType: rm.resource_type,
+        capacity: Number(rm.capacity) || 1,
+        branchName: rm.branch_name,
+        availableSeatHours: Number(rm.available_seat_hours) || 0,
+        maintenanceSeatHours: Number(rm.maintenance_seat_hours) || 0,
+        bookedSeatHours: Number(rm.booked_seat_hours) || 0,
+        actualUsedSeatHours: Number(rm.actual_used_seat_hours) || 0,
+        bookedUtilizationPct: rm.booked_utilization_pct !== null && rm.booked_utilization_pct !== undefined ? Number(rm.booked_utilization_pct) : null,
+        actualUtilizationPct: rm.actual_utilization_pct !== null && rm.actual_utilization_pct !== undefined ? Number(rm.actual_utilization_pct) : null
+      })),
+      drilldown: {
+        totalRecords: Number(res.pagination?.total_records) || 0,
+        page: Number(res.pagination?.page) || 1,
+        pageSize: Number(res.pagination?.page_size) || 50,
+        items: (res.drilldown_sessions || []).map((item: any) => ({
+          sessionId: item.session_id,
+          performedAt: item.performed_at,
+          branchName: item.branch_name,
+          customerName: item.customer_name,
+          customerPhone: item.customer_phone,
+          serviceName: item.service_name,
+          staffName: item.staff_name,
+          sessionSource: item.session_source,
+          allocatedRevenue: Number(item.allocated_revenue) || 0,
+          durationHours: Number(item.duration_hours) || 0
         }))
       }
     };

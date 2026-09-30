@@ -21,14 +21,14 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
-import type { SalesCashflowReport, CogsAndProfitReport } from '../../types';
+import type { SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport } from '../../types';
 
 
 export const ReportsView: React.FC = () => {
   const { org, branches, sales, payments, customers, suppliers } = useApp();
 
   // Navigation Subtabs
-  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'cogs' | 'earned' | 'debt'>('sales');
+  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'cogs' | 'utilization' | 'earned' | 'debt'>('sales');
 
   // Filter States
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all'); // 'all' or specific branchId
@@ -43,13 +43,14 @@ export const ReportsView: React.FC = () => {
   // Report Data & Loading State
   const [reportData, setReportData] = useState<SalesCashflowReport | null>(null);
   const [cogsReportData, setCogsReportData] = useState<CogsAndProfitReport | null>(null);
+  const [staffReportData, setStaffReportData] = useState<StaffAndResourceUtilizationReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Drilldown Modal State
   const [drilldownModal, setDrilldownModal] = useState<{
     isOpen: boolean;
-    type: 'invoices' | 'payments' | 'cogs_materials';
+    type: 'invoices' | 'payments' | 'cogs_materials' | 'staff_sessions';
     title: string;
     subtitle: string;
   }>({
@@ -93,7 +94,7 @@ export const ReportsView: React.FC = () => {
       const branchIdParam = selectedBranchId === 'all' ? null : selectedBranchId;
       const methodParam = paymentMethodFilter === 'all' ? null : paymentMethodFilter;
       
-      const [salesRes, cogsRes] = await Promise.all([
+      const [salesRes, cogsRes, staffRes] = await Promise.all([
         masterDataService.getSalesAndCashflowReport({
           orgId: org.id,
           branchId: branchIdParam,
@@ -106,11 +107,18 @@ export const ReportsView: React.FC = () => {
           branchId: branchIdParam,
           startDate,
           endDate
+        }),
+        masterDataService.getStaffAndResourceUtilizationReport({
+          orgId: org.id,
+          branchId: branchIdParam || undefined,
+          startDate,
+          endDate
         })
       ]);
 
       setReportData(salesRes);
       setCogsReportData(cogsRes);
+      setStaffReportData(staffRes);
     } catch (err: any) {
       console.error('Lỗi tải báo cáo BI:', err);
       setErrorMsg(err.message || 'Không thể tải báo cáo từ máy chủ.');
@@ -405,6 +413,18 @@ export const ReportsView: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setReportTab('utilization')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            reportTab === 'utilization'
+              ? 'bg-cyan-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          <span>4. Hiệu Suất Nhân Sự & Phòng/Ghế (P7.3)</span>
+        </button>
+
+        <button
           onClick={() => setReportTab('earned')}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             reportTab === 'earned'
@@ -413,7 +433,7 @@ export const ReportsView: React.FC = () => {
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>4. Liệu Trình Trừ Buổi</span>
+          <span>5. Liệu Trình Trừ Buổi</span>
         </button>
 
         <button
@@ -425,9 +445,198 @@ export const ReportsView: React.FC = () => {
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>5. Sổ Công Nợ (AR / AP)</span>
+          <span>6. Sổ Công Nợ (AR / AP)</span>
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 4: HIỆU SUẤT NHÂN SỰ & CÔNG SUẤT TÀI NGUYÊN (P7.3) */}
+      {/* ========================================================================= */}
+      {reportTab === 'utilization' && (
+        <div className="space-y-6">
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 bg-gradient-to-br from-cyan-50 to-cyan-100/60 rounded-2xl border border-cyan-200">
+              <span className="text-xs font-bold text-cyan-800 uppercase tracking-wider">Doanh Số Tư Vấn Bán</span>
+              <p className="text-2xl font-black text-cyan-700 mt-2">
+                {(staffReportData?.summary?.totalSalesRepRevenue || 0).toLocaleString('vi-VN')}đ
+              </p>
+              <p className="text-[11px] text-cyan-600 font-semibold mt-1">Doanh số ký hợp đồng / hóa đơn</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-2xl border border-blue-200">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Doanh Thu Phục Vụ (KTV/Bác Sĩ)</span>
+              <p className="text-2xl font-black text-blue-700 mt-2">
+                {(staffReportData?.summary?.totalServiceExecRevenue || 0).toLocaleString('vi-VN')}đ
+              </p>
+              <p className="text-[11px] text-blue-600 font-semibold mt-1">Giá trị hoàn tất trên khách thực tế</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-teal-50 to-teal-100/60 rounded-2xl border border-teal-200">
+              <span className="text-xs font-bold text-teal-800 uppercase tracking-wider">Tổng Ca Phục Vụ Hoàn Tất</span>
+              <p className="text-2xl font-black text-teal-700 mt-2">
+                {(staffReportData?.summary?.totalSessionsCount || 0).toLocaleString('vi-VN')} <span className="text-sm font-bold text-slate-500">ca</span>
+              </p>
+              <p className="text-[11px] text-teal-600 font-semibold mt-1">Không đếm trùng lịch hẹn & trừ buổi</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100/60 rounded-2xl border border-emerald-200">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Hiệu Suất Sử Dụng Thời Gian</span>
+              <p className="text-2xl font-black text-emerald-700 mt-2">
+                {staffReportData?.summary?.overallUtilizationPct !== null && staffReportData?.summary?.overallUtilizationPct !== undefined
+                  ? `${staffReportData.summary.overallUtilizationPct}%`
+                  : 'N/A'}
+              </p>
+              <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                {(staffReportData?.summary?.totalHandsOnHours || 0)}h làm / {(staffReportData?.summary?.totalApprovedWorkHours || 0)}h duyệt
+              </p>
+            </div>
+          </div>
+
+          {/* Staff Performance Table */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-cyan-600" />
+                <span>Hiệu Suất & Năng Suất Từng Nhân Sự / Bác Sĩ / KTV</span>
+              </h4>
+              <button
+                onClick={() =>
+                  setDrilldownModal({
+                    isOpen: true,
+                    type: 'staff_sessions',
+                    title: 'Nhật Ký Chi Tiết Ca Phục Vụ Dịch Vụ',
+                    subtitle: `Danh sách các ca phục vụ thực tế (${startDate} đến ${endDate})`
+                  })
+                }
+                className="text-xs text-cyan-700 font-bold hover:underline flex items-center space-x-1"
+              >
+                <span>Xem chi tiết từng ca</span>
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="pb-3 px-2">Họ & Tên</th>
+                    <th className="pb-3 px-2">Chức Danh</th>
+                    <th className="pb-3 px-2">Chi Nhánh</th>
+                    <th className="pb-3 px-2 text-right">Doanh Số Tư Vấn</th>
+                    <th className="pb-3 px-2 text-right">Doanh Thu Phục Vụ</th>
+                    <th className="pb-3 px-2 text-center">Số Ca</th>
+                    <th className="pb-3 px-2 text-center">Số Khách</th>
+                    <th className="pb-3 px-2 text-center">Giờ Làm Khách</th>
+                    <th className="pb-3 px-2 text-center">Giờ Công Duyệt</th>
+                    <th className="pb-3 px-2 text-center">Hiệu Suất (%)</th>
+                    <th className="pb-3 px-2 text-center">Đánh Giá KH</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(staffReportData?.staffMetrics || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-6 text-center text-slate-400">
+                        Chưa có dữ liệu nhân sự trong kỳ lọc này.
+                      </td>
+                    </tr>
+                  ) : (
+                    (staffReportData?.staffMetrics || []).map((s) => (
+                      <tr key={s.staffId} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-2 font-bold text-slate-800">{s.fullName}</td>
+                        <td className="py-3 px-2 text-slate-500">{s.jobTitle}</td>
+                        <td className="py-3 px-2 text-slate-600">{s.primaryBranchName}</td>
+                        <td className="py-3 px-2 text-right font-bold text-cyan-800">{s.salesInvoiced.toLocaleString('vi-VN')}đ</td>
+                        <td className="py-3 px-2 text-right font-bold text-blue-800">{s.serviceExecutionRevenue.toLocaleString('vi-VN')}đ</td>
+                        <td className="py-3 px-2 text-center font-semibold text-slate-700">{s.sessionsCompletedCount} ca</td>
+                        <td className="py-3 px-2 text-center text-slate-600">{s.uniqueClientsServed} khách</td>
+                        <td className="py-3 px-2 text-center font-mono text-slate-700">{s.handsOnHours}h</td>
+                        <td className="py-3 px-2 text-center font-mono text-slate-700">{s.approvedWorkHours}h</td>
+                        <td className="py-3 px-2 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              s.utilizationPct !== null && s.utilizationPct >= 60
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : s.utilizationPct !== null
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {s.utilizationPct !== null ? `${s.utilizationPct}%` : 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="text-[10px] text-slate-400 italic">
+                            {s.ratingStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Resource Utilization Table */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <Package className="w-4 h-4 text-cyan-600" />
+              <span>Công Suất Khai Thác Tài Nguyên (Phòng / Giường / Ghế Điều Trị)</span>
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="pb-3 px-2">Mã Tài Nguyên</th>
+                    <th className="pb-3 px-2">Tên Phòng / Ghế</th>
+                    <th className="pb-3 px-2">Loại</th>
+                    <th className="pb-3 px-2">Chi Nhánh</th>
+                    <th className="pb-3 px-2 text-center">Sức Chứa (Chỗ)</th>
+                    <th className="pb-3 px-2 text-center">Chỗ × Giờ Mở Cửa</th>
+                    <th className="pb-3 px-2 text-center">Chỗ × Giờ Đặt Trước</th>
+                    <th className="pb-3 px-2 text-center">Chỗ × Giờ Thực Dùng</th>
+                    <th className="pb-3 px-2 text-center">Công Suất Đặt (%)</th>
+                    <th className="pb-3 px-2 text-center">Công Suất Thực (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(staffReportData?.resourceMetrics || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-6 text-center text-slate-400">
+                        Chưa có tài nguyên phòng/ghế nào được cấu hình trong chi nhánh này.
+                      </td>
+                    </tr>
+                  ) : (
+                    (staffReportData?.resourceMetrics || []).map((r) => (
+                      <tr key={r.resourceId} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-2 font-mono font-bold text-slate-700">{r.code}</td>
+                        <td className="py-3 px-2 font-bold text-slate-800">{r.resourceName}</td>
+                        <td className="py-3 px-2 text-slate-500 uppercase text-[10px] font-semibold">{r.resourceType}</td>
+                        <td className="py-3 px-2 text-slate-600">{r.branchName}</td>
+                        <td className="py-3 px-2 text-center font-bold text-slate-700">{r.capacity} chỗ</td>
+                        <td className="py-3 px-2 text-center font-mono text-slate-600">{r.availableSeatHours}h</td>
+                        <td className="py-3 px-2 text-center font-mono text-amber-700 font-semibold">{r.bookedSeatHours}h</td>
+                        <td className="py-3 px-2 text-center font-mono text-emerald-700 font-bold">{r.actualUsedSeatHours}h</td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            {r.bookedUtilizationPct !== null ? `${r.bookedUtilizationPct}%` : 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {r.actualUtilizationPct !== null ? `${r.actualUtilizationPct}%` : 'N/A'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: BÁN HÀNG & HÓA ĐƠN */}
@@ -879,6 +1088,54 @@ export const ReportsView: React.FC = () => {
                           <td className="py-3 px-2 text-right text-slate-500 font-mono text-[11px]">{inv.createdAt.slice(0, 16).replace('T', ' ')}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : drilldownModal.type === 'staff_sessions' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                        <th className="pb-3 px-2">Ngày Giờ</th>
+                        <th className="pb-3 px-2">Chi Nhánh</th>
+                        <th className="pb-3 px-2">Khách Hàng</th>
+                        <th className="pb-3 px-2">Dịch Vụ</th>
+                        <th className="pb-3 px-2">KTV / Bác Sĩ</th>
+                        <th className="pb-3 px-2">Nguồn Ca</th>
+                        <th className="pb-3 px-2 text-right">Doanh Thu Phân Bổ</th>
+                        <th className="pb-3 px-2 text-center">Thời Lượng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(staffReportData?.drilldown?.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            Không có ca phục vụ nào trong kỳ lọc này.
+                          </td>
+                        </tr>
+                      ) : (
+                        (staffReportData?.drilldown?.items || []).map((item) => (
+                          <tr key={item.sessionId} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-3 px-2 text-slate-500 font-mono text-[11px]">{item.performedAt.slice(0, 16).replace('T', ' ')}</td>
+                            <td className="py-3 px-2 font-semibold text-slate-700">{item.branchName}</td>
+                            <td className="py-3 px-2">
+                              <p className="font-bold text-slate-800">{item.customerName}</p>
+                              <p className="text-[10px] text-slate-400">{item.customerPhone}</p>
+                            </td>
+                            <td className="py-3 px-2 font-bold text-slate-800">{item.serviceName}</td>
+                            <td className="py-3 px-2 text-slate-700 font-semibold">{item.staffName}</td>
+                            <td className="py-3 px-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                item.sessionSource === 'course_deduct' ? 'bg-indigo-100 text-indigo-700' : 'bg-sky-100 text-sky-700'
+                              }`}>
+                                {item.sessionSource === 'course_deduct' ? 'Trừ liệu trình' : 'Dịch vụ POS'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-right font-bold text-blue-800">{item.allocatedRevenue.toLocaleString('vi-VN')}đ</td>
+                            <td className="py-3 px-2 text-center font-mono text-slate-600">{item.durationHours}h</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
