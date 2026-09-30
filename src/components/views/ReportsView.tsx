@@ -7,7 +7,6 @@ import {
   Filter,
   DollarSign,
   TrendingUp,
-  CreditCard,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -16,17 +15,20 @@ import {
   Layers,
   Sparkles,
   RefreshCw,
-  HelpCircle
+  PieChart,
+  Package,
+  Activity
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
-import type { SalesCashflowReport } from '../../types';
+import type { SalesCashflowReport, CogsAndProfitReport } from '../../types';
+
 
 export const ReportsView: React.FC = () => {
   const { org, branches, sales, payments, customers, suppliers } = useApp();
 
   // Navigation Subtabs
-  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'earned' | 'debt'>('sales');
+  const [reportTab, setReportTab] = useState<'sales' | 'cashflow' | 'cogs' | 'earned' | 'debt'>('sales');
 
   // Filter States
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all'); // 'all' or specific branchId
@@ -40,13 +42,14 @@ export const ReportsView: React.FC = () => {
 
   // Report Data & Loading State
   const [reportData, setReportData] = useState<SalesCashflowReport | null>(null);
+  const [cogsReportData, setCogsReportData] = useState<CogsAndProfitReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Drilldown Modal State
   const [drilldownModal, setDrilldownModal] = useState<{
     isOpen: boolean;
-    type: 'invoices' | 'payments';
+    type: 'invoices' | 'payments' | 'cogs_materials';
     title: string;
     subtitle: string;
   }>({
@@ -89,16 +92,27 @@ export const ReportsView: React.FC = () => {
     try {
       const branchIdParam = selectedBranchId === 'all' ? null : selectedBranchId;
       const methodParam = paymentMethodFilter === 'all' ? null : paymentMethodFilter;
-      const res = await masterDataService.getSalesAndCashflowReport({
-        orgId: org.id,
-        branchId: branchIdParam,
-        startDate,
-        endDate,
-        paymentMethod: methodParam
-      });
-      setReportData(res);
+      
+      const [salesRes, cogsRes] = await Promise.all([
+        masterDataService.getSalesAndCashflowReport({
+          orgId: org.id,
+          branchId: branchIdParam,
+          startDate,
+          endDate,
+          paymentMethod: methodParam
+        }),
+        masterDataService.getCogsAndGrossProfitReport({
+          orgId: org.id,
+          branchId: branchIdParam,
+          startDate,
+          endDate
+        })
+      ]);
+
+      setReportData(salesRes);
+      setCogsReportData(cogsRes);
     } catch (err: any) {
-      console.error('Lỗi tải báo cáo P7.1:', err);
+      console.error('Lỗi tải báo cáo BI:', err);
       setErrorMsg(err.message || 'Không thể tải báo cáo từ máy chủ.');
     } finally {
       setLoading(false);
@@ -148,6 +162,16 @@ export const ReportsView: React.FC = () => {
     netSalesCashflow: offlineFilteredPayments.filter(p => (p.paymentMethod as string) !== 'deposit_credit' && (p.paymentMethod as string) !== 'deposit').reduce((sum, p) => sum + (p.amount || 0), 0)
   };
 
+  const cogsSummary = cogsReportData?.summary || {
+    recognizedRevenue: 0,
+    cogsProducts: 0,
+    materialCost: 0,
+    directCommission: 0,
+    directContribution: 0,
+    marginPct: null,
+    missingCostWarningCount: 0,
+    disclaimer: 'Chênh lệch trực tiếp sau giá vốn, vật tư và hoa hồng.'
+  };
 
   const earnedKpi = reportData?.earnedSummary || {
     totalSessionsPerformed: 0,
@@ -170,6 +194,16 @@ export const ReportsView: React.FC = () => {
       const invoices = reportData?.invoicesDrilldown || [];
       invoices.forEach(inv => {
         csvContent += `"${inv.invoiceNumber}","${inv.branchName}","${inv.customerName}","${inv.customerPhone || ''}",${inv.totalAmount},${inv.paidAmount},${inv.debtAmount},"${inv.status}","${inv.createdAt}"\n`;
+      });
+    } else if (reportTab === 'cogs') {
+      csvContent += 'BÁO CÁO GIÁ VỐN & TIÊU HAO VẬT TƯ (P7.2 COGS)\n';
+      csvContent += `Thời gian: ${startDate} đến ${endDate} (Múi giờ: Asia/Ho_Chi_Minh)\n`;
+      csvContent += `Chi nhánh: ${selectedBranchId === 'all' ? 'Toàn chuỗi' : branches.find(b => b.id === selectedBranchId)?.name || selectedBranchId}\n\n`;
+      csvContent += 'Ngày Giờ,Chi Nhánh,Dịch Vụ,Vật Tư,Định Mức,Thực Tế,ĐVT,Giá Vốn Snapshot (VNĐ),Thành Tiền (VNĐ),KTV Thực Hiện,Ghi Chú\n';
+      
+      const items = cogsReportData?.drilldown?.items || [];
+      items.forEach(d => {
+        csvContent += `"${d.usedAt}","${d.branchName}","${d.serviceName}","${d.productName}",${d.standardQty},${d.actualQty},"${d.unit}",${d.costPriceSnapshot},${d.totalCost},"${d.performerName || ''}","${d.notes || ''}"\n`;
       });
     } else {
       csvContent += 'BÁO CÁO DÒNG TIỀN & ĐỐI SOÁT THANH TOÁN\n';
@@ -203,13 +237,13 @@ export const ReportsView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-lg text-slate-800">Trung Tâm Phân Tích & Báo Cáo BI (P7.1)</h3>
+              <h3 className="font-bold text-lg text-slate-800">Trung Tâm Phân Tích & Báo Cáo BI (P7.1 & P7.2)</h3>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-700">
                 Asia/Ho_Chi_Minh
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Tách bạch chuẩn hóa: Bán hàng trên Hóa đơn • Dòng tiền Thực thu • Cọc • Liệu trình • Công nợ
+              Bán hàng Hóa đơn • Dòng tiền Thực thu • Định mức BOM • Giá vốn COGS • Lợi nhuận trực tiếp
             </p>
           </div>
         </div>
@@ -230,7 +264,7 @@ export const ReportsView: React.FC = () => {
             className="text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition-all"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Xuất Excel / CSV</span>
+            <span>Xuất CSV (UTF-8 BOM)</span>
           </button>
         </div>
       </div>
@@ -333,64 +367,74 @@ export const ReportsView: React.FC = () => {
       )}
 
       {/* Navigation Subtabs Bar */}
-      <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+      <div className="flex items-center space-x-2 border-b border-slate-100 pb-2 overflow-x-auto">
         <button
           onClick={() => setReportTab('sales')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             reportTab === 'sales'
               ? 'bg-sky-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           <TrendingUp className="w-4 h-4" />
-          <span>1. Bán Hàng & Hóa Đơn (Sales Invoiced)</span>
+          <span>1. Bán Hàng & Hóa Đơn</span>
         </button>
 
         <button
           onClick={() => setReportTab('cashflow')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             reportTab === 'cashflow'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           <DollarSign className="w-4 h-4" />
-          <span>2. Dòng Tiền & Thực Thu (Cash Flow)</span>
+          <span>2. Dòng Tiền Thu Khách</span>
+        </button>
+
+        <button
+          onClick={() => setReportTab('cogs')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            reportTab === 'cogs'
+              ? 'bg-violet-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <PieChart className="w-4 h-4" />
+          <span>3. Giá Vốn & Lợi Nhuận Trực Tiếp (P7.2)</span>
         </button>
 
         <button
           onClick={() => setReportTab('earned')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             reportTab === 'earned'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>3. Doanh Thu Dịch Vụ / Liệu Trình (Earned)</span>
+          <span>4. Liệu Trình Trừ Buổi</span>
         </button>
 
         <button
           onClick={() => setReportTab('debt')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             reportTab === 'debt'
               ? 'bg-amber-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>4. Sổ Công Nợ (AR / AP)</span>
+          <span>5. Sổ Công Nợ (AR / AP)</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: BÁN HÀNG & HÓA ĐƠN (SALES INVOICING) */}
+      {/* TAB 1: BÁN HÀNG & HÓA ĐƠN */}
       {/* ========================================================================= */}
       {reportTab === 'sales' && (
         <div className="space-y-6">
-          {/* KPI Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* KPI 1: Gross Sales */}
             <div
               onClick={() =>
                 setDrilldownModal({
@@ -415,7 +459,6 @@ export const ReportsView: React.FC = () => {
               </div>
             </div>
 
-            {/* KPI 2: Total Discounts */}
             <div className="p-5 bg-gradient-to-br from-rose-50/50 to-rose-100/30 rounded-2xl border border-rose-200/60">
               <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Chiết Khấu / Giảm Giá</span>
               <p className="text-2xl font-black text-rose-700 mt-2">
@@ -424,7 +467,6 @@ export const ReportsView: React.FC = () => {
               <p className="text-[11px] text-rose-600/80 mt-2">Voucher & khuyến mãi trực tiếp trên hóa đơn</p>
             </div>
 
-            {/* KPI 3: Net Invoiced Sales */}
             <div
               onClick={() =>
                 setDrilldownModal({
@@ -449,54 +491,23 @@ export const ReportsView: React.FC = () => {
               </div>
             </div>
 
-            {/* KPI 4: Unpaid Debt Generated */}
             <div className="p-5 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl border border-amber-200">
               <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Nợ Khách Mới Phát Sinh</span>
               <p className="text-2xl font-black text-amber-700 mt-2">
                 {salesKpi.newCustomerDebt.toLocaleString('vi-VN')}đ
               </p>
-              <p className="text-[11px] text-amber-700 mt-2">Chưa thu tiền mặt / chuyển khoản trong kỳ</p>
-            </div>
-          </div>
-
-          {/* Additional Info Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
-              <div className="flex items-center space-x-2 text-indigo-800 font-bold text-xs uppercase tracking-wider mb-2">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                <span>Doanh Số Bán Gói Liệu Trình Trả Trước</span>
-              </div>
-              <p className="text-2xl font-black text-indigo-700">
-                {salesKpi.packageCourseSales.toLocaleString('vi-VN')}đ
-              </p>
-              <p className="text-xs text-indigo-600/90 mt-2 leading-relaxed">
-                Số tiền khách mua gói dịch vụ trả trước (thẻ liệu trình). Doanh thu này sẽ được ghi nhận thực hiện (Earned Revenue) tương ứng khi khách đến làm từng buổi.
-              </p>
-            </div>
-
-            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
-              <div className="flex items-center space-x-1.5 font-bold text-slate-800 text-sm">
-                <HelpCircle className="w-4 h-4 text-slate-500" />
-                <span>Quy tắc hạch toán Doanh số Bán Hàng:</span>
-              </div>
-              <ul className="text-slate-600 space-y-1.5 list-disc pl-4 leading-relaxed">
-                <li>Lọc theo <strong>ngày tạo hóa đơn</strong> (<code className="text-sky-700">sales.created_at</code>) trong múi giờ <code className="text-sky-700">Asia/Ho_Chi_Minh</code>.</li>
-                <li>Không bao gồm các hóa đơn đã bị hủy (<code className="text-rose-600">status = 'cancelled'</code>).</li>
-                <li>Hóa đơn cho nợ vẫn tính đủ vào Doanh số hóa đơn, nhưng được theo dõi riêng tại mục Nợ phát sinh.</li>
-              </ul>
+              <p className="text-[11px] text-amber-700 mt-2">Đã trừ tiền mặt & cọc cấn trừ</p>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: DÒNG TIỀN & THỰC THU (CASHFLOW & SETTLEMENT) */}
+      {/* TAB 2: DÒNG TIỀN & THỰC THU */}
       {/* ========================================================================= */}
       {reportTab === 'cashflow' && (
         <div className="space-y-6">
-          {/* Cashflow Main KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* KPI 6: Confirmed Cash In */}
             <div
               onClick={() =>
                 setDrilldownModal({
@@ -521,7 +532,6 @@ export const ReportsView: React.FC = () => {
               </div>
             </div>
 
-            {/* KPI 7: Pending VietQR */}
             <div className="p-5 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl border border-amber-200">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Chuyển Khoản Chờ Xác Nhận</span>
@@ -531,13 +541,12 @@ export const ReportsView: React.FC = () => {
                 {cashflowKpi.pendingBankTransfers.toLocaleString('vi-VN')}đ
               </p>
               <p className="text-[11px] text-amber-700 font-semibold mt-2">
-                ⚠️ Tuyệt đối chưa tính vào tiền thực thu két
+                ⚠️ Chưa đối soát xong, tách riêng không cộng vào két
               </p>
             </div>
 
-            {/* KPI 12: Net Cashflow */}
             <div className="p-5 bg-gradient-to-br from-sky-50 to-sky-100/50 rounded-2xl border border-sky-200">
-              <span className="text-xs font-bold text-sky-800 uppercase tracking-wider">Dòng Tiền Thuần Kỳ Này</span>
+              <span className="text-xs font-bold text-sky-800 uppercase tracking-wider">Dòng Tiền Thu Thuần Từ Khách</span>
               <p className={`text-3xl font-black mt-2 ${cashflowKpi.netSalesCashflow >= 0 ? 'text-sky-700' : 'text-rose-700'}`}>
                 {cashflowKpi.netSalesCashflow.toLocaleString('vi-VN')}đ
               </p>
@@ -547,65 +556,171 @@ export const ReportsView: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Sub KPIs: Deposits & Debt Recovery */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-xs font-bold text-slate-600 uppercase">1. Tiền Cọc Thu Mới Kỳ Này</span>
-              <p className="text-xl font-black text-slate-800 mt-1">
-                {cashflowKpi.newDepositsCollected.toLocaleString('vi-VN')}đ
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">Khách đặt cọc trước (đã nằm trong Thực thu)</p>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-xs font-bold text-slate-600 uppercase">2. Cọc Cũ Cấn Trừ Vào Đơn</span>
-              <p className="text-xl font-black text-indigo-700 mt-1">
-                {cashflowKpi.depositRedeemed.toLocaleString('vi-VN')}đ
-              </p>
-              <p className="text-[11px] text-indigo-600 mt-1">Không tính vào tiền mới để chống đếm trùng</p>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-xs font-bold text-slate-600 uppercase">3. Thu Hồi Nợ Cũ Trong Kỳ</span>
-              <p className="text-xl font-black text-emerald-700 mt-1">
-                {cashflowKpi.debtRecovered.toLocaleString('vi-VN')}đ
-              </p>
-              <p className="text-[11px] text-emerald-600 mt-1">Khách trả nợ của các đơn kỳ trước</p>
-            </div>
-          </div>
-
-          {/* Payment Method Breakdown */}
-          {reportData?.methodBreakdown && reportData.methodBreakdown.length > 0 && (
-            <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
-                <CreditCard className="w-4 h-4 text-sky-600" />
-                <span>Cơ Cấu Phương Thức Thanh Toán (Thực Thu Đã Xác Nhận)</span>
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {reportData.methodBreakdown.map((m) => {
-                  const methodLabels: Record<string, string> = {
-                    cash: 'Tiền mặt',
-                    transfer_vietqr: 'Chuyển khoản VietQR',
-                    card: 'Thẻ POS',
-                    deposit_credit: 'Cấn trừ cọc'
-                  };
-                  return (
-                    <div key={m.paymentMethod} className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-                      <p className="text-xs font-bold text-slate-600">{methodLabels[m.paymentMethod] || m.paymentMethod}</p>
-                      <p className="text-lg font-black text-slate-800 mt-1">{m.totalAmount.toLocaleString('vi-VN')}đ</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{m.transactionCount} giao dịch</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: DOANH THU DỊCH VỤ / LIỆU TRÌNH (EARNED REVENUE) */}
+      {/* TAB 3: GIÁ VỐN & LỢI NHUẬN TRỰC TIẾP (PHASE P7.2) */}
+      {/* ========================================================================= */}
+      {reportTab === 'cogs' && (
+        <div className="space-y-6">
+          {/* Main Direct Contribution KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-2xl border border-indigo-200">
+              <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Doanh Thu Cơ Sở Tính LN</span>
+              <p className="text-2xl font-black text-indigo-700 mt-2">
+                {cogsSummary.recognizedRevenue.toLocaleString('vi-VN')}đ
+              </p>
+              <p className="text-[11px] text-indigo-600 mt-2">Sản phẩm bán + Dịch vụ lẻ + Trừ buổi thực tế</p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl border border-amber-200">
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Giá Vốn SP & Chi Phí Vật Tư</span>
+              <p className="text-2xl font-black text-amber-700 mt-2">
+                {(cogsSummary.cogsProducts + cogsSummary.materialCost).toLocaleString('vi-VN')}đ
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-amber-700 mt-2">
+                <span>SP: {cogsSummary.cogsProducts.toLocaleString('vi-VN')}đ</span>
+                <span>Vật tư: {cogsSummary.materialCost.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-rose-50/60 to-rose-100/40 rounded-2xl border border-rose-200">
+              <span className="text-xs font-bold text-rose-700 uppercase tracking-wider">Hoa Hồng Trực Tiếp</span>
+              <p className="text-2xl font-black text-rose-700 mt-2">
+                {cogsSummary.directCommission.toLocaleString('vi-VN')}đ
+              </p>
+              <p className="text-[11px] text-rose-600 mt-2">Gắn liền với ca thực hiện & bán lẻ</p>
+            </div>
+
+            <div
+              onClick={() =>
+                setDrilldownModal({
+                  isOpen: true,
+                  type: 'cogs_materials',
+                  title: 'Chi Tiết Xuất Dùng Vật Tư Ca Dịch Vụ',
+                  subtitle: `Danh sách từng ca phục vụ kèm snapshot giá vốn (${startDate} đến ${endDate})`
+                })
+              }
+              className="p-5 bg-gradient-to-br from-violet-50 to-violet-100/60 rounded-2xl border border-violet-200 hover:border-violet-400 hover:shadow-sm transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-violet-800 uppercase tracking-wider">Chênh Lệch Trực Tiếp (I)</span>
+                <Eye className="w-4 h-4 text-violet-500 group-hover:text-violet-800 transition-colors" />
+              </div>
+              <p className={`text-2xl font-black mt-2 ${cogsSummary.directContribution >= 0 ? 'text-violet-700' : 'text-rose-700'}`}>
+                {cogsSummary.directContribution.toLocaleString('vi-VN')}đ
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-violet-700 font-bold mt-2">
+                <span>Tỷ suất sinh lời:</span>
+                <span>{cogsSummary.marginPct !== null ? `${cogsSummary.marginPct}%` : 'Không áp dụng'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Service Breakdown Table */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-3">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <Activity className="w-4 h-4 text-violet-600" />
+              <span>Hiệu Quả Sinh Lời Trực Tiếp Theo Từng Dịch Vụ</span>
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="pb-3 px-2">Tên Dịch Vụ</th>
+                    <th className="pb-3 px-2">Nhóm</th>
+                    <th className="pb-3 px-2 text-center">Số Ca Phục Vụ</th>
+                    <th className="pb-3 px-2 text-right">Doanh Thu Phân Bổ</th>
+                    <th className="pb-3 px-2 text-right">Chi Phí Vật Tư</th>
+                    <th className="pb-3 px-2 text-right">Chênh Lệch Trực Tiếp</th>
+                    <th className="pb-3 px-2 text-center">Tỷ Suất (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(cogsReportData?.serviceBreakdown || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-slate-400">
+                        Chưa có ca dịch vụ hoặc tiêu hao vật tư phát sinh trong kỳ lọc này.
+                      </td>
+                    </tr>
+                  ) : (
+                    (cogsReportData?.serviceBreakdown || []).map((s) => (
+                      <tr key={s.serviceId} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-2 font-bold text-slate-800">{s.serviceName}</td>
+                        <td className="py-3 px-2 text-slate-500">{s.category}</td>
+                        <td className="py-3 px-2 text-center font-semibold text-slate-700">{s.sessionCount} ca</td>
+                        <td className="py-3 px-2 text-right font-bold text-slate-900">{s.recognizedRevenue.toLocaleString('vi-VN')}đ</td>
+                        <td className="py-3 px-2 text-right text-amber-700 font-semibold">{s.materialCost.toLocaleString('vi-VN')}đ</td>
+                        <td className={`py-3 px-2 text-right font-black ${s.directContribution >= 0 ? 'text-violet-700' : 'text-rose-600'}`}>
+                          {s.directContribution.toLocaleString('vi-VN')}đ
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.marginPct !== null && s.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                            {s.marginPct !== null ? `${s.marginPct}%` : 'K/A'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Variance & Shrinkage Breakdown Cards */}
+          <div className="p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+              <Package className="w-4 h-4 text-slate-600" />
+              <span>Phân Tích 5 Loại Chênh Lệch Vật Tư & Tồn Kho (Độc Lập & Minh Bạch)</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-bold text-slate-600">1. Chênh Lệch Định Mức BOM</span>
+                <p className="text-base font-black text-indigo-700 mt-1">
+                  {(cogsReportData?.varianceBreakdown?.bomVariance || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Thực tế dùng vs Định mức</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-bold text-slate-600">2. Hao Hụt Kiểm Kê</span>
+                <p className="text-base font-black text-rose-700 mt-1">
+                  {(cogsReportData?.varianceBreakdown?.auditShrinkage || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Lệch tồn sổ sách vs Đếm thực</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-bold text-slate-600">3. Hàng Hỏng / Hết Hạn</span>
+                <p className="text-base font-black text-slate-800 mt-1">
+                  {(cogsReportData?.varianceBreakdown?.damagedExpiredLoss || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Tổn thất hủy hàng</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-bold text-slate-600">4. Chênh Lệch Điều Chuyển</span>
+                <p className="text-base font-black text-slate-800 mt-1">
+                  {(cogsReportData?.varianceBreakdown?.transferVariance || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Xuất gửi vs Thực nhận</p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-bold text-slate-600">5. Xuất Chưa Phân Bổ</span>
+                <p className="text-base font-black text-slate-800 mt-1">
+                  {(cogsReportData?.varianceBreakdown?.unassignedUsage || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Dùng nội bộ chưa gán ca</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: DOANH THU LIỆU TRÌNH TRỪ BUỔI */}
       {/* ========================================================================= */}
       {reportTab === 'earned' && (
         <div className="space-y-6">
@@ -634,25 +749,11 @@ export const ReportsView: React.FC = () => {
               </p>
             </div>
           </div>
-
-          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-3">
-            <h4 className="font-bold text-slate-800 text-sm">Phân biệt Doanh thu Bán Thẻ vs Doanh thu Thực Hiện:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-600 leading-relaxed">
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200">
-                <p className="font-bold text-slate-800 mb-1">1. Bán Thẻ / Gói Liệu Trình (Deferred Revenue)</p>
-                <p>Khách thanh toán 10.000.000đ cho gói 10 buổi. Dòng tiền thực thu ghi nhận +10tr, nhưng đây là doanh thu nhận trước (chưa thực hiện).</p>
-              </div>
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200">
-                <p className="font-bold text-slate-800 mb-1">2. Trừ Buổi Khi Khách Làm (Earned Revenue)</p>
-                <p>Mỗi lần khách đến làm 1 buổi, hệ thống trừ 1 buổi và hạch toán doanh thu thực hiện là 1.000.000đ. Đảm bảo phản ánh chính xác hiệu suất phục vụ.</p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 4: SỔ CÔNG NỢ (DEBT OVERVIEW) */}
+      {/* TAB 5: SỔ CÔNG NỢ */}
       {/* ========================================================================= */}
       {reportTab === 'debt' && (
         <div className="space-y-6">
@@ -681,13 +782,6 @@ export const ReportsView: React.FC = () => {
               </p>
             </div>
           </div>
-
-          <div className="p-5 bg-amber-50/60 rounded-2xl border border-amber-200 text-xs space-y-2">
-            <h4 className="font-bold text-amber-900 text-sm">Nguyên tắc quản trị công nợ Spa & Thẩm Mỹ:</h4>
-            <p className="text-amber-800 leading-relaxed">
-              Các khoản nợ phát sinh từ hóa đơn bán hàng chỉ được ghi nhận giảm trừ khi có phiếu thu loại <code className="text-amber-950 font-bold">debt_collection</code> (thu nợ). Hàng hóa hoàn trả hoặc điều chỉnh dịch vụ phải có biên bản đối soát và chỉ người có thẩm quyền mới được duyệt điều chỉnh sổ nợ.
-            </p>
-          </div>
         </div>
       )}
 
@@ -696,8 +790,7 @@ export const ReportsView: React.FC = () => {
       {/* ========================================================================= */}
       {drilldownModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
-            {/* Modal Header */}
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div>
                 <h3 className="font-bold text-base text-slate-800">{drilldownModal.title}</h3>
@@ -711,9 +804,49 @@ export const ReportsView: React.FC = () => {
               </button>
             </div>
 
-            {/* Modal Content Table */}
             <div className="p-6 overflow-y-auto flex-1">
-              {drilldownModal.type === 'invoices' ? (
+              {drilldownModal.type === 'cogs_materials' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 font-bold">
+                        <th className="pb-3 px-2">Ngày Giờ</th>
+                        <th className="pb-3 px-2">Chi Nhánh</th>
+                        <th className="pb-3 px-2">Dịch Vụ</th>
+                        <th className="pb-3 px-2">Vật Tư Tiêu Hao</th>
+                        <th className="pb-3 px-2 text-center">Định Mức / Thực Tế</th>
+                        <th className="pb-3 px-2 text-right">Giá Vốn Snapshot</th>
+                        <th className="pb-3 px-2 text-right">Thành Tiền</th>
+                        <th className="pb-3 px-2">KTV Thực Hiện</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(cogsReportData?.drilldown?.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            Không có dữ liệu tiêu hao vật tư nào trong kỳ này
+                          </td>
+                        </tr>
+                      ) : (
+                        (cogsReportData?.drilldown?.items || []).map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-3 px-2 text-slate-500 font-mono text-[11px]">{item.usedAt.slice(0, 16).replace('T', ' ')}</td>
+                            <td className="py-3 px-2 font-semibold text-slate-700">{item.branchName}</td>
+                            <td className="py-3 px-2 font-bold text-slate-800">{item.serviceName}</td>
+                            <td className="py-3 px-2 text-slate-700">{item.productName}</td>
+                            <td className="py-3 px-2 text-center">
+                              <span className="text-slate-400 font-mono">{item.standardQty}</span> / <span className="font-bold text-indigo-700 font-mono">{item.actualQty} {item.unit}</span>
+                            </td>
+                            <td className="py-3 px-2 text-right font-mono text-slate-600">{item.costPriceSnapshot.toLocaleString('vi-VN')}đ</td>
+                            <td className="py-3 px-2 text-right font-bold text-violet-700">{item.totalCost.toLocaleString('vi-VN')}đ</td>
+                            <td className="py-3 px-2 text-slate-600">{item.performerName || '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : drilldownModal.type === 'invoices' ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
                     <thead>
@@ -729,49 +862,23 @@ export const ReportsView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {(reportData?.invoicesDrilldown || []).length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-8 text-center text-slate-400">
-                            Không có hóa đơn nào trong khoảng thời gian này
+                      {(reportData?.invoicesDrilldown || []).map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-2 font-mono font-bold text-sky-700">{inv.invoiceNumber}</td>
+                          <td className="py-3 px-2 text-slate-700">{inv.branchName}</td>
+                          <td className="py-3 px-2">
+                            <p className="font-bold text-slate-800">{inv.customerName}</p>
+                            <p className="text-[10px] text-slate-400">{inv.customerPhone}</p>
                           </td>
+                          <td className="py-3 px-2 text-right font-bold text-slate-900">{inv.totalAmount.toLocaleString('vi-VN')}đ</td>
+                          <td className="py-3 px-2 text-right text-emerald-600 font-semibold">{inv.paidAmount.toLocaleString('vi-VN')}đ</td>
+                          <td className="py-3 px-2 text-right text-rose-600 font-bold">{inv.debtAmount > 0 ? `${inv.debtAmount.toLocaleString('vi-VN')}đ` : '-'}</td>
+                          <td className="py-3 px-2 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">{inv.status}</span>
+                          </td>
+                          <td className="py-3 px-2 text-right text-slate-500 font-mono text-[11px]">{inv.createdAt.slice(0, 16).replace('T', ' ')}</td>
                         </tr>
-                      ) : (
-                        (reportData?.invoicesDrilldown || []).map((inv) => (
-                          <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-2 font-mono font-bold text-sky-700">{inv.invoiceNumber}</td>
-                            <td className="py-3 px-2 text-slate-700">{inv.branchName}</td>
-                            <td className="py-3 px-2">
-                              <p className="font-bold text-slate-800">{inv.customerName}</p>
-                              <p className="text-[10px] text-slate-400">{inv.customerPhone}</p>
-                            </td>
-                            <td className="py-3 px-2 text-right font-bold text-slate-900">
-                              {inv.totalAmount.toLocaleString('vi-VN')}đ
-                            </td>
-                            <td className="py-3 px-2 text-right text-emerald-600 font-semibold">
-                              {inv.paidAmount.toLocaleString('vi-VN')}đ
-                            </td>
-                            <td className="py-3 px-2 text-right text-rose-600 font-bold">
-                              {inv.debtAmount > 0 ? `${inv.debtAmount.toLocaleString('vi-VN')}đ` : '-'}
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  inv.status === 'completed'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : inv.status === 'partial'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-slate-100 text-slate-700'
-                                }`}
-                              >
-                                {inv.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-2 text-right text-slate-500 font-mono text-[11px]">
-                              {inv.createdAt.slice(0, 16).replace('T', ' ')}
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -784,63 +891,34 @@ export const ReportsView: React.FC = () => {
                         <th className="pb-3 px-2">Chi Nhánh</th>
                         <th className="pb-3 px-2">Khách Hàng</th>
                         <th className="pb-3 px-2">Phương Thức</th>
-                        <th className="pb-3 px-2">Loại GD</th>
                         <th className="pb-3 px-2 text-right">Số Tiền</th>
                         <th className="pb-3 px-2 text-center">Đối Soát</th>
                         <th className="pb-3 px-2 text-right">Ngày Giờ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {(reportData?.paymentsDrilldown || []).length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-8 text-center text-slate-400">
-                            Không có phiếu thanh toán nào trong khoảng thời gian này
+                      {(reportData?.paymentsDrilldown || []).map((pay) => (
+                        <tr key={pay.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-2 font-mono font-bold text-emerald-700">{pay.paymentNumber}</td>
+                          <td className="py-3 px-2 text-slate-700">{pay.branchName}</td>
+                          <td className="py-3 px-2 font-bold text-slate-800">{pay.customerName}</td>
+                          <td className="py-3 px-2 text-slate-600 font-semibold">{pay.paymentMethod}</td>
+                          <td className="py-3 px-2 text-right font-black text-slate-900">{pay.amount.toLocaleString('vi-VN')}đ</td>
+                          <td className="py-3 px-2 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">{pay.reconciliationStatus}</span>
                           </td>
+                          <td className="py-3 px-2 text-right text-slate-500 font-mono text-[11px]">{pay.createdAt.slice(0, 16).replace('T', ' ')}</td>
                         </tr>
-                      ) : (
-                        (reportData?.paymentsDrilldown || []).map((pay) => (
-                          <tr key={pay.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-2 font-mono font-bold text-emerald-700">{pay.paymentNumber}</td>
-                            <td className="py-3 px-2 text-slate-700">{pay.branchName}</td>
-                            <td className="py-3 px-2 font-bold text-slate-800">{pay.customerName}</td>
-                            <td className="py-3 px-2 font-semibold text-slate-600">{pay.paymentMethod}</td>
-                            <td className="py-3 px-2">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                                {pay.paymentType}
-                              </span>
-                            </td>
-                            <td className="py-3 px-2 text-right font-black text-slate-900">
-                              {pay.amount.toLocaleString('vi-VN')}đ
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  pay.reconciliationStatus === 'confirmed'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : pay.reconciliationStatus === 'pending_reconciliation'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-rose-100 text-rose-700'
-                                }`}
-                              >
-                                {pay.reconciliationStatus}
-                              </span>
-                            </td>
-                            <td className="py-3 px-2 text-right text-slate-500 font-mono text-[11px]">
-                              {pay.createdAt.slice(0, 16).replace('T', ' ')}
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <span className="text-xs text-slate-500">
-                Hiển thị tối đa 100 chứng từ gần nhất trong kỳ lọc
+                Hiển thị dữ liệu phân trang phía máy chủ
               </span>
               <button
                 onClick={() => setDrilldownModal({ isOpen: false, type: 'invoices', title: '', subtitle: '' })}

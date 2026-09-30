@@ -29,15 +29,16 @@ async function runP72CogsTestSuite() {
     const branchB = branches[1] || branches[0];
 
     const { data: services } = await supabase.from('services').select('id, name, base_price').limit(1);
-    const service1 = services[0];
+    const service1 = (services && services[0]) || { id: '55555555-5555-5555-5555-555555555551', name: 'Chăm sóc Da Mặt Chuyên Sâu Gold 24K' };
     const { data: products } = await supabase.from('products').select('id, name, cost_price').limit(2);
-    const product1 = products[0];
+    const product1 = (products && products[0]) || { id: '44444444-4444-4444-4444-444444444441', name: 'Serum Tế Bào Gốc HA Booster 50ml', cost_price: 200000 };
 
     console.log(`Context: Org=${orgId.slice(0, 8)}...`);
     console.log(`  - Chi nhánh A: ${branchA.name} (${branchA.id.slice(0, 8)}...)`);
     console.log(`  - Chi nhánh B: ${branchB.name} (${branchB.id.slice(0, 8)}...)`);
     console.log(`  - Dịch vụ test: ${service1.name} (${service1.id.slice(0, 8)}...)`);
-    console.log(`  - Vật tư test: ${product1.name} (Giá vốn hiện tại: ${product1.cost_price || 100000}đ)\n`);
+    console.log(`  - Vật tư test: ${product1.name} (Giá vốn test: ${product1.cost_price || 200000}đ)\n`);
+
 
     // 2. Thiết lập định mức vật tư BOM (15ml / lần dịch vụ, tỷ lệ quy đổi 0.03 chai)
     console.log('--- TEST 1: Thiết Lập Định Mức Tiêu Hao Vật Tư Service BOM ---');
