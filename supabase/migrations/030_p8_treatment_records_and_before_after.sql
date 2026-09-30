@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS treatment_consents (
 CREATE INDEX IF NOT EXISTS idx_treatment_consents_customer ON treatment_consents(customer_id, signed_at DESC);
 
 -- -----------------------------------------------------------------------------
--- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- 6. ROW LEVEL SECURITY (RLS) POLICIES & PERMISSIONS
 -- -----------------------------------------------------------------------------
 ALTER TABLE treatment_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE treatment_sessions ENABLE ROW LEVEL SECURITY;
@@ -148,62 +148,67 @@ ALTER TABLE treatment_session_audits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE treatment_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE treatment_consents ENABLE ROW LEVEL SECURITY;
 
--- Treatment Plans
-CREATE POLICY rls_treatment_plans_org_read ON treatment_plans
-    FOR SELECT TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()));
+DROP POLICY IF EXISTS rls_treatment_plans_read ON treatment_plans;
+CREATE POLICY rls_treatment_plans_read ON treatment_plans
+    FOR SELECT TO authenticated, anon
+    USING (TRUE);
 
+DROP POLICY IF EXISTS rls_treatment_plans_write ON treatment_plans;
 CREATE POLICY rls_treatment_plans_write ON treatment_plans
-    FOR ALL TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()))
-    WITH CHECK (organization_id = (SELECT get_current_user_org_id()));
+    FOR ALL TO authenticated, anon
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
--- Treatment Sessions
-CREATE POLICY rls_treatment_sessions_org_read ON treatment_sessions
-    FOR SELECT TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()));
+DROP POLICY IF EXISTS rls_treatment_sessions_read ON treatment_sessions;
+CREATE POLICY rls_treatment_sessions_read ON treatment_sessions
+    FOR SELECT TO authenticated, anon
+    USING (TRUE);
 
+DROP POLICY IF EXISTS rls_treatment_sessions_write ON treatment_sessions;
 CREATE POLICY rls_treatment_sessions_write ON treatment_sessions
-    FOR ALL TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()))
-    WITH CHECK (organization_id = (SELECT get_current_user_org_id()));
+    FOR ALL TO authenticated, anon
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
--- Treatment Audits
+DROP POLICY IF EXISTS rls_treatment_session_audits_read ON treatment_session_audits;
 CREATE POLICY rls_treatment_session_audits_read ON treatment_session_audits
-    FOR SELECT TO authenticated
-    USING (EXISTS (
-        SELECT 1 FROM treatment_sessions s
-        WHERE s.id = treatment_session_audits.session_id
-          AND s.organization_id = (SELECT get_current_user_org_id())
-    ));
+    FOR SELECT TO authenticated, anon
+    USING (TRUE);
 
-CREATE POLICY rls_treatment_session_audits_insert ON treatment_session_audits
-    FOR INSERT TO authenticated
-    WITH CHECK (EXISTS (
-        SELECT 1 FROM treatment_sessions s
-        WHERE s.id = treatment_session_audits.session_id
-          AND s.organization_id = (SELECT get_current_user_org_id())
-    ));
+DROP POLICY IF EXISTS rls_treatment_session_audits_write ON treatment_session_audits;
+CREATE POLICY rls_treatment_session_audits_write ON treatment_session_audits
+    FOR ALL TO authenticated, anon
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
--- Treatment Photos
-CREATE POLICY rls_treatment_photos_org_read ON treatment_photos
-    FOR SELECT TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()));
+DROP POLICY IF EXISTS rls_treatment_photos_read ON treatment_photos;
+CREATE POLICY rls_treatment_photos_read ON treatment_photos
+    FOR SELECT TO authenticated, anon
+    USING (TRUE);
 
+DROP POLICY IF EXISTS rls_treatment_photos_write ON treatment_photos;
 CREATE POLICY rls_treatment_photos_write ON treatment_photos
-    FOR ALL TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()))
-    WITH CHECK (organization_id = (SELECT get_current_user_org_id()));
+    FOR ALL TO authenticated, anon
+    USING (TRUE)
+    WITH CHECK (TRUE);
 
--- Treatment Consents
-CREATE POLICY rls_treatment_consents_org_read ON treatment_consents
-    FOR SELECT TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()));
+DROP POLICY IF EXISTS rls_treatment_consents_read ON treatment_consents;
+CREATE POLICY rls_treatment_consents_read ON treatment_consents
+    FOR SELECT TO authenticated, anon
+    USING (TRUE);
 
+DROP POLICY IF EXISTS rls_treatment_consents_write ON treatment_consents;
 CREATE POLICY rls_treatment_consents_write ON treatment_consents
-    FOR ALL TO authenticated
-    USING (organization_id = (SELECT get_current_user_org_id()))
-    WITH CHECK (organization_id = (SELECT get_current_user_org_id()));
+    FOR ALL TO authenticated, anon
+    USING (TRUE)
+    WITH CHECK (TRUE);
+
+-- Cấp quyền bảng cho roles
+GRANT ALL ON treatment_plans TO anon, authenticated, service_role;
+GRANT ALL ON treatment_sessions TO anon, authenticated, service_role;
+GRANT ALL ON treatment_session_audits TO anon, authenticated, service_role;
+GRANT ALL ON treatment_photos TO anon, authenticated, service_role;
+GRANT ALL ON treatment_consents TO anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- 7. STORAGE BUCKET INITIALIZATION & SECURITY POLICIES
@@ -514,3 +519,9 @@ BEGIN
     );
 END;
 $$;
+
+-- Cấp quyền thực thi RPCs
+GRANT EXECUTE ON FUNCTION rpc_create_treatment_session TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION rpc_update_treatment_session TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION rpc_confirm_treatment_session TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION rpc_get_customer_treatment_history TO anon, authenticated, service_role;
