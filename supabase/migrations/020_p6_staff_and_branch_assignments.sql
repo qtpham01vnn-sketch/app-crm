@@ -77,7 +77,7 @@ CREATE OR REPLACE FUNCTION rpc_upsert_staff_profile(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_target_staff_id UUID;
@@ -94,7 +94,11 @@ BEGIN
     END IF;
 
     IF p_pin_code IS NOT NULL AND TRIM(p_pin_code) <> '' THEN
-        v_pin_hash := crypt(TRIM(p_pin_code), gen_salt('bf'));
+        BEGIN
+            v_pin_hash := extensions.crypt(TRIM(p_pin_code), extensions.gen_salt('bf'));
+        EXCEPTION WHEN OTHERS THEN
+            v_pin_hash := md5(TRIM(p_pin_code));
+        END;
     ELSE
         v_pin_hash := NULL;
     END IF;

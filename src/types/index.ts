@@ -549,4 +549,59 @@ export interface InventoryAudit {
   events?: InventoryAuditEvent[];
 }
 
+export interface RosterShift {
+  id: string;
+  orgId?: string;
+  branchId: string;
+  staffId: string;
+  staffName?: string;
+  staffCode?: string;
+  shiftDate: string;
+  startTime: string;
+  endTime: string;
+  shiftType: 'morning' | 'afternoon' | 'day_shift' | 'night' | 'custom';
+  breakMinutes?: number;
+  isOff: boolean;
+  status: 'scheduled' | 'completed' | 'canceled' | 'leave';
+  isLocked?: boolean;
+  notes?: string;
+  appointmentsCount?: number;
+}
+
+export interface LeaveRequest {
+  id: string;
+  orgId?: string;
+  staffId: string;
+  staffName?: string;
+  branchId?: string;
+  leaveType: 'annual_leave' | 'unpaid' | 'sick' | 'personal';
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'canceled';
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export interface ShiftSwapRequest {
+  id: string;
+  orgId?: string;
+  requesterStaffId: string;
+  requesterName?: string;
+  requesterShiftId: string;
+  targetStaffId?: string;
+  targetName?: string;
+  targetShiftId?: string;
+  reason?: string;
+  status: 'pending_peer' | 'pending_manager' | 'approved' | 'rejected' | 'canceled';
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
 

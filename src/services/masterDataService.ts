@@ -2367,6 +2367,213 @@ export const masterDataService = {
       status: res?.status,
       message: res?.message
     };
+  },
+
+  /**
+   * 31. P6.2 ROSTER & SHIFT MANAGEMENT
+   */
+  async getRosterMatrix(params: {
+    branchId?: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<{
+    shifts: any[];
+    leaveRequests: any[];
+    swapRequests: any[];
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { shifts: [], leaveRequests: [], swapRequests: [] };
+    }
+    const validBranchId = isUUID(params.branchId) ? params.branchId : null;
+    const { data, error } = await supabase.rpc('rpc_get_roster_matrix', {
+      p_branch_id: validBranchId,
+      p_start_date: params.startDate,
+      p_end_date: params.endDate
+    });
+    if (error) {
+      console.error('Lỗi lấy ma trận phân ca:', error);
+      return { shifts: [], leaveRequests: [], swapRequests: [] };
+    }
+    const res = data as any;
+    return {
+      shifts: (res?.shifts || []).map((s: any) => ({
+        id: s.id,
+        staffId: s.staff_id,
+        staffName: s.staff_name,
+        staffCode: s.staff_code,
+        branchId: s.branch_id,
+        shiftDate: s.shift_date,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        shiftType: s.shift_type,
+        breakMinutes: s.break_minutes || 0,
+        isOff: s.is_off || false,
+        status: s.status,
+        notes: s.notes,
+        appointmentsCount: s.appointments_count || 0
+      })),
+      leaveRequests: (res?.leave_requests || []).map((l: any) => ({
+        id: l.id,
+        staffId: l.staff_id,
+        staffName: l.staff_name,
+        leaveType: l.leave_type,
+        startDate: l.start_date,
+        endDate: l.end_date,
+        reason: l.reason,
+        status: l.status,
+        createdAt: l.created_at
+      })),
+      swapRequests: (res?.swap_requests || []).map((sw: any) => ({
+        id: sw.id,
+        requesterStaffId: sw.requester_staff_id,
+        requesterName: sw.requester_name,
+        targetStaffId: sw.target_staff_id,
+        targetName: sw.target_name,
+        reason: sw.reason,
+        status: sw.status,
+        createdAt: sw.created_at
+      }))
+    };
+  },
+
+  async upsertRosterShiftRPC(params: {
+    orgId: string;
+    shiftId?: string;
+    staffId: string;
+    branchId: string;
+    shiftDate: string;
+    startTime: string;
+    endTime: string;
+    shiftType?: string;
+    breakMinutes?: number;
+    isOff?: boolean;
+    notes?: string;
+    force?: boolean;
+  }): Promise<{
+    success: boolean;
+    shiftId?: string;
+    code?: string;
+    message?: string;
+    affectedCount?: number;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_upsert_roster_shift', {
+      p_org_id: params.orgId,
+      p_shift_id: isUUID(params.shiftId) ? params.shiftId : null,
+      p_staff_id: params.staffId,
+      p_branch_id: params.branchId,
+      p_shift_date: params.shiftDate,
+      p_start_time: params.startTime,
+      p_end_time: params.endTime,
+      p_shift_type: params.shiftType || 'day_shift',
+      p_break_minutes: params.breakMinutes || 0,
+      p_is_off: params.isOff || false,
+      p_notes: params.notes || null,
+      p_force: params.force || false
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_upsert_roster_shift:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      shiftId: res?.shift_id,
+      code: res?.code,
+      message: res?.message,
+      affectedCount: res?.affected_count
+    };
+  },
+
+  async processLeaveRequestRPC(params: {
+    requestId: string;
+    action: 'approved' | 'rejected' | 'canceled';
+    managerStaffId?: string;
+    rejectionReason?: string;
+    force?: boolean;
+  }): Promise<{
+    success: boolean;
+    code?: string;
+    message?: string;
+    appointmentCount?: number;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_process_leave_request', {
+      p_request_id: params.requestId,
+      p_action: params.action,
+      p_manager_staff_id: isUUID(params.managerStaffId) ? params.managerStaffId : null,
+      p_rejection_reason: params.rejectionReason || null,
+      p_force: params.force || false
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_process_leave_request:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      code: res?.code,
+      message: res?.message,
+      appointmentCount: res?.appointment_count
+    };
+  },
+
+  async processShiftSwapRPC(params: {
+    swapId: string;
+    action: 'approve' | 'reject';
+    managerStaffId?: string;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_process_shift_swap', {
+      p_swap_id: params.swapId,
+      p_action: params.action,
+      p_manager_staff_id: isUUID(params.managerStaffId) ? params.managerStaffId : null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_process_shift_swap:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      message: res?.message
+    };
+  },
+
+  async createLeaveRequest(params: {
+    orgId: string;
+    staffId: string;
+    branchId?: string;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { error } = await supabase.from('leave_requests').insert({
+      organization_id: params.orgId,
+      staff_id: params.staffId,
+      branch_id: isUUID(params.branchId) ? params.branchId : null,
+      leave_type: params.leaveType,
+      start_date: params.startDate,
+      end_date: params.endDate,
+      reason: params.reason || null,
+      status: 'pending'
+    });
+    if (error) {
+      console.error('Lỗi tạo đơn nghỉ phép:', error);
+      throw error;
+    }
+    return true;
   }
 };
 
