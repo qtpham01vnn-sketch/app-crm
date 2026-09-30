@@ -250,7 +250,6 @@ DECLARE
     v_sale_id UUID;
     v_inv_no VARCHAR(100);
 BEGIN
-    -- 1. Lấy hoặc tạo khách hàng kiểm thử
     SELECT id INTO v_cust_id FROM customers WHERE organization_id = p_org_id LIMIT 1;
     IF v_cust_id IS NULL THEN
         INSERT INTO customers (organization_id, primary_branch_id, full_name, phone)
@@ -258,44 +257,95 @@ BEGIN
         RETURNING id INTO v_cust_id;
     END IF;
 
-    -- 2. Tạo Đơn Hàng Test (Gross 2tr, giảm 200k, Net 1.8tr, Đã thanh toán 1tr, nợ 800k)
+    -- 2. Tạo Đơn Hàng Test (Subtotal 2tr, giảm 200k, Net 1.8tr, Đã thanh toán 1tr, nợ 800k)
     v_inv_no := 'TEST-INV-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT;
-    INSERT INTO sales (organization_id, branch_id, customer_id, invoice_number, total_amount, discount_amount, paid_amount, status, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, v_inv_no, 1800000, 200000, 1000000, 'partial', NOW())
+    INSERT INTO sales (
+        organization_id, branch_id, customer_id, invoice_number, 
+        subtotal, discount_amount, total_amount, paid_amount, 
+        status, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, v_inv_no, 
+        2000000, 200000, 1800000, 1000000, 
+        'partial', NOW()
+    )
     RETURNING id INTO v_sale_id;
 
     -- Ghi dòng hàng gói liệu trình
-    INSERT INTO sale_items (sale_id, item_id, item_name, item_type, quantity, unit_price, line_discount, line_total)
-    VALUES (v_sale_id, '00000000-0000-0000-0000-000000000001', 'Gói Trị Liệu Trẻ Hóa 10 Buổi Test', 'package', 1, 2000000, 200000, 1800000);
+    INSERT INTO sale_items (
+        sale_id, item_type, item_ref_id, item_name, 
+        quantity, unit_price, line_discount, line_total
+    )
+    VALUES (
+        v_sale_id, 'package', '00000000-0000-0000-0000-000000000001', 'Gói Trị Liệu Trẻ Hóa 10 Buổi Test', 
+        1, 2000000, 200000, 1800000
+    );
 
     -- 3. Ghi phiếu thu tiền mặt đã xác nhận (1,000,000đ)
-    INSERT INTO payments (organization_id, branch_id, customer_id, sale_id, payment_number, amount, payment_method, payment_type, reconciliation_status, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, v_sale_id, 'TEST-PAY-01', 1000000, 'cash', 'sale', 'confirmed', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'PT-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        1000000, 'cash', 'sale', 'confirmed', NOW()
+    );
 
     -- 4. Ghi giao dịch QR chờ xác nhận (500,000đ - Pending)
-    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-QR-02', 500000, 'transfer_vietqr', 'sale', 'pending_reconciliation', 'Khách quét QR chờ ngân hàng', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, note, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'QR-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        500000, 'transfer_vietqr', 'sale', 'pending_reconciliation', 'Khách quét QR chờ ngân hàng', NOW()
+    );
 
     -- 5. Ghi nhận cọc mới (300,000đ)
-    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-DEP-03', 300000, 'cash', 'deposit', 'confirmed', 'Khách nạp cọc mới', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, note, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'PC-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        300000, 'cash', 'deposit', 'confirmed', 'Khách nạp cọc mới', NOW()
+    );
 
     -- 6. Ghi nhận cọc cũ cấn trừ (300,000đ)
-    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-RED-04', 300000, 'deposit_credit', 'sale', 'confirmed', 'Cấn trừ cọc vào đơn', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, note, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'CT-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        300000, 'deposit_credit', 'sale', 'confirmed', 'Cấn trừ cọc vào đơn', NOW()
+    );
 
     -- 7. Ghi nhận thu nợ cũ (400,000đ)
-    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-DEBT-05', 400000, 'cash', 'debt_collection', 'confirmed', 'Thu nợ hóa đơn trước', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, note, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'TN-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        400000, 'cash', 'debt_collection', 'confirmed', 'Thu nợ hóa đơn trước', NOW()
+    );
 
     -- 8. Ghi nhận hoàn tiền (150,000đ)
-    INSERT INTO payments (organization_id, branch_id, customer_id, payment_number, amount, payment_method, payment_type, reconciliation_status, note, created_at)
-    VALUES (p_org_id, p_branch_id, v_cust_id, 'TEST-REF-06', 150000, 'cash', 'refund', 'confirmed', 'Hoàn tiền khách hủy dịch vụ', NOW());
+    INSERT INTO payments (
+        organization_id, branch_id, customer_id, payment_number, 
+        amount, payment_method, payment_type, reconciliation_status, note, created_at
+    )
+    VALUES (
+        p_org_id, p_branch_id, v_cust_id, 'HT-TEST-' || FLOOR(RANDOM() * 90000 + 10000)::TEXT, 
+        150000, 'cash', 'refund', 'confirmed', 'Hoàn tiền khách hủy dịch vụ', NOW()
+    );
 
     -- Gọi lại hàm báo cáo và trả về toàn bộ kết quả
     RETURN rpc_get_sales_and_cashflow_report(p_org_id, p_branch_id, CURRENT_DATE, CURRENT_DATE);
 END;
 $$;
+
 
 GRANT EXECUTE ON FUNCTION rpc_test_p7_1_scenarios(UUID, UUID) TO authenticated, anon;
 
