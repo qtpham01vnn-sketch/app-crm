@@ -59,14 +59,7 @@ CREATE POLICY rls_session_material_usages_org_read ON session_material_usages
     FOR SELECT TO authenticated
     USING (
         organization_id = (SELECT get_current_user_org_id())
-        AND (
-            (SELECT get_current_user_role()) = 'owner_admin'
-            OR branch_id = (SELECT get_current_user_branch_id())
-            OR branch_id IN (
-                SELECT branch_id FROM staff_branch_assignments 
-                WHERE staff_id = (SELECT get_current_user_staff_id()) AND is_active = TRUE
-            )
-        )
+        AND has_branch_access(branch_id)
     );
 
 -- -----------------------------------------------------------------------------
