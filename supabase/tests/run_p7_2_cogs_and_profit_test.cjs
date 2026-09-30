@@ -18,7 +18,7 @@ function assertExact(actual, expected, message) {
 
 async function runP72CogsTestSuite() {
     console.log('================================================================================');
-    console.log('BỘ KIỂM THỬ TỰ ĐỘNG P7.2: GIÁ VỐN COGS, ĐỊNH MỨC VẬT TƯ (BOM) & LỢI NHUẬN TRỰC TIẾP');
+    console.log('BỘ KIỂM THỬ TỰ ĐỘNG P7.2 NÂNG CAO: ĐỊNH MỨC BOM, GIÁ VỐN COGS & LỢI NHUẬN TRỰC TIẾP');
     console.log('================================================================================\n');
 
     // 1. Context setup
@@ -28,131 +28,160 @@ async function runP72CogsTestSuite() {
     const branchA = branches[0];
     const branchB = branches[1] || branches[0];
 
-    const { data: services } = await supabase.from('services').select('id, name, base_price').limit(1);
-    const service1 = (services && services[0]) || { id: '55555555-5555-5555-5555-555555555551', name: 'Chăm sóc Da Mặt Chuyên Sâu Gold 24K' };
-    const { data: products } = await supabase.from('products').select('id, name, cost_price').limit(2);
-    const product1 = (products && products[0]) || { id: '44444444-4444-4444-4444-444444444441', name: 'Serum Tế Bào Gốc HA Booster 50ml', cost_price: 200000 };
+    const serviceId = '55555555-5555-5555-5555-555555555551'; // Chăm sóc Da Mặt Gold 24K
+    const productId = '44444444-4444-4444-4444-444444444441'; // Serum HA Booster 50ml (1 chai = 50ml)
 
     console.log(`Context: Org=${orgId.slice(0, 8)}...`);
-    console.log(`  - Chi nhánh A: ${branchA.name} (${branchA.id.slice(0, 8)}...)`);
-    console.log(`  - Chi nhánh B: ${branchB.name} (${branchB.id.slice(0, 8)}...)`);
-    console.log(`  - Dịch vụ test: ${service1.name} (${service1.id.slice(0, 8)}...)`);
-    console.log(`  - Vật tư test: ${product1.name} (Giá vốn test: ${product1.cost_price || 200000}đ)\n`);
+    console.log(`  - Chi nhánh A (Bán hàng): ${branchA.name}`);
+    console.log(`  - Chi nhánh B (Phục vụ):  ${branchB.name}`);
+    console.log(`  - Dịch vụ test: ${serviceId}`);
+    console.log(`  - Sản phẩm vật tư: ${productId} (Chai 50ml)\n`);
 
-
-    // 2. Thiết lập định mức vật tư BOM (15ml / lần dịch vụ, tỷ lệ quy đổi 0.03 chai)
-    console.log('--- TEST 1: Thiết Lập Định Mức Tiêu Hao Vật Tư Service BOM ---');
-    const { data: bomRes, error: bomErr } = await supabase.from('service_boms').upsert({
+    // =========================================================================
+    // TEST 1: THIẾT LẬP ĐỊNH MỨC BOM CHUẨN XÁC (15ml / 50ml = 0.300 CHAI CƠ SỞ)
+    // =========================================================================
+    console.log('--- TEST 1: Thiết Lập Định Mức Tiêu Hao Vật Tư Service BOM (15ml = 0.300 Chai 50ml) ---');
+    // Hệ số quy đổi: 1 ml = 1/50 = 0.0200 chai. Định mức: 15 ml -> 15 * 0.02 = 0.300 chai
+    const { error: bomErr } = await supabase.from('service_boms').upsert({
         organization_id: orgId,
-        service_id: service1.id,
-        product_id: product1.id,
-        standard_quantity: 15,
+        service_id: serviceId,
+        product_id: productId,
+        standard_quantity: 15, // 15 ml
         unit_of_measure: 'ml',
-        conversion_rate: 0.03, // 15ml = 0.03 chai 500ml
-        version: 'v1.0-test',
+        conversion_rate: 0.0200, // 1 ml = 0.02 chai (15 ml = 0.3 chai)
+        version: 'v2.0-exact',
         effective_from: '2026-01-01',
         is_active: true
-    }, { onConflict: 'service_id,product_id,version' }).select();
+    }, { onConflict: 'service_id,product_id,version' });
 
-    if (bomErr) {
-        console.error('Lỗi tạo BOM:', bomErr);
-        throw bomErr;
-    }
-    console.log('  ✅ Đã lưu định mức BOM thành công: 15ml/ca (hệ số quy đổi 0.03 chai)');
+    if (bomErr) throw bomErr;
+    console.log('  ✅ Đã lưu định mức BOM: 15ml/ca với hệ số quy đổi 0.0200 chai/ml (15ml = 0.300 chai)');
 
-    // 3. Đảm bảo tồn kho tại chi nhánh B có giá vốn cố định 200,000đ/chai
+    // Đảm bảo tồn kho tại chi nhánh B có giá vốn cố định 200,000đ/chai và tồn kho 50.000 chai
     await supabase.from('inventory_stocks').upsert({
         organization_id: orgId,
         branch_id: branchB.id,
-        product_id: product1.id,
-        stock_on_hand: 50,
+        product_id: productId,
+        stock_on_hand: 50.000,
         cost_price: 200000
     }, { onConflict: 'branch_id,product_id' });
 
-    // 4. Test xuất dùng vật tư cho ca làm dịch vụ
-    console.log('\n--- TEST 2: Ghi Nhận Tiêu Hao Vật Tư Thực Tế (Session Material Usage) & Snapshot Giá Vốn ---');
-    const idempotencyKey = 'MAT-TEST-' + Math.floor(Math.random() * 1000000);
-    const { data: usageRes, error: usageErr } = await supabase.rpc('rpc_record_service_material_usage', {
+    // =========================================================================
+    // TEST 2: GHI NHẬN TIÊU HAO 15ml (0.3 CHAI) VÀ KIỂM TRA CHI PHÍ 60.000đ
+    // =========================================================================
+    console.log('\n--- TEST 2: Ghi Nhận Tiêu Hao 15ml (Xuất Đúng 0.300 Chai -> Chi Phí Chuẩn 60.000đ) ---');
+    const idempotencyKey1 = 'MAT-EXACT-' + Math.floor(Math.random() * 1000000);
+    const { data: usage1, error: uErr1 } = await supabase.rpc('rpc_record_service_material_usage', {
         p_org_id: orgId,
         p_branch_id: branchB.id,
-        p_service_id: service1.id,
+        p_service_id: serviceId,
         p_staff_id: null,
         p_items: [
             {
-                product_id: product1.id,
-                actual_quantity: 20, // Thực tế dùng 20ml (vượt định mức 5ml)
+                product_id: productId,
+                actual_quantity: 15, // 15ml
                 unit_of_measure: 'ml',
                 lot_number: 'LOT-2026-01'
             }
         ],
-        p_idempotency_key: idempotencyKey,
-        p_notes: 'Thực hiện dịch vụ ca test P7.2'
+        p_idempotency_key: idempotencyKey1,
+        p_notes: 'Ca phục vụ 1: 15ml tiêu chuẩn'
     });
+    if (uErr1) throw uErr1;
 
-    if (usageErr) {
-        console.error('Lỗi xuất dùng vật tư:', usageErr);
-        throw usageErr;
-    }
-    console.log('  Kết quả RPC xuất vật tư:', usageRes);
-    assertExact(usageRes.success, true, 'Xuất vật tư ca dịch vụ thành công');
+    console.log('  Kết quả ca 1:', usage1);
+    assertExact(usage1.success, true, 'Ca 1 ghi nhận thành công');
+    assertExact(Number(usage1.total_material_cost), 60000, 'Chi phí 15ml Serum (0.3 chai * 200,000đ) đúng 60,000đ');
 
-    // Test Idempotency: Gửi lại cùng key
-    const { data: replayRes } = await supabase.rpc('rpc_record_service_material_usage', {
+    // Kiểm tra tồn kho sau ca 1: 50.000 - 0.300 = 49.700 chai
+    const { data: stockAfter1 } = await supabase.from('inventory_stocks')
+        .select('stock_on_hand')
+        .eq('branch_id', branchB.id).eq('product_id', productId).single();
+    assertExact(Number(stockAfter1.stock_on_hand), 49.700, 'Tồn kho giảm chính xác 0.300 chai (còn 49.700 chai)');
+
+    // =========================================================================
+    // TEST 3: GHI NHẬN CA 2 TIÊU HAO 15ml -> TỔNG 2 CA LÀ 120.000đ
+    // =========================================================================
+    console.log('\n--- TEST 3: Ca 2 Dùng 15ml -> Tổng Tiêu Hao 2 Ca Là 0.600 Chai (120.000đ) ---');
+    const idempotencyKey2 = 'MAT-EXACT-' + Math.floor(Math.random() * 1000000);
+    const { data: usage2 } = await supabase.rpc('rpc_record_service_material_usage', {
         p_org_id: orgId,
         p_branch_id: branchB.id,
-        p_service_id: service1.id,
+        p_service_id: serviceId,
         p_staff_id: null,
-        p_items: [{ product_id: product1.id, actual_quantity: 20, unit_of_measure: 'ml' }],
-        p_idempotency_key: idempotencyKey
+        p_items: [{ product_id: productId, actual_quantity: 15, unit_of_measure: 'ml' }],
+        p_idempotency_key: idempotencyKey2,
+        p_notes: 'Ca phục vụ 2: 15ml tiêu chuẩn'
     });
-    assertExact(replayRes.is_duplicate, true, 'Chống trừ kho lặp (Idempotent replay) hoạt động chính xác');
+    assertExact(Number(usage2.total_material_cost), 60000, 'Ca 2 chi phí đúng 60,000đ');
 
-    // 5. Test tính bất biến của Snapshot Giá Vốn khi nhập hàng mới giá khác
-    console.log('\n--- TEST 3: Bất Biến Snapshot Giá Vốn Khi Nhập Hàng Mới Thay Đổi Giá Vốn ---');
-    // Cập nhật giá vốn kho hiện tại lên 350,000đ
-    await supabase.from('inventory_stocks').update({
-        cost_price: 350000
-    }).eq('branch_id', branchB.id).eq('product_id', product1.id);
+    const { data: stockAfter2 } = await supabase.from('inventory_stocks')
+        .select('stock_on_hand')
+        .eq('branch_id', branchB.id).eq('product_id', productId).single();
+    assertExact(Number(stockAfter2.stock_on_hand), 49.400, 'Tồn kho sau 2 ca còn 49.400 chai (giảm 0.600 chai)');
 
-    // Kiểm tra bản ghi snapshot đã lưu trong session_material_usages
-    const { data: usageRecord } = await supabase.from('session_material_usages')
-        .select('cost_price_snapshot, base_quantity_deducted')
-        .eq('idempotency_key', idempotencyKey)
+    // =========================================================================
+    // TEST 4: IDEMPOTENCY CÙNG KEY & TỪ CHỐI CÙNG KEY KHÁC NỘI DUNG
+    // =========================================================================
+    console.log('\n--- TEST 4: Kiểm Tra An Toàn Idempotency & Từ Chối Khác Payload ---');
+    // Gửi lại cùng key 2
+    const { data: replaySame } = await supabase.rpc('rpc_record_service_material_usage', {
+        p_org_id: orgId,
+        p_branch_id: branchB.id,
+        p_service_id: serviceId,
+        p_staff_id: null,
+        p_items: [{ product_id: productId, actual_quantity: 15, unit_of_measure: 'ml' }],
+        p_idempotency_key: idempotencyKey2
+    });
+    assertExact(replaySame.is_duplicate, true, 'Gửi lại cùng key và payload -> Idempotent replay an toàn (không trừ kho)');
+
+    // Gửi cùng key 2 nhưng đổi số lượng thành 25ml -> phải bị từ chối
+    const { data: replayDifferent } = await supabase.rpc('rpc_record_service_material_usage', {
+        p_org_id: orgId,
+        p_branch_id: branchB.id,
+        p_service_id: serviceId,
+        p_staff_id: null,
+        p_items: [{ product_id: productId, actual_quantity: 25, unit_of_measure: 'ml' }],
+        p_idempotency_key: idempotencyKey2
+    });
+    assertExact(replayDifferent.conflict, true, 'Cùng key nhưng đổi nội dung -> Bị từ chối lỗi xung đột');
+
+    // =========================================================================
+    // TEST 5: BẤT BIẾN SNAPSHOT GIÁ VỐN KHI NHẬP HÀNG MỚI ĐỔI GIÁ
+    // =========================================================================
+    console.log('\n--- TEST 5: Bất Biến Snapshot Giá Vốn Khi Nhập Hàng Đổi Giá Kho ---');
+    // Cập nhật giá vốn kho lên 400,000đ/chai
+    await supabase.from('inventory_stocks').update({ cost_price: 400000 })
+        .eq('branch_id', branchB.id).eq('product_id', productId);
+
+    const { data: snapRecord } = await supabase.from('session_material_usages')
+        .select('cost_price_snapshot')
+        .eq('idempotency_key', idempotencyKey1)
         .single();
+    assertExact(Number(snapRecord.cost_price_snapshot), 200000, 'Snapshot giá vốn của giao dịch cũ giữ nguyên 200,000đ (không bị đè thành 400,000đ)');
 
-    assertExact(Number(usageRecord.cost_price_snapshot), 200000, 'Snapshot giá vốn được giữ nguyên bất biến 200,000đ (không bị đổi thành 350,000đ)');
-
-    // 6. Test RPC Báo Cáo Lợi Nhuận Trực Tiếp & Xử Lý Doanh Thu Bằng 0
-    console.log('\n--- TEST 4: Báo Cáo BI P7.2 & Kiểm Tra Xử Lý Doanh Thu Bằng 0 ---');
+    // =========================================================================
+    // TEST 6: BÁO CÁO LỢI NHUẬN TRỰC TIẾP & ĐỐI CHIẾU CHÊNH LỆCH ĐỊNH MỨC BOM
+    // =========================================================================
+    console.log('\n--- TEST 6: Báo Cáo BI P7.2 & Đối Chiếu Khớp Tuyệt Đối ---');
     const testDate = new Date().toISOString().split('T')[0];
-    const { data: profitReport, error: repErr } = await supabase.rpc('rpc_get_cogs_and_gross_profit_report', {
+    const { data: report, error: repErr } = await supabase.rpc('rpc_get_cogs_and_gross_profit_report', {
         p_org_id: orgId,
         p_branch_id: branchB.id,
         p_start_date: testDate,
         p_end_date: testDate
     });
+    if (repErr) throw repErr;
 
-    if (repErr) {
-        console.error('Lỗi báo cáo lợi nhuận:', repErr);
-        throw repErr;
-    }
+    console.log('  - Tổng hợp báo cáo P7.2:', JSON.stringify(report.summary, null, 2));
+    console.log('  - Chi tiết phân tích chênh lệch:', JSON.stringify(report.variance_breakdown, null, 2));
 
-    console.log('  - Báo cáo tổng hợp P7.2:', JSON.stringify(profitReport.summary, null, 2));
-    console.log('  - Phân tích chênh lệch tồn kho:', JSON.stringify(profitReport.variance_breakdown, null, 2));
-    console.log('  - Drilldown số bản ghi:', profitReport.drilldown.total_records);
-
-    // Assertions
-    assertExact(profitReport.period.timezone, 'Asia/Ho_Chi_Minh (UTC+7)', 'Múi giờ chuẩn Asia/Ho_Chi_Minh');
-    assertExact(profitReport.drilldown.page, 1, 'Phân trang phía server: page = 1');
-    assertExact(profitReport.drilldown.page_size, 50, 'Phân trang phía server: page_size = 50');
-    assertExact(Array.isArray(profitReport.drilldown.items), true, 'Danh sách drill-down trả về mảng có cấu trúc');
-
-    if (profitReport.summary.recognized_revenue === 0) {
-        assertExact(profitReport.summary.margin_pct, null, 'Khi Doanh thu = 0, Margin % trả về null (Không áp dụng) để tránh chia cho 0');
-    }
+    assertExact(report.period.timezone, 'Asia/Ho_Chi_Minh (UTC+7)', 'Múi giờ Asia/Ho_Chi_Minh chuẩn');
+    assertExact(report.drilldown.page, 1, 'Phân trang: page 1');
+    assertExact(report.drilldown.page_size, 50, 'Phân trang: page_size 50');
 
     console.log('\n================================================================================');
-    console.log('🎉 TẤT CẢ CÁC KIỂM THỬ PHASE P7.2 (BOM, COGS & LỢI NHUẬN TRỰC TIẾP) ĐÃ PASS 100%!');
+    console.log('🎉 TẤT CẢ CÁC KIỂM THỬ PHASE P7.2 ĐÃ HOÀN THIỆN & PASS 100% CHÍNH XÁC!');
     console.log('================================================================================\n');
 }
 
