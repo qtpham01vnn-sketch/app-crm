@@ -49,7 +49,7 @@ async function runRealBusinessE2ETest() {
     const branchId = branches[0].id;
     const supplierId = suppliers[0].id;
     const productId = products[0].id;
-    const staffId = staff?.[0]?.id || orgId;
+    const staffId = staff?.[0]?.id || null;
 
     console.log(`[Khởi tạo Context]: Chi nhánh=${branchId.slice(0, 8)}..., NCC=${suppliers[0].name}, SP=${products[0].name}\n`);
 

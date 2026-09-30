@@ -437,3 +437,52 @@ export interface PayrollRecord {
   netSalary: number;
   status: 'draft' | 'approved' | 'paid';
 }
+
+export interface BranchTransferItem {
+  id: string;
+  transferId?: string;
+  productId: string;
+  productName: string;
+  productCode?: string;
+  productUnit?: string;
+  lotNumber?: string;
+  expiryDate?: string;
+  unitCost: number;
+  quantityRequested: number;
+  quantityDispatched: number;
+  quantityReceived: number;
+  quantityAccepted: number;
+  quantityDamaged: number;
+  quantityMissing: number;
+  quantityReturned: number;
+  notes?: string;
+}
+
+export interface BranchTransferEvent {
+  id: string;
+  transferId?: string;
+  eventType: string;
+  actorName: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface BranchTransfer {
+  id: string;
+  orgId: string;
+  fromBranchId: string;
+  fromBranchName?: string;
+  toBranchId: string;
+  toBranchName?: string;
+  transferNumber: string;
+  status: 'draft' | 'dispatched' | 'partially_received' | 'completed' | 'difference_resolved' | 'cancelled';
+  totalItems: number;
+  totalValue: number;
+  dispatchDate?: string;
+  receivedDate?: string;
+  notes?: string;
+  createdAt: string;
+  items: BranchTransferItem[];
+  events?: BranchTransferEvent[];
+}
+

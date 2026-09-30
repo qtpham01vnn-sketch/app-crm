@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote } from '../types';
+import type { Customer, Service, Product, PackageCombo, Supplier, Promotion, Staff, Branch, Appointment, PurchaseOrder, GoodsReceiptNote, BranchTransfer } from '../types';
 
 const isUUID = (val?: string | null): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -1681,6 +1681,278 @@ export const masterDataService = {
       debtBalanceAfter: res?.debt_balance_after,
       message: res?.message
     };
+  },
+
+  /**
+   * 23. INVENTORY PHASE B — FETCH BRANCH TRANSFERS
+   */
+  async getBranchTransfers(branchId?: string): Promise<BranchTransfer[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+
+    // Ưu tiên gọi RPC bảo mật SECURITY DEFINER rpc_get_branch_transfers
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_branch_transfers', {
+        p_branch_id: branchId || null
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData.map((t: any) => ({
+          id: t.id as string,
+          orgId: t.organization_id as string,
+          fromBranchId: t.from_branch_id as string,
+          fromBranchName: t.from_branch_name as string,
+          toBranchId: t.to_branch_id as string,
+          toBranchName: t.to_branch_name as string,
+          transferNumber: t.transfer_number as string,
+          status: t.status as BranchTransfer['status'],
+          totalItems: Number(t.total_items || 0),
+          totalValue: Number(t.total_value || 0),
+          dispatchDate: t.dispatch_date ? (t.dispatch_date as string).split('T')[0] : undefined,
+          receivedDate: t.received_date ? (t.received_date as string).split('T')[0] : undefined,
+          notes: t.notes as string | undefined,
+          createdAt: t.created_at ? (t.created_at as string).split('T')[0] : '',
+          items: ((t.items || []) as any[]).map((it) => ({
+            id: it.id,
+            productId: it.product_id,
+            productName: it.product_name || 'Sản phẩm',
+            productCode: it.product_code,
+            productUnit: it.product_unit,
+            lotNumber: it.lot_number,
+            expiryDate: it.expiry_date,
+            unitCost: Number(it.unit_cost || 0),
+            quantityRequested: Number(it.quantity_requested || 0),
+            quantityDispatched: Number(it.quantity_dispatched || 0),
+            quantityReceived: Number(it.quantity_received || 0),
+            quantityAccepted: Number(it.quantity_accepted || 0),
+            quantityDamaged: Number(it.quantity_damaged || 0),
+            quantityMissing: Number(it.quantity_missing || 0),
+            quantityReturned: Number(it.quantity_returned || 0),
+            notes: it.notes
+          })),
+          events: ((t.events || []) as any[]).map((ev) => ({
+            id: ev.id,
+            eventType: ev.event_type,
+            actorName: ev.actor_name,
+            details: ev.details,
+            createdAt: ev.created_at
+          }))
+        }));
+      }
+    } catch {
+      // Fallback xuống query PostgREST trực tiếp
+    }
+
+    let query = supabase
+      .from('branch_transfers')
+      .select(`
+        id, organization_id, from_branch_id, to_branch_id, transfer_number, status, total_items, total_value, dispatch_date, received_date, notes, created_at,
+        from_branch:from_branch_id (name),
+        to_branch:to_branch_id (name),
+        items:branch_transfer_items (
+          id, product_id, lot_number, expiry_date, unit_cost, quantity_requested, quantity_dispatched, quantity_received, quantity_accepted, quantity_damaged, quantity_missing, quantity_returned, notes,
+          products:product_id (name, code, unit)
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (branchId) {
+      query = query.or(`from_branch_id.eq.${branchId},to_branch_id.eq.${branchId}`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching branch transfers:', error);
+      return [];
+    }
+
+    return (data || []).map((t: any) => ({
+      id: t.id,
+      orgId: t.organization_id,
+      fromBranchId: t.from_branch_id,
+      fromBranchName: t.from_branch?.name || 'Chi nhánh xuất',
+      toBranchId: t.to_branch_id,
+      toBranchName: t.to_branch?.name || 'Chi nhánh nhận',
+      transferNumber: t.transfer_number,
+      status: t.status,
+      totalItems: Number(t.total_items || 0),
+      totalValue: Number(t.total_value || 0),
+      dispatchDate: t.dispatch_date ? t.dispatch_date.split('T')[0] : undefined,
+      receivedDate: t.received_date ? t.received_date.split('T')[0] : undefined,
+      notes: t.notes || undefined,
+      createdAt: t.created_at ? t.created_at.split('T')[0] : '',
+      items: (t.items || []).map((it: any) => ({
+        id: it.id,
+        productId: it.product_id,
+        productName: it.products?.name || 'Sản phẩm',
+        productCode: it.products?.code || '',
+        productUnit: it.products?.unit || 'đơn vị',
+        lotNumber: it.lot_number,
+        expiryDate: it.expiry_date,
+        unitCost: Number(it.unit_cost || 0),
+        quantityRequested: Number(it.quantity_requested || 0),
+        quantityDispatched: Number(it.quantity_dispatched || 0),
+        quantityReceived: Number(it.quantity_received || 0),
+        quantityAccepted: Number(it.quantity_accepted || 0),
+        quantityDamaged: Number(it.quantity_damaged || 0),
+        quantityMissing: Number(it.quantity_missing || 0),
+        quantityReturned: Number(it.quantity_returned || 0),
+        notes: it.notes
+      }))
+    }));
+  },
+
+  /**
+   * 24. CREATE DRAFT BRANCH TRANSFER VIA RPC
+   */
+  async createBranchTransferRPC(params: {
+    orgId: string;
+    fromBranchId: string;
+    toBranchId: string;
+    staffId: string;
+    items: Array<{
+      product_id: string;
+      lot_number?: string;
+      expiry_date?: string;
+      quantity: number;
+      unit_cost?: number;
+      notes?: string;
+    }>;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    transferNumber?: string;
+    totalItems?: number;
+    totalValue?: number;
+    status?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_create_branch_transfer', {
+      p_org_id: params.orgId,
+      p_from_branch_id: params.fromBranchId,
+      p_to_branch_id: params.toBranchId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_create_branch_transfer:', error);
+      const err = new Error(error.message || error.details || 'Lỗi tạo phiếu chuyển kho.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      transferId: res?.transfer_id,
+      transferNumber: res?.transfer_number,
+      totalItems: res?.total_items,
+      totalValue: res?.total_value,
+      status: res?.status,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 25. DISPATCH BRANCH TRANSFER (REDUCE ORIGIN STOCK, IN-TRANSIT)
+   */
+  async dispatchBranchTransferRPC(params: {
+    orgId: string;
+    transferId: string;
+    staffId: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    transferNumber?: string;
+    status?: string;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_dispatch_branch_transfer', {
+      p_org_id: params.orgId,
+      p_transfer_id: params.transferId,
+      p_staff_id: validStaffId,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_dispatch_branch_transfer:', error);
+      const err = new Error(error.message || error.details || 'Lỗi xuất kho chuyển đi.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      transferId: res?.transfer_id,
+      transferNumber: res?.transfer_number,
+      status: res?.status,
+      message: res?.message
+    };
+  },
+
+  /**
+   * 26. RECEIVE BRANCH TRANSFER AT DESTINATION
+   */
+  async receiveBranchTransferRPC(params: {
+    orgId: string;
+    transferId: string;
+    staffId: string;
+    items: Array<{
+      transfer_item_id: string;
+      qty_accepted: number;
+      qty_damaged: number;
+      qty_missing: number;
+      damage_reason?: string;
+      notes?: string;
+    }>;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    transferNumber?: string;
+    status?: string;
+    allCompleted?: boolean;
+    hasDifference?: boolean;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+    const { data, error } = await supabase.rpc('rpc_receive_branch_transfer', {
+      p_org_id: params.orgId,
+      p_transfer_id: params.transferId,
+      p_staff_id: validStaffId,
+      p_items: params.items,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_receive_branch_transfer:', error);
+      const err = new Error(error.message || error.details || 'Lỗi nhận hàng chuyển kho.');
+      (err as any).details = error.details;
+      (err as any).code = error.code;
+      throw err;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      transferId: res?.transfer_id,
+      transferNumber: res?.transfer_number,
+      status: res?.status,
+      allCompleted: res?.all_completed,
+      hasDifference: res?.has_difference,
+      message: res?.message
+    };
   }
 };
+
 
