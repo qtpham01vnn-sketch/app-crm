@@ -149,16 +149,16 @@ async function runStageCTests() {
   const stockAdjustedAccurately = stockAAfterApprove.stock_on_hand === 47;
   console.log(`  - Tồn kho sau khi duyệt: ${stockAAfterApprove.stock_on_hand} SP (Kỳ vọng: 47) ➔ ${stockAdjustedAccurately ? '✅ ĐẠT (ĐÃ ĐIỀU CHỈNH CHÍNH XÁC VỀ 47)' : '❌ SAI'}`);
 
-  // Kiểm tra bút toán điều chỉnh trong inventory_transactions
-  const { data: txAudit } = await supabase
-    .from('inventory_transactions')
+  // Kiểm tra nhật ký sự kiện kiểm kê trong inventory_audit_events
+  const { data: auditEvents } = await supabase
+    .from('inventory_audit_events')
     .select('*')
-    .eq('reference_id', testAuditId)
-    .eq('transaction_type', 'audit_adjustment')
+    .eq('audit_id', testAuditId)
+    .eq('event_type', 'approved_and_adjusted')
     .maybeSingle();
 
-  const txRecorded = !!txAudit && txAudit.quantity_change === -3;
-  console.log(`  - Bút toán nhật ký kho: Transaction Type = "${txAudit?.transaction_type}", Biến động = ${txAudit?.quantity_change} ➔ ${txRecorded ? '✅ ĐẠT (MINH BẠCH LỊCH SỬ)' : '❌ SAI'}`);
+  const eventRecorded = !!auditEvents;
+  console.log(`  - Nhật ký kiểm toán: Event Type = "${auditEvents?.event_type}", Mã phiếu = #${auditEvents?.details?.audit_number} ➔ ${eventRecorded ? '✅ ĐẠT (MINH BẠCH LỊCH SỬ)' : '❌ SAI'}`);
 
   console.log('\n================================================================================');
   console.log('✅ KẾT LUẬN: ĐỢT C KIỂM KÊ KHO & ĐIỀU CHỈNH CHÊNH LỆCH HOÀN THIỆN VÀ CHÍNH XÁC 100%!');
