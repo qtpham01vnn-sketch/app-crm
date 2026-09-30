@@ -3,12 +3,14 @@ import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2 } from 'luc
 import { useApp } from '../../context/AppContext';
 import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
+import { CustomerTreatmentRecords } from '../treatment/CustomerTreatmentRecords';
 
 export const CustView: React.FC = () => {
   const { customers, setCustomers, courses, sales, appointments, branches, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'branch' | 'all'>('branch');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
+  const [customerProfileTab, setCustomerProfileTab] = useState<'overview' | 'treatment'>('treatment');
 
   const isSoftLight = currentTheme.isSoftLight;
 
@@ -360,8 +362,41 @@ export const CustView: React.FC = () => {
               </div>
             </div>
 
-            {/* Financial Summary: Differentiate Branch Scope vs Chain-wide */}
-            <div className="space-y-2">
+            {/* Profile Navigation Tabs */}
+            <div className="flex items-center p-1 rounded-2xl bg-slate-100 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setCustomerProfileTab('treatment')}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  customerProfileTab === 'treatment'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Hồ Sơ Điều Trị & Before / After (P8)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCustomerProfileTab('overview')}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  customerProfileTab === 'overview'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+                <span>Giao Dịch & Gói Dịch Vụ</span>
+              </button>
+            </div>
+
+            {customerProfileTab === 'treatment' ? (
+              <CustomerTreatmentRecords customer={selectedCust} />
+            ) : (
+              <>
+                {/* Financial Summary: Differentiate Branch Scope vs Chain-wide */}
+                <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700">
                 <span>Chỉ số tài chính</span>
                 <span className="text-[11px] font-normal text-slate-400">Chi nhánh hiện tại vs Toàn chuỗi</span>
@@ -494,9 +529,11 @@ export const CustView: React.FC = () => {
               </div>
             </div>
           </>
-        ) : (
-          <div className="py-12 text-center text-slate-400 text-xs">Chọn khách hàng để xem chi tiết hồ sơ.</div>
         )}
+      </>
+    ) : (
+      <div className="py-12 text-center text-slate-400 text-xs">Chọn khách hàng để xem chi tiết hồ sơ.</div>
+    )}
       </div>
 
       {/* CREATE CUSTOMER MODAL */}

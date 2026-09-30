@@ -993,5 +993,118 @@ export interface CustomerRetentionAndCohortReport {
   };
 }
 
+export interface TreatmentPlan {
+  id: string;
+  orgId: string;
+  branchId: string;
+  customerId: string;
+  planCode: string;
+  title: string;
+  diagnosisNotes?: string;
+  targetOutcome?: string;
+  totalSessionsPlanned: number;
+  leadDoctorId?: string;
+  leadDoctorName?: string;
+  status: 'draft' | 'active' | 'completed' | 'paused' | 'cancelled';
+  startDate: string;
+  expectedEndDate?: string;
+  courseId?: string;
+  branchName?: string;
+  createdAt: string;
+}
+
+export interface TreatmentSession {
+  id: string;
+  orgId: string;
+  branchId: string;
+  customerId: string;
+  treatmentPlanId?: string;
+  appointmentId?: string;
+  courseUsageId?: string;
+  sessionCode: string;
+  sessionNumber: number;
+  performedBy: string;
+  performedByName?: string;
+  assistantId?: string;
+  assistantName?: string;
+  performedAt: string;
+  treatmentArea: string;
+  preTreatmentNotes?: string;
+  protocolPerformed: string;
+  postTreatmentNotes?: string;
+  clinicalReactions: string;
+  homecareInstructions?: string;
+  nextAppointmentDate?: string;
+  status: 'draft' | 'confirmed';
+  confirmedBy?: string;
+  confirmedByName?: string;
+  confirmedAt?: string;
+  branchName?: string;
+}
+
+export interface TreatmentSessionAudit {
+  id: string;
+  sessionId: string;
+  modifiedBy: string;
+  actionType: 'create' | 'update' | 'confirm' | 'add_note';
+  reasonForChange: string;
+  previousData: Record<string, any>;
+  newData: Record<string, any>;
+  createdAt: string;
+}
+
+export interface TreatmentPhoto {
+  id: string;
+  orgId: string;
+  branchId: string;
+  customerId: string;
+  sessionId?: string;
+  photoType: 'before' | 'after' | 'follow_up' | 'progress';
+  treatmentArea: string;
+  angle: 'front' | 'left_45' | 'right_45' | 'left_90' | 'right_90' | 'close_up';
+  storagePath: string;
+  thumbnailPath?: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  watermarkApplied: boolean;
+  capturedAt: string;
+  uploadedBy: string;
+  uploadedByName?: string;
+  notes?: string;
+  isConsentMarketing: boolean;
+  signedUrl?: string;
+}
+
+export interface TreatmentConsent {
+  id: string;
+  orgId: string;
+  customerId: string;
+  treatmentPlanId?: string;
+  sessionId?: string;
+  templateCode: string;
+  templateVersion: string;
+  consentTitle: string;
+  consentContentSnapshot: string;
+  agreeTreatment: boolean;
+  agreePhotoRecords: boolean;
+  agreeMarketingUsage: boolean;
+  signatureSvg?: string;
+  signedAt: string;
+  witnessStaffId: string;
+  witnessStaffName?: string;
+  signerName: string;
+  signerPhone?: string;
+  status: 'draft' | 'signed' | 'revoked';
+}
+
+export interface CustomerTreatmentHistory {
+  customerId: string;
+  treatmentPlans: TreatmentPlan[];
+  treatmentSessions: TreatmentSession[];
+  treatmentPhotos: TreatmentPhoto[];
+  treatmentConsents: TreatmentConsent[];
+}
+
 
 
