@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS treatment_sessions (
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     treatment_plan_id UUID REFERENCES treatment_plans(id) ON DELETE SET NULL,
     appointment_id UUID REFERENCES appointments(id) ON DELETE SET NULL,
-    course_usage_id UUID REFERENCES customer_course_usages(id) ON DELETE SET NULL,
+    course_id UUID REFERENCES customer_courses(id) ON DELETE SET NULL,
     session_code VARCHAR(50) NOT NULL,
     session_number INT NOT NULL DEFAULT 1,
     performed_by UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE RESTRICT,
@@ -233,7 +233,7 @@ CREATE OR REPLACE FUNCTION rpc_create_treatment_session(
     p_protocol_performed TEXT,
     p_treatment_plan_id UUID DEFAULT NULL,
     p_appointment_id UUID DEFAULT NULL,
-    p_course_usage_id UUID DEFAULT NULL,
+    p_course_id UUID DEFAULT NULL,
     p_session_number INT DEFAULT 1,
     p_treatment_area VARCHAR DEFAULT 'Toàn mặt',
     p_pre_treatment_notes TEXT DEFAULT NULL,
@@ -258,13 +258,13 @@ BEGIN
 
     INSERT INTO treatment_sessions (
         organization_id, branch_id, customer_id, treatment_plan_id,
-        appointment_id, course_usage_id, session_code, session_number,
+        appointment_id, course_id, session_code, session_number,
         performed_by, assistant_id, performed_at, treatment_area,
         pre_treatment_notes, protocol_performed, post_treatment_notes,
         clinical_reactions, homecare_instructions, next_appointment_date, status
     ) VALUES (
         p_org_id, p_branch_id, p_customer_id, p_treatment_plan_id,
-        p_appointment_id, p_course_usage_id, v_code, p_session_number,
+        p_appointment_id, p_course_id, v_code, p_session_number,
         p_performed_by, p_assistant_id, TIMEZONE('Asia/Ho_Chi_Minh', NOW()), p_treatment_area,
         p_pre_treatment_notes, p_protocol_performed, p_post_treatment_notes,
         p_clinical_reactions, p_homecare_instructions, p_next_appointment_date, 'draft'
