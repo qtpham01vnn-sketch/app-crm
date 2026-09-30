@@ -12,37 +12,32 @@ ALTER TABLE session_material_usages
     ADD COLUMN IF NOT EXISTS conversion_rate_snapshot NUMERIC(10, 4),
     ADD COLUMN IF NOT EXISTS bom_version_snapshot VARCHAR(50);
 
--- Backfill hệ số quy đổi snapshot từ dữ liệu sổ cái đã trừ kho thực tế:
--- conversion_rate_snapshot = base_quantity_deducted / actual_quantity
+-- Backfill hệ số quy đổi snapshot từ dữ liệu sổ cái đã trừ kho thực tế
 UPDATE session_material_usages
 SET conversion_rate_snapshot = ROUND(base_quantity_deducted / NULLIF(actual_quantity, 0), 4),
     bom_version_snapshot = COALESCE(bom_version_snapshot, 'v1.0-historical')
 WHERE conversion_rate_snapshot IS NULL;
 
--- Cột conversion_rate_snapshot không được phép NULL sau khi backfill
 ALTER TABLE session_material_usages
     ALTER COLUMN conversion_rate_snapshot SET NOT NULL;
 
 -- -----------------------------------------------------------------------------
 -- 2. KHẮC PHỤC TRIỆT ĐỂ LỖ HỔNG BẢO MẬT RLS CHO SERVICE_BOMS VÀ SESSION_MATERIAL_USAGES
 -- -----------------------------------------------------------------------------
--- Hủy toàn bộ policy mở cho anon trước đây
 DROP POLICY IF EXISTS rls_service_boms_all ON service_boms;
 DROP POLICY IF EXISTS rls_session_material_usages_all ON session_material_usages;
 DROP POLICY IF EXISTS rls_service_boms_org_read ON service_boms;
 DROP POLICY IF EXISTS rls_service_boms_admin_write ON service_boms;
 DROP POLICY IF EXISTS rls_session_material_usages_org ON session_material_usages;
+DROP POLICY IF EXISTS rls_session_material_usages_org_read ON session_material_usages;
 
--- Bắt buộc kích hoạt RLS
 ALTER TABLE service_boms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_material_usages ENABLE ROW LEVEL SECURITY;
 
--- Service BOMs: Chỉ tài khoản đăng nhập thuộc tổ chức mới được đọc
 CREATE POLICY rls_service_boms_org_read ON service_boms
     FOR SELECT TO authenticated
     USING (organization_id = (SELECT get_current_user_org_id()));
 
--- Service BOMs: Chỉ Admin hoặc Quản lý chi nhánh mới được chỉnh sửa định mức
 CREATE POLICY rls_service_boms_admin_write ON service_boms
     FOR ALL TO authenticated
     USING (
@@ -54,7 +49,6 @@ CREATE POLICY rls_service_boms_admin_write ON service_boms
         AND (SELECT get_current_user_role()) IN ('owner_admin', 'branch_manager')
     );
 
--- Session Material Usages: RLS cô lập theo tổ chức và quyền chi nhánh
 CREATE POLICY rls_session_material_usages_org_read ON session_material_usages
     FOR SELECT TO authenticated
     USING (
@@ -98,7 +92,6 @@ DECLARE
     v_existing_usage RECORD;
     v_current_hash VARCHAR(64);
 BEGIN
-    -- Kiểm tra xác thực ngữ cảnh tổ chức nếu gọi qua authenticated context
     IF auth.uid() IS NOT NULL THEN
         v_caller_org := get_current_user_org_id();
         IF v_caller_org IS NOT NULL AND v_caller_org <> p_org_id THEN
@@ -112,7 +105,6 @@ BEGIN
 
     v_current_hash := md5(p_items::TEXT || COALESCE(p_service_id::TEXT, '') || COALESCE(p_branch_id::TEXT, ''));
 
-    -- Kiểm tra Idempotency chặt chẽ
     IF p_idempotency_key IS NOT NULL THEN
         SELECT id, payload_hash, status INTO v_existing_usage
         FROM session_material_usages
@@ -147,7 +139,6 @@ BEGIN
             RAISE EXCEPTION 'Số lượng vật tư tiêu hao phải lớn hơn 0 (Sản phẩm: %)', v_item.product_id;
         END IF;
 
-        -- Tìm định mức và hệ số quy đổi hiệu lực tại thời điểm xuất
         SELECT * INTO v_bom
         FROM service_boms
         WHERE organization_id = p_org_id 
@@ -161,7 +152,6 @@ BEGIN
         v_bom_version := COALESCE(v_bom.version, 'v1.0-default');
         v_base_qty := ROUND(v_item.actual_quantity * v_conversion_rate, 3);
 
-        -- Khóa tồn kho để trừ chính xác (FOR UPDATE chống race condition)
         SELECT * INTO v_stock
         FROM inventory_stocks
         WHERE organization_id = p_org_id AND branch_id = p_branch_id AND product_id = v_item.product_id
@@ -181,13 +171,11 @@ BEGIN
             v_unit_cost := 0;
         END IF;
 
-        -- Trừ kho chính xác theo số lượng lẻ (NUMERIC 12,3)
         UPDATE inventory_stocks
         SET stock_on_hand = stock_on_hand - v_base_qty,
             updated_at = TIMEZONE('Asia/Ho_Chi_Minh', NOW())
         WHERE id = v_stock.id;
 
-        -- Ghi sổ cái tiêu hao vật tư kèm SNAPSHOT HỆ SỐ QUY ĐỔI & PHIÊN BẢN BOM
         INSERT INTO session_material_usages (
             organization_id, branch_id, service_id, session_deduction_id,
             sale_id, appointment_id, product_id, lot_number,
@@ -205,7 +193,6 @@ BEGIN
         )
         RETURNING id INTO v_usage_id;
 
-        -- Ghi sổ cái xuất kho (consumable_out)
         INSERT INTO inventory_transactions (
             organization_id, branch_id, product_id, transaction_type,
             reference_id, quantity_change, stock_before, stock_after,
@@ -269,7 +256,6 @@ DECLARE
     v_drilldown_items JSONB;
     v_total_records INT := 0;
 BEGIN
-    -- Kiểm tra quyền tổ chức
     IF auth.uid() IS NOT NULL THEN
         v_caller_org := get_current_user_org_id();
         IF v_caller_org IS NOT NULL AND v_caller_org <> p_org_id THEN
@@ -277,8 +263,7 @@ BEGIN
         END IF;
     END IF;
 
-    -- 1. DOANH THU THỰC HIỆN & GIÁ VỐN SẢN PHẨM
-    -- A. Sản phẩm bán lẻ trong kỳ (Phân bổ chiết khấu cấp hóa đơn)
+    -- 1. Doanh thu thực hiện & Giá vốn sản phẩm
     SELECT 
         COALESCE(SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0))))), 0),
         COALESCE(SUM(si.quantity * si.cost_price_snapshot), 0),
@@ -292,7 +277,6 @@ BEGIN
       AND s.status <> 'cancelled'
       AND si.item_type = 'product';
 
-    -- B. Dịch vụ lẻ làm ngay trong kỳ
     v_total_recognized_revenue := v_total_recognized_revenue + COALESCE((
         SELECT SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0)))))
         FROM sale_items si
@@ -305,7 +289,6 @@ BEGIN
           AND (p_service_id IS NULL OR si.item_ref_id = p_service_id)
     ), 0);
 
-    -- C. Doanh thu Trừ buổi Liệu trình thực tế tại chi nhánh phục vụ
     v_total_recognized_revenue := v_total_recognized_revenue + COALESCE((
         SELECT SUM(ROUND((sd.sessions_deducted::NUMERIC / NULLIF(cc.total_sessions, 0)) * COALESCE(s.total_amount, 0)))
         FROM session_deductions sd
@@ -316,7 +299,7 @@ BEGIN
           AND (p_service_id IS NULL OR cc.service_id = p_service_id)
     ), 0);
 
-    -- 2. TỔNG HỢP CHI PHÍ VẬT TƯ TIÊU HAO THỰC TẾ
+    -- 2. Chi phí vật tư tiêu hao thực tế
     SELECT 
         COALESCE(SUM(ROUND(smu.base_quantity_deducted * smu.cost_price_snapshot)), 0),
         v_missing_cost_warning_count + COALESCE(SUM(CASE WHEN smu.is_missing_cost_snapshot THEN 1 ELSE 0 END), 0)
@@ -328,16 +311,16 @@ BEGIN
       AND smu.status = 'confirmed'
       AND (p_service_id IS NULL OR smu.service_id = p_service_id);
 
-    -- 3. TỔNG HỢP HOA HỒNG TRỰC TIẾP
-    SELECT COALESCE(SUM(cr.amount), 0)
+    -- 3. Hoa hồng trực tiếp (Khớp chính xác schema: final_commission & occurred_at)
+    SELECT COALESCE(SUM(cr.final_commission), 0)
     INTO v_total_direct_commission
     FROM commission_records cr
     WHERE cr.organization_id = p_org_id
       AND (p_branch_id IS NULL OR cr.branch_id = p_branch_id)
-      AND cr.created_at >= v_start_ts AND cr.created_at < v_next_day_ts
+      AND cr.occurred_at >= v_start_ts AND cr.occurred_at < v_next_day_ts
       AND cr.status IN ('eligible', 'approved', 'paid');
 
-    -- 4. TÍNH CHÊNH LỆCH TRỰC TIẾP & BIÊN LỢI NHUẬN
+    -- 4. Chênh lệch trực tiếp & Biên lợi nhuận
     v_direct_contribution := v_total_recognized_revenue - (v_total_cogs_products + v_total_material_cost + v_total_direct_commission);
     
     IF v_total_recognized_revenue > 0 THEN
@@ -357,7 +340,7 @@ BEGIN
         'disclaimer', 'Chênh lệch trực tiếp sau giá vốn, vật tư và hoa hồng (chưa bao gồm chi phí khấu hao máy móc, tiền điện, mặt bằng và lương cứng).'
     );
 
-    -- 5. PHÂN TÍCH THEO DỊCH VỤ
+    -- 5. Phân tích theo dịch vụ
     SELECT COALESCE(
         jsonb_agg(
             jsonb_build_object(
@@ -394,7 +377,7 @@ BEGIN
         HAVING COUNT(DISTINCT sd.id) > 0 OR SUM(smu.base_quantity_deducted) > 0
     ) sb;
 
-    -- 6. PHÂN TÍCH 5 LOẠI CHÊNH LỆCH VẬT TƯ & TỒN KHO (DÙNG TRỰC TIẾP SNAPSHOT QUY ĐỔI)
+    -- 6. Phân tích 5 loại chênh lệch vật tư & tồn kho
     SELECT jsonb_build_object(
         'bom_variance', COALESCE((
             SELECT SUM(ROUND((smu.actual_quantity - smu.standard_quantity) * smu.conversion_rate_snapshot * smu.cost_price_snapshot))
@@ -420,7 +403,7 @@ BEGIN
         'unassigned_usage', 0
     ) INTO v_variance_breakdown;
 
-    -- 7. DANH SÁCH CHI TIẾT DRILL-DOWN CÓ PHÂN TRANG
+    -- 7. Chi tiết drill-down có phân trang
     SELECT COUNT(*) INTO v_total_records
     FROM session_material_usages smu
     WHERE smu.organization_id = p_org_id
