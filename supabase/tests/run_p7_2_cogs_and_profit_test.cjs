@@ -41,6 +41,12 @@ async function runP72CogsTestSuite() {
     // TEST 1: THIẾT LẬP ĐỊNH MỨC BOM CHUẨN XÁC (15ml / 50ml = 0.300 CHAI CƠ SỞ)
     // =========================================================================
     console.log('--- TEST 1: Thiết Lập Định Mức Tiêu Hao Vật Tư Service BOM (15ml = 0.300 Chai 50ml) ---');
+    // Deactivate previous active BOMs for this service/product
+    await supabase.from('service_boms')
+        .update({ is_active: false })
+        .eq('service_id', serviceId)
+        .eq('product_id', productId);
+
     // Hệ số quy đổi: 1 ml = 1/50 = 0.0200 chai. Định mức: 15 ml -> 15 * 0.02 = 0.300 chai
     const { error: bomErr } = await supabase.from('service_boms').upsert({
         organization_id: orgId,
