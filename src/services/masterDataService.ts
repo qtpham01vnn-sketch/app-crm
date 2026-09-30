@@ -2574,8 +2574,286 @@ export const masterDataService = {
       throw error;
     }
     return true;
+  },
+
+  /**
+   * 32. P6.3 TIMESHEETS & ATTENDANCE MANAGEMENT
+   */
+  async getTimesheetsDirectory(params: {
+    branchId?: string;
+    startDate: string;
+    endDate: string;
+    staffId?: string;
+  }): Promise<{
+    records: any[];
+    adjustments: any[];
+    summary: {
+      totalWorking: number;
+      totalCompleted: number;
+      totalApproved: number;
+      totalHours: number;
+    };
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        records: [],
+        adjustments: [],
+        summary: { totalWorking: 0, totalCompleted: 0, totalApproved: 0, totalHours: 0 }
+      };
+    }
+    const validBranchId = isUUID(params.branchId) ? params.branchId : null;
+    const validStaffId = isUUID(params.staffId) ? params.staffId : null;
+
+    const { data, error } = await supabase.rpc('rpc_get_timesheets_directory', {
+      p_branch_id: validBranchId,
+      p_start_date: params.startDate,
+      p_end_date: params.endDate,
+      p_staff_id: validStaffId
+    });
+    if (error) {
+      console.error('Lỗi lấy danh sách bảng công:', error);
+      return {
+        records: [],
+        adjustments: [],
+        summary: { totalWorking: 0, totalCompleted: 0, totalApproved: 0, totalHours: 0 }
+      };
+    }
+    const res = data as any;
+    return {
+      records: (res?.records || []).map((r: any) => ({
+        id: r.id,
+        staffId: r.staff_id,
+        staffName: r.staff_name,
+        staffCode: r.staff_code,
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+        workDate: r.work_date,
+        checkInAt: r.check_in_at,
+        checkOutAt: r.check_out_at,
+        isOvernight: r.is_overnight || false,
+        actualHours: Number(r.actual_hours) || 0,
+        approvedHours: Number(r.approved_hours) || 0,
+        status: r.status,
+        checkInMethod: r.check_in_method,
+        isVerified: r.is_verified,
+        notes: r.notes,
+        approvedBy: r.approved_by,
+        createdAt: r.created_at
+      })),
+      adjustments: (res?.adjustments || []).map((a: any) => ({
+        id: a.id,
+        attendanceId: a.attendance_id,
+        staffId: a.staff_id,
+        staffName: a.staff_name,
+        branchId: a.branch_id,
+        branchName: a.branch_name,
+        workDate: a.work_date,
+        originalCheckIn: a.original_check_in,
+        originalCheckOut: a.original_check_out,
+        requestedCheckIn: a.requested_check_in,
+        requestedCheckOut: a.requested_check_out,
+        requestedHours: Number(a.requested_hours) || 0,
+        reason: a.reason,
+        status: a.status,
+        createdAt: a.created_at
+      })),
+      summary: {
+        totalWorking: Number(res?.summary?.total_working) || 0,
+        totalCompleted: Number(res?.summary?.total_completed) || 0,
+        totalApproved: Number(res?.summary?.total_approved) || 0,
+        totalHours: Number(res?.summary?.total_hours) || 0
+      }
+    };
+  },
+
+  async checkInAttendanceRPC(params: {
+    orgId: string;
+    branchId: string;
+    staffId: string;
+    shiftId?: string;
+    method?: string;
+    meta?: Record<string, any>;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    attendanceId?: string;
+    checkInAt?: string;
+    message?: string;
+    isDuplicate?: boolean;
+    code?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_check_in_attendance', {
+      p_org_id: params.orgId,
+      p_branch_id: params.branchId,
+      p_staff_id: params.staffId,
+      p_shift_id: isUUID(params.shiftId) ? params.shiftId : null,
+      p_method: params.method || 'manual_app',
+      p_meta: params.meta || {},
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_check_in_attendance:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      attendanceId: res?.attendance_id,
+      checkInAt: res?.check_in_at,
+      message: res?.message,
+      isDuplicate: res?.is_duplicate,
+      code: res?.code
+    };
+  },
+
+  async checkOutAttendanceRPC(params: {
+    attendanceId: string;
+    method?: string;
+    meta?: Record<string, any>;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    attendanceId?: string;
+    checkOutAt?: string;
+    actualHours?: number;
+    isOvernight?: boolean;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_check_out_attendance', {
+      p_attendance_id: params.attendanceId,
+      p_method: params.method || 'manual_app',
+      p_meta: params.meta || {},
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_check_out_attendance:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      attendanceId: res?.attendance_id,
+      checkOutAt: res?.check_out_at,
+      actualHours: Number(res?.actual_hours) || 0,
+      isOvernight: res?.is_overnight || false,
+      message: res?.message
+    };
+  },
+
+  async requestAttendanceAdjustmentRPC(params: {
+    orgId: string;
+    staffId: string;
+    branchId: string;
+    workDate: string;
+    requestedCheckIn: string;
+    requestedCheckOut: string;
+    reason: string;
+    attendanceId?: string;
+  }): Promise<{
+    success: boolean;
+    adjustmentId?: string;
+    requestedHours?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_request_attendance_adjustment', {
+      p_org_id: params.orgId,
+      p_staff_id: params.staffId,
+      p_branch_id: params.branchId,
+      p_work_date: params.workDate,
+      p_requested_check_in: params.requestedCheckIn,
+      p_requested_check_out: params.requestedCheckOut,
+      p_reason: params.reason,
+      p_attendance_id: isUUID(params.attendanceId) ? params.attendanceId : null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_request_attendance_adjustment:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      adjustmentId: res?.adjustment_id,
+      requestedHours: Number(res?.requested_hours) || 0,
+      message: res?.message
+    };
+  },
+
+  async processAttendanceAdjustmentRPC(params: {
+    adjustmentId: string;
+    action: 'approved' | 'rejected';
+    managerStaffId?: string;
+    rejectionReason?: string;
+  }): Promise<{
+    success: boolean;
+    attendanceId?: string;
+    approvedHours?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_process_attendance_adjustment', {
+      p_adjustment_id: params.adjustmentId,
+      p_action: params.action,
+      p_manager_staff_id: isUUID(params.managerStaffId) ? params.managerStaffId : null,
+      p_rejection_reason: params.rejectionReason || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_process_attendance_adjustment:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      attendanceId: res?.attendance_id,
+      approvedHours: Number(res?.approved_hours) || 0,
+      message: res?.message
+    };
+  },
+
+  async approveTimesheetRecordRPC(params: {
+    attendanceId: string;
+    approvedHours: number;
+    managerStaffId?: string;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    attendanceId?: string;
+    approvedHours?: number;
+    message?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Offline mode simulation' };
+    }
+    const { data, error } = await supabase.rpc('rpc_approve_timesheet_record', {
+      p_attendance_id: params.attendanceId,
+      p_approved_hours: params.approvedHours,
+      p_manager_staff_id: isUUID(params.managerStaffId) ? params.managerStaffId : null,
+      p_notes: params.notes || null
+    });
+    if (error) {
+      console.error('Lỗi RPC rpc_approve_timesheet_record:', error);
+      throw error;
+    }
+    const res = data as any;
+    return {
+      success: res?.success ?? false,
+      attendanceId: res?.attendance_id,
+      approvedHours: Number(res?.approved_hours) || 0,
+      message: res?.message
+    };
   }
 };
+
 
 
 

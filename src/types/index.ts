@@ -604,4 +604,53 @@ export interface ShiftSwapRequest {
   createdAt: string;
 }
 
+export interface AttendanceRecord {
+  id: string;
+  orgId?: string;
+  branchId: string;
+  branchName?: string;
+  staffId: string;
+  staffName?: string;
+  staffCode?: string;
+  shiftId?: string;
+  workDate: string;
+  checkInAt: string;
+  checkOutAt?: string;
+  isOvernight: boolean;
+  actualHours: number;
+  approvedHours: number;
+  status: 'working' | 'completed' | 'pending_approval' | 'approved' | 'rejected';
+  checkInMethod: 'gps' | 'wifi' | 'pin' | 'manual_app' | 'manager_override';
+  checkInMeta?: Record<string, any>;
+  checkOutMeta?: Record<string, any>;
+  isVerified: boolean;
+  notes?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdAt: string;
+}
+
+export interface AttendanceAdjustment {
+  id: string;
+  orgId?: string;
+  attendanceId?: string;
+  staffId: string;
+  staffName?: string;
+  branchId: string;
+  branchName?: string;
+  workDate: string;
+  originalCheckIn?: string;
+  originalCheckOut?: string;
+  requestedCheckIn: string;
+  requestedCheckOut: string;
+  requestedHours: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+
 

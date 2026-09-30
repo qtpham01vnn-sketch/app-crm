@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://lskrcerzxltlrcewigrw.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxza3JjZXJ6eGx0bHJjZXdpZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyNzY4MDcsImV4cCI6MjA1Njg1MjgwN30.8n7P95fU22i9Z9FjUf5209-4r5i43_y091834901823';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxza3JjZXJ6eGx0bHJjZXdpZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjMwMzAsImV4cCI6MjA5MTQ5OTAzMH0.60K5fWetNDQkMl8G32Sy6E9-EkhpDHfzIhfmfOLcZOI';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -181,42 +181,58 @@ async function runRosterAndShiftTestSuite() {
 
     // --- KỊCH BẢN 6: Đổi Ca (Shift Swap) ---
     console.log('\n--- KỊCH BẢN 6: Hoán Đổi Ca Làm Việc Giữa 2 KTV ---');
-    // Tạo ca cho Staff B tại Chi nhánh 2
-    const { data: shiftBRes } = await supabase.rpc('rpc_upsert_roster_shift', {
+    const testDate2 = '2026-10-16';
+    const { data: shiftA2Res } = await supabase.rpc('rpc_upsert_roster_shift', {
         p_org_id: orgId,
-        p_staff_id: staffBId,
-        p_branch_id: branch2.id,
-        p_shift_date: testDate,
+        p_staff_id: staffAId,
+        p_branch_id: branch1.id,
+        p_shift_date: testDate2,
         p_start_time: '08:00:00',
         p_end_time: '12:00:00',
         p_shift_type: 'morning',
         p_is_off: false
     });
-    const shiftBId = shiftBRes.shift_id;
+    const shiftA2Id = shiftA2Res.shift_id;
 
-    // Tạo yêu cầu đổi ca: Staff A (shift2: 13:00-17:00) đổi với Staff B (shiftB: 08:00-12:00)
+    const { data: shiftB2Res } = await supabase.rpc('rpc_upsert_roster_shift', {
+        p_org_id: orgId,
+        p_staff_id: staffBId,
+        p_branch_id: branch2.id,
+        p_shift_date: testDate2,
+        p_start_time: '13:00:00',
+        p_end_time: '17:00:00',
+        p_shift_type: 'afternoon',
+        p_is_off: false
+    });
+    const shiftB2Id = shiftB2Res.shift_id;
+
+    // Tạo yêu cầu đổi ca: Staff A đổi với Staff B
     const { data: swapReq, error: swapReqErr } = await supabase.from('shift_swap_requests').insert({
         organization_id: orgId,
         requester_staff_id: staffAId,
-        requester_shift_id: shift2Id,
+        requester_shift_id: shiftA2Id,
         target_staff_id: staffBId,
-        target_shift_id: shiftBId,
+        target_shift_id: shiftB2Id,
         reason: 'Có việc gia đình chiều'
     }).select('id').single();
 
     if (swapReqErr) throw new Error('Lỗi tạo swap request: ' + swapReqErr.message);
 
     // Duyệt yêu cầu đổi ca
-    const { data: swapProcessRes } = await supabase.rpc('rpc_process_shift_swap', {
+    const { data: swapProcessRes, error: swapErr } = await supabase.rpc('rpc_process_shift_swap', {
         p_swap_id: swapReq.id,
         p_action: 'approve'
     });
-    assert(swapProcessRes.success === true, 'Quản lý phê duyệt hoán đổi ca thành công');
+    if (swapErr) {
+        console.error('Lỗi RPC swap:', swapErr);
+        throw swapErr;
+    }
+    assert(swapProcessRes && swapProcessRes.success === true, 'Quản lý phê duyệt hoán đổi ca thành công');
 
     // Kiểm tra chủ sở hữu ca làm sau khi hoán đổi
-    const { data: checkShift2 } = await supabase.from('roster_shifts').select('staff_id').eq('id', shift2Id).single();
-    const { data: checkShiftB } = await supabase.from('roster_shifts').select('staff_id').eq('id', shiftBId).single();
-    assert(checkShift2.staff_id === staffBId && checkShiftB.staff_id === staffAId, 'Hai ca làm đã được hoán đổi chủ sở hữu KTV chuẩn xác nguyên tử');
+    const { data: checkShiftA2 } = await supabase.from('roster_shifts').select('staff_id').eq('id', shiftA2Id).single();
+    const { data: checkShiftB2 } = await supabase.from('roster_shifts').select('staff_id').eq('id', shiftB2Id).single();
+    assert(checkShiftA2.staff_id === staffBId && checkShiftB2.staff_id === staffAId, 'Hai ca làm đã được hoán đổi chủ sở hữu KTV chuẩn xác nguyên tử');
 
     console.log('\n================================================================================');
     console.log('🎉 TẤT CẢ KỊCH BẢN KIỂM THỬ P6.2 (PHÂN CA, LIÊN CHI NHÁNH & AN TOÀN LỊCH HẸN) ĐẠT 100%');
