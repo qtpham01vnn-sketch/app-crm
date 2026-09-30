@@ -19,10 +19,15 @@ import {
   Package,
   Activity,
   UserCheck,
-  Users
+  Users,
+  FileSpreadsheet,
+  FileText,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
+import { reportExportService, type ReportType, type ExportFormat, type ExportDetailLevel } from '../../services/reportExportService';
 import type { SalesCashflowReport, CogsAndProfitReport, StaffAndResourceUtilizationReport, CustomerRetentionAndCohortReport } from '../../types';
 
 
@@ -63,6 +68,93 @@ export const ReportsView: React.FC = () => {
     title: '',
     subtitle: ''
   });
+
+  // Export Modal State (P7.5 Excel & PDF)
+  const [exportModal, setExportModal] = useState<{
+    isOpen: boolean;
+    selectedReport: ReportType;
+    format: ExportFormat;
+    detailLevel: ExportDetailLevel;
+    isExporting: boolean;
+    statusText: string;
+    error: string | null;
+  }>({
+    isOpen: false,
+    selectedReport: 'p7_1',
+    format: 'excel',
+    detailLevel: 'full',
+    isExporting: false,
+    statusText: '',
+    error: null
+  });
+
+  const handleOpenExportModal = () => {
+    let mappedReport: ReportType = 'p7_1';
+    if (reportTab === 'cogs') mappedReport = 'p7_2';
+    else if (reportTab === 'utilization') mappedReport = 'p7_3';
+    else if (reportTab === 'retention') mappedReport = 'p7_4';
+
+    setExportModal((prev) => ({
+      ...prev,
+      isOpen: true,
+      selectedReport: mappedReport,
+      error: null,
+      statusText: ''
+    }));
+  };
+
+  const handleExecuteExport = async () => {
+    setExportModal((prev) => ({
+      ...prev,
+      isExporting: true,
+      error: null,
+      statusText: 'Đang chuẩn bị dữ liệu báo cáo...'
+    }));
+
+    try {
+      const branchName =
+        selectedBranchId === 'all'
+          ? 'Toan_Chuoi'
+          : (branches.find((b) => b.id === selectedBranchId)?.name || 'Chi_Nhanh').replace(/\s+/g, '_');
+
+      const ext = exportModal.format === 'excel' ? 'xlsx' : 'pdf';
+      const reportCodeMap: Record<ReportType, string> = {
+        p7_1: 'Bao_Cao_Ban_Hang_Dong_Tien_P7_1',
+        p7_2: 'Bao_Cao_Gia_Von_Lai_Gop_P7_2',
+        p7_3: 'Bao_Cao_Hieu_Suat_Nhan_Su_P7_3',
+        p7_4: 'Bao_Cao_Giu_Chan_Cohort_P7_4'
+      };
+      const fileName = `${reportCodeMap[exportModal.selectedReport]}_${branchName}_${startDate}_${endDate}.${ext}`;
+
+      const blob = await reportExportService.exportReport({
+        reportType: exportModal.selectedReport,
+        format: exportModal.format,
+        detailLevel: exportModal.detailLevel,
+        dateRange: { startDate, endDate },
+        selectedBranchId,
+        branches,
+        data: {
+          p7_1: reportData,
+          p7_2: cogsReportData,
+          p7_3: staffReportData,
+          p7_4: customerReportData
+        },
+        onProgress: (_prog, msg) => {
+          setExportModal((prev) => ({ ...prev, statusText: msg }));
+        }
+      });
+
+      reportExportService.downloadFile(blob, fileName);
+      setExportModal((prev) => ({ ...prev, isOpen: false, isExporting: false, statusText: '' }));
+    } catch (err: any) {
+      console.error('Lỗi xuất báo cáo:', err);
+      setExportModal((prev) => ({
+        ...prev,
+        isExporting: false,
+        error: err.message || 'Xuất file thất bại. Vui lòng thử lại!'
+      }));
+    }
+  };
 
   // Handle Preset Date Selection
   const handleDatePresetChange = (preset: 'today' | '7days' | 'this_month' | 'last_month' | 'custom') => {
@@ -202,51 +294,6 @@ export const ReportsView: React.FC = () => {
   const totalCustomerDebt = customers.reduce((sum, c) => sum + (c.debt || 0), 0);
   const totalSupplierDebt = suppliers.reduce((sum, s) => sum + (s.debt || 0), 0);
 
-  // Export to CSV Function
-  const exportToCSV = () => {
-    let csvContent = '\uFEFF'; // UTF-8 BOM
-    if (reportTab === 'sales' || reportTab === 'earned') {
-      csvContent += 'BÁO CÁO DOANH SỐ BÁN HÀNG & HÓA ĐƠN\n';
-      csvContent += `Thời gian: ${startDate} đến ${endDate} (Múi giờ: Asia/Ho_Chi_Minh)\n`;
-      csvContent += `Chi nhánh: ${selectedBranchId === 'all' ? 'Toàn chuỗi' : branches.find(b => b.id === selectedBranchId)?.name || selectedBranchId}\n\n`;
-      csvContent += 'Mã Hóa Đơn,Chi Nhánh,Khách Hàng,Số Điện Thoại,Tổng Tiền (VNĐ),Đã Thanh Toán (VNĐ),Còn Nợ (VNĐ),Trạng Thái,Thời Gian Tạo\n';
-      
-      const invoices = reportData?.invoicesDrilldown || [];
-      invoices.forEach(inv => {
-        csvContent += `"${inv.invoiceNumber}","${inv.branchName}","${inv.customerName}","${inv.customerPhone || ''}",${inv.totalAmount},${inv.paidAmount},${inv.debtAmount},"${inv.status}","${inv.createdAt}"\n`;
-      });
-    } else if (reportTab === 'cogs') {
-      csvContent += 'BÁO CÁO GIÁ VỐN & TIÊU HAO VẬT TƯ (P7.2 COGS)\n';
-      csvContent += `Thời gian: ${startDate} đến ${endDate} (Múi giờ: Asia/Ho_Chi_Minh)\n`;
-      csvContent += `Chi nhánh: ${selectedBranchId === 'all' ? 'Toàn chuỗi' : branches.find(b => b.id === selectedBranchId)?.name || selectedBranchId}\n\n`;
-      csvContent += 'Ngày Giờ,Chi Nhánh,Dịch Vụ,Vật Tư,Định Mức,Thực Tế,ĐVT,Giá Vốn Snapshot (VNĐ),Thành Tiền (VNĐ),KTV Thực Hiện,Ghi Chú\n';
-      
-      const items = cogsReportData?.drilldown?.items || [];
-      items.forEach(d => {
-        csvContent += `"${d.usedAt}","${d.branchName}","${d.serviceName}","${d.productName}",${d.standardQty},${d.actualQty},"${d.unit}",${d.costPriceSnapshot},${d.totalCost},"${d.performerName || ''}","${d.notes || ''}"\n`;
-      });
-    } else {
-      csvContent += 'BÁO CÁO DÒNG TIỀN & ĐỐI SOÁT THANH TOÁN\n';
-      csvContent += `Thời gian: ${startDate} đến ${endDate} (Múi giờ: Asia/Ho_Chi_Minh)\n`;
-      csvContent += `Chi nhánh: ${selectedBranchId === 'all' ? 'Toàn chuỗi' : branches.find(b => b.id === selectedBranchId)?.name || selectedBranchId}\n\n`;
-      csvContent += 'Mã Phiếu,Chi Nhánh,Khách Hàng,Số Tiền (VNĐ),Phương Thức,Loại Giao Dịch,Đối Soát,Ghi Chú,Thời Gian\n';
-      
-      const paymentsList = reportData?.paymentsDrilldown || [];
-      paymentsList.forEach(p => {
-        csvContent += `"${p.paymentNumber}","${p.branchName}","${p.customerName}",${p.amount},"${p.paymentMethod}","${p.paymentType}","${p.reconciliationStatus}","${p.note || ''}","${p.createdAt}"\n`;
-      });
-    }
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Bao_Cao_${reportTab}_${startDate}_${endDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6 animate-fade-in">
       {/* Header with Title and Global Actions */}
@@ -257,13 +304,13 @@ export const ReportsView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-lg text-slate-800">Trung Tâm Phân Tích & Báo Cáo BI (P7.1 & P7.2)</h3>
+              <h3 className="font-bold text-lg text-slate-800">Trung Tâm Phân Tích & Báo Cáo BI (P7.1 - P7.5)</h3>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-700">
                 Asia/Ho_Chi_Minh
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Bán hàng Hóa đơn • Dòng tiền Thực thu • Định mức BOM • Giá vốn COGS • Lợi nhuận trực tiếp
+              Bán hàng • Dòng tiền • Giá vốn COGS • Hiệu suất Nhân sự • Giữ chân Retention • Xuất Excel & PDF
             </p>
           </div>
         </div>
@@ -280,11 +327,12 @@ export const ReportsView: React.FC = () => {
           </button>
 
           <button
-            onClick={exportToCSV}
-            className="text-xs bg-sky-600 hover:bg-sky-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition-all"
+            onClick={handleOpenExportModal}
+            className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition-all"
+            title="Xuất báo cáo định dạng Excel (.xlsx) hoặc PDF Quản trị"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Xuất CSV (UTF-8 BOM)</span>
+            <span>Xuất Báo Cáo (Excel / PDF)</span>
           </button>
         </div>
       </div>
@@ -1527,6 +1575,222 @@ export const ReportsView: React.FC = () => {
               >
                 Đóng
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Report Modal Dialog (P7.5) */}
+      {exportModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-100 shadow-2xl overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-indigo-900 via-blue-900 to-sky-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                  <Download className="w-5 h-5 text-sky-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Xuất Báo Cáo Quản Trị BI (P7.5)</h3>
+                  <p className="text-xs text-sky-200">Định dạng chuẩn Excel (.xlsx) & PDF Quản Trị A4</p>
+                </div>
+              </div>
+              <button
+                onClick={() => !exportModal.isExporting && setExportModal((p) => ({ ...p, isOpen: false }))}
+                disabled={exportModal.isExporting}
+                className="p-1.5 rounded-xl hover:bg-white/10 text-white/80 hover:text-white transition-all disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-5">
+              {exportModal.error && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{exportModal.error}</span>
+                </div>
+              )}
+
+              {/* Scope summary */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs space-y-1.5">
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-semibold">Kỳ báo cáo:</span>
+                  <span className="font-bold text-slate-800">{startDate} đến {endDate}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-semibold">Phạm vi chi nhánh:</span>
+                  <span className="font-bold text-slate-800">
+                    {selectedBranchId === 'all'
+                      ? 'Toàn chuỗi Phương Nam'
+                      : branches.find((b) => b.id === selectedBranchId)?.name || selectedBranchId}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-semibold">Múi giờ dữ liệu:</span>
+                  <span className="font-bold text-indigo-700">Asia/Ho_Chi_Minh (UTC+7)</span>
+                </div>
+              </div>
+
+              {/* Report Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  1. Chọn Phân Hệ Báo Cáo
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'p7_1' as ReportType, title: 'Bán Hàng & Dòng Tiền (P7.1)', desc: 'Doanh số gộp, thực thu, cọc, nợ, chuyển khoản' },
+                    { id: 'p7_2' as ReportType, title: 'Giá Vốn & Lợi Nhuận (P7.2)', desc: 'Chi phí BOM snapshot, hoa hồng, lãi gộp' },
+                    { id: 'p7_3' as ReportType, title: 'Hiệu Suất Nhân Sự (P7.3)', desc: 'Giờ phục vụ, doanh số tư vấn, công suất phòng' },
+                    { id: 'p7_4' as ReportType, title: 'Giữ Chân & Cohort (P7.4)', desc: 'Phân khúc RFM, Cohort 30/60/90, tỷ lệ quay lại' }
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setExportModal((p) => ({ ...p, selectedReport: r.id }))}
+                      className={`p-3 rounded-2xl border text-left transition-all ${
+                        exportModal.selectedReport === r.id
+                          ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs text-slate-800">{r.title}</span>
+                        {exportModal.selectedReport === r.id && (
+                          <Check className="w-3.5 h-3.5 text-indigo-600" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-tight">{r.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  2. Định Dạng File Xuất
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExportModal((p) => ({ ...p, format: 'excel' }))}
+                    className={`p-3 rounded-2xl border flex items-center space-x-3 transition-all ${
+                      exportModal.format === 'excel'
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-800">Microsoft Excel (.xlsx)</p>
+                      <p className="text-[10px] text-slate-500">Đa sheet, kiểu số chuẩn, freeze panes</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportModal((p) => ({ ...p, format: 'pdf' }))}
+                    className={`p-3 rounded-2xl border flex items-center space-x-3 transition-all ${
+                      exportModal.format === 'pdf'
+                        ? 'border-rose-600 bg-rose-50/60 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-800">Báo Cáo PDF Quản Trị</p>
+                      <p className="text-[10px] text-slate-500">Khổ ngang A4, lặp tiêu đề, phân trang</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Detail Level Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  3. Mức Độ Chi Tiết
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center space-x-2.5 p-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="detailLevel"
+                      checked={exportModal.detailLevel === 'full'}
+                      onChange={() => setExportModal((p) => ({ ...p, detailLevel: 'full' }))}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Đầy Đủ Tổng Hợp & Chi Tiết</p>
+                      <p className="text-[10px] text-slate-500">Bao gồm toàn bộ chứng từ drill-down</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center space-x-2.5 p-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="detailLevel"
+                      checked={exportModal.detailLevel === 'summary'}
+                      onChange={() => setExportModal((p) => ({ ...p, detailLevel: 'summary' }))}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Chỉ Tổng Hợp Quản Trị</p>
+                      <p className="text-[10px] text-slate-500">Chỉ xuất bảng KPI & phân tích vĩ mô</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+              <div>
+                {exportModal.isExporting ? (
+                  <div className="flex items-center space-x-2 text-indigo-700 text-xs font-bold animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{exportModal.statusText || 'Đang tạo file báo cáo...'}</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    Sử dụng cùng quy tắc tính và phân quyền với màn hình
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setExportModal((p) => ({ ...p, isOpen: false }))}
+                  disabled={exportModal.isExporting}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition-all disabled:opacity-50"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteExport}
+                  disabled={exportModal.isExporting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {exportModal.isExporting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang Xuất File...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Bắt Đầu Xuất File</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
