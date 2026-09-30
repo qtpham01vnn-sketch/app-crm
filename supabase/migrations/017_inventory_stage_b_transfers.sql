@@ -120,7 +120,7 @@ DECLARE
     v_transfer_number VARCHAR(100);
     v_total_items INT := 0;
     v_total_value BIGINT := 0;
-    v_item RECORD;
+    v_item JSONB;
     v_prod_id UUID;
     v_lot VARCHAR(100);
     v_expiry DATE;
@@ -139,7 +139,7 @@ BEGIN
     v_transfer_number := 'DC' || to_char(NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYMMDD') || '-' || LPAD(FLOOR(RANDOM() * 9000 + 1000)::TEXT, 4, '0');
 
     -- Tính tổng số lượng và giá trị điều chuyển
-    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    FOR v_item IN SELECT jsonb_array_elements(p_items)
     LOOP
         v_qty := (v_item->>'quantity')::INT;
         v_cost := COALESCE((v_item->>'unit_cost')::BIGINT, 0);
@@ -178,7 +178,7 @@ BEGIN
     RETURNING id INTO v_transfer_id;
 
     -- Thêm chi tiết các dòng
-    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    FOR v_item IN SELECT jsonb_array_elements(p_items)
     LOOP
         v_prod_id := (v_item->>'product_id')::UUID;
         v_lot := v_item->>'lot_number';
@@ -407,7 +407,7 @@ AS $$
 DECLARE
     v_transfer RECORD;
     v_item RECORD;
-    v_receive_entry RECORD;
+    v_receive_entry JSONB;
     v_item_id UUID;
     v_qty_acc INT;
     v_qty_dam INT;
@@ -439,7 +439,7 @@ BEGIN
     END IF;
 
     -- 2. Xử lý từng dòng nhận
-    FOR v_receive_entry IN SELECT * FROM jsonb_array_elements(p_items)
+    FOR v_receive_entry IN SELECT jsonb_array_elements(p_items)
     LOOP
         v_item_id := (v_receive_entry->>'transfer_item_id')::UUID;
         v_qty_acc := GREATEST(0, COALESCE((v_receive_entry->>'qty_accepted')::INT, 0));
