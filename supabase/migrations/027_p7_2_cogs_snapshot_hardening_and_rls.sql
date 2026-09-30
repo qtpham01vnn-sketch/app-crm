@@ -1,57 +1,77 @@
 -- =============================================================================
--- MIGRATION 027: HARDENING SNAPSHOT QUY ĐỔI BOM, BẢO TOÀN LỊCH SỬ & CHẶT CHẼ RLS
--- Phân hệ: P7.2 — Giá Vốn Hàng Bán, Định Mức Vật Tư & Phân Tích Lợi Nhuận
+-- MIGRATION 027: HARDENING SNAPSHOT QUY ĐỔI BOM, BẢO MẬT RLS & BẢO TOÀN SỔ CÁI
+-- Phân hệ: P7.2 — Giá Vốn COGS, Định Mức Vật Tư & Phân Tích Lợi Nhuận Trực Tiếp
+-- Yêu cầu tiên quyết: Đã áp dụng Migrations 001 - 026
 -- Target: PostgreSQL / Supabase
 -- =============================================================================
 
--- 1. BỔ SUNG CỘT SNAPSHOT QUY ĐỔI VÀ PHIÊN BẢN BOM VÀO SỔ CÁI XUẤT VẬT TƯ
+-- -----------------------------------------------------------------------------
+-- 1. BỔ SUNG CỘT SNAPSHOT QUY ĐỔI VÀ PHIÊN BẢN BOM
+-- -----------------------------------------------------------------------------
 ALTER TABLE session_material_usages
-    ADD COLUMN IF NOT EXISTS conversion_rate_snapshot NUMERIC(10, 4) NOT NULL DEFAULT 1.0,
+    ADD COLUMN IF NOT EXISTS conversion_rate_snapshot NUMERIC(10, 4),
     ADD COLUMN IF NOT EXISTS bom_version_snapshot VARCHAR(50);
 
--- Cập nhật dữ liệu lịch sử đã ghi nhận
+-- Backfill hệ số quy đổi snapshot từ dữ liệu sổ cái đã trừ kho thực tế:
+-- conversion_rate_snapshot = base_quantity_deducted / actual_quantity
 UPDATE session_material_usages
-SET conversion_rate_snapshot = 0.0300,
-    bom_version_snapshot = 'v1.0-test'
-WHERE idempotency_key IN ('MAT-TEST-881112', 'MAT-TEST-572220', 'MAT-EXACT-472382');
+SET conversion_rate_snapshot = ROUND(base_quantity_deducted / NULLIF(actual_quantity, 0), 4),
+    bom_version_snapshot = COALESCE(bom_version_snapshot, 'v1.0-historical')
+WHERE conversion_rate_snapshot IS NULL;
 
-UPDATE session_material_usages
-SET conversion_rate_snapshot = 0.0200,
-    bom_version_snapshot = 'v2.0-exact'
-WHERE idempotency_key IN ('MAT-EXACT-726072', 'MAT-EXACT-829969');
+-- Cột conversion_rate_snapshot không được phép NULL sau khi backfill
+ALTER TABLE session_material_usages
+    ALTER COLUMN conversion_rate_snapshot SET NOT NULL;
 
--- 2. THẮT CHẶT BẢO MẬT RLS CHO SERVICE_BOMS VÀ SESSION_MATERIAL_USAGES
+-- -----------------------------------------------------------------------------
+-- 2. KHẮC PHỤC TRIỆT ĐỂ LỖ HỔNG BẢO MẬT RLS CHO SERVICE_BOMS VÀ SESSION_MATERIAL_USAGES
+-- -----------------------------------------------------------------------------
+-- Hủy toàn bộ policy mở cho anon trước đây
 DROP POLICY IF EXISTS rls_service_boms_all ON service_boms;
 DROP POLICY IF EXISTS rls_session_material_usages_all ON session_material_usages;
+DROP POLICY IF EXISTS rls_service_boms_org_read ON service_boms;
+DROP POLICY IF EXISTS rls_service_boms_admin_write ON service_boms;
+DROP POLICY IF EXISTS rls_session_material_usages_org ON session_material_usages;
 
--- Service BOMs: Chỉ xem theo organization của thành viên, Admin/Manager mới được sửa
+-- Bắt buộc kích hoạt RLS
+ALTER TABLE service_boms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE session_material_usages ENABLE ROW LEVEL SECURITY;
+
+-- Service BOMs: Chỉ tài khoản đăng nhập thuộc tổ chức mới được đọc
 CREATE POLICY rls_service_boms_org_read ON service_boms
     FOR SELECT TO authenticated
-    USING (organization_id = get_current_user_org_id());
+    USING (organization_id = (SELECT get_current_user_org_id()));
 
+-- Service BOMs: Chỉ Admin hoặc Quản lý chi nhánh mới được chỉnh sửa định mức
 CREATE POLICY rls_service_boms_admin_write ON service_boms
     FOR ALL TO authenticated
     USING (
-        organization_id = get_current_user_org_id()
-        AND get_current_user_role() IN ('owner_admin', 'branch_manager')
+        organization_id = (SELECT get_current_user_org_id())
+        AND (SELECT get_current_user_role()) IN ('owner_admin', 'branch_manager')
+    )
+    WITH CHECK (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (SELECT get_current_user_role()) IN ('owner_admin', 'branch_manager')
     );
 
--- Session Material Usages: RLS tổ chức & chi nhánh
-CREATE POLICY rls_session_material_usages_org ON session_material_usages
+-- Session Material Usages: RLS cô lập theo tổ chức và quyền chi nhánh
+CREATE POLICY rls_session_material_usages_org_read ON session_material_usages
     FOR SELECT TO authenticated
     USING (
-        organization_id = get_current_user_org_id()
+        organization_id = (SELECT get_current_user_org_id())
         AND (
-            get_current_user_role() = 'owner_admin'
-            OR branch_id = get_current_user_branch_id()
+            (SELECT get_current_user_role()) = 'owner_admin'
+            OR branch_id = (SELECT get_current_user_branch_id())
             OR branch_id IN (
                 SELECT branch_id FROM staff_branch_assignments 
-                WHERE staff_id = get_current_user_staff_id() AND is_active = TRUE
+                WHERE staff_id = (SELECT get_current_user_staff_id()) AND is_active = TRUE
             )
         )
     );
 
--- 3. CẬP NHẬT RPC GHI NHẬN TIÊU HAO VẬT TƯ (SNAPSHOT BẤT BIẾN CONVERSION_RATE)
+-- -----------------------------------------------------------------------------
+-- 3. CẬP NHẬT RPC GHI NHẬN TIÊU HAO VẬT TƯ (XÁC THỰC QUYỀN & SNAPSHOT ATOMIC)
+-- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rpc_record_service_material_usage(
     p_org_id UUID,
     p_branch_id UUID,
@@ -70,6 +90,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_caller_org UUID;
     v_item RECORD;
     v_bom RECORD;
     v_stock RECORD;
@@ -84,6 +105,14 @@ DECLARE
     v_existing_usage RECORD;
     v_current_hash VARCHAR(64);
 BEGIN
+    -- Kiểm tra xác thực ngữ cảnh tổ chức nếu gọi qua authenticated context
+    IF auth.uid() IS NOT NULL THEN
+        v_caller_org := get_current_user_org_id();
+        IF v_caller_org IS NOT NULL AND v_caller_org <> p_org_id THEN
+            RAISE EXCEPTION 'Truy cập trái phép: Người dùng không thuộc tổ chức này.';
+        END IF;
+    END IF;
+
     IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
         RETURN jsonb_build_object('success', FALSE, 'message', 'Danh sách vật tư tiêu hao trống.');
     END IF;
@@ -207,7 +236,9 @@ BEGIN
 END;
 $$;
 
--- 4. CẬP NHẬT RPC BÁO CÁO GIÁ VỐN & CHÊNH LỆCH LỢI NHUẬN TRỰC TIẾP
+-- -----------------------------------------------------------------------------
+-- 4. CẬP NHẬT RPC BÁO CÁO GIÁ VỐN & LỢI NHUẬN TRỰC TIẾP
+-- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rpc_get_cogs_and_gross_profit_report(
     p_org_id UUID,
     p_branch_id UUID DEFAULT NULL,
@@ -224,6 +255,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_caller_org UUID;
     v_start_ts TIMESTAMPTZ := (p_start_date::TEXT || ' 00:00:00+07')::TIMESTAMPTZ;
     v_next_day_ts TIMESTAMPTZ := ((p_end_date + INTERVAL '1 day')::DATE::TEXT || ' 00:00:00+07')::TIMESTAMPTZ;
 
@@ -244,6 +276,14 @@ DECLARE
     v_drilldown_items JSONB;
     v_total_records INT := 0;
 BEGIN
+    -- Kiểm tra quyền tổ chức
+    IF auth.uid() IS NOT NULL THEN
+        v_caller_org := get_current_user_org_id();
+        IF v_caller_org IS NOT NULL AND v_caller_org <> p_org_id THEN
+            RAISE EXCEPTION 'Truy cập trái phép: Người dùng không thuộc tổ chức này.';
+        END IF;
+    END IF;
+
     -- 1. DOANH THU THỰC HIỆN & GIÁ VỐN SẢN PHẨM
     -- A. Sản phẩm bán lẻ trong kỳ (Phân bổ chiết khấu cấp hóa đơn)
     SELECT 
