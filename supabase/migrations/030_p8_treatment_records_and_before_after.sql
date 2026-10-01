@@ -225,6 +225,27 @@ ON CONFLICT (id) DO UPDATE SET
     public = false,
     file_size_limit = 10485760;
 
+-- Storage object policies for treatment-photos private bucket
+DROP POLICY IF EXISTS "Allow upload to treatment-photos" ON storage.objects;
+CREATE POLICY "Allow upload to treatment-photos" ON storage.objects
+    FOR INSERT TO authenticated, anon
+    WITH CHECK (bucket_id = 'treatment-photos');
+
+DROP POLICY IF EXISTS "Allow select on treatment-photos" ON storage.objects;
+CREATE POLICY "Allow select on treatment-photos" ON storage.objects
+    FOR SELECT TO authenticated, anon
+    USING (bucket_id = 'treatment-photos');
+
+DROP POLICY IF EXISTS "Allow update on treatment-photos" ON storage.objects;
+CREATE POLICY "Allow update on treatment-photos" ON storage.objects
+    FOR UPDATE TO authenticated, anon
+    USING (bucket_id = 'treatment-photos');
+
+DROP POLICY IF EXISTS "Allow delete on treatment-photos" ON storage.objects;
+CREATE POLICY "Allow delete on treatment-photos" ON storage.objects
+    FOR DELETE TO authenticated, anon
+    USING (bucket_id = 'treatment-photos');
+
 -- -----------------------------------------------------------------------------
 -- 8. RPC FUNCTIONS FOR SECURE TREATMENT MANAGEMENT
 -- -----------------------------------------------------------------------------

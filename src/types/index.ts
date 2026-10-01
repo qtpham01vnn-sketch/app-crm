@@ -1106,5 +1106,82 @@ export interface CustomerTreatmentHistory {
   treatmentConsents: TreatmentConsent[];
 }
 
+// ---------------------------------------------------------------------------
+// Phase 9: Loyalty, Membership Tiers & Points Ledger
+// ---------------------------------------------------------------------------
 
+export interface LoyaltyPolicy {
+  id: string;
+  orgId: string;
+  policyCode: string;
+  policyName: string;
+  isActive: boolean;
+  earnEvent: 'invoice_paid' | 'service_completed';
+  earnSpendRatio: number; // e.g. 10000 VND = 1 Point
+  pointsToCurrencyRatio: number; // e.g. 1 Point = 100 VND
+  maxRedeemPercentage: number; // e.g. 50%
+  pointsExpiryDays: number; // e.g. 365
+  allowCombineWithVoucher: boolean;
+  excludeDepositPayments: boolean;
+  roundRule: 'floor' | 'round' | 'ceil';
+}
 
+export interface LoyaltyTierPolicy {
+  id: string;
+  orgId: string;
+  tierCode: 'standard' | 'silver' | 'gold' | 'platinum' | 'vip';
+  tierName: string;
+  minSpendThreshold: number;
+  discountPercentage: number;
+  pointsMultiplier: number;
+  evaluationPeriodMonths: number;
+  benefitsDescription?: string;
+  isActive: boolean;
+}
+
+export interface LoyaltyPointsLedger {
+  id: string;
+  orgId: string;
+  customerId: string;
+  transactionType: 'earn' | 'redeem' | 'expire' | 'refund' | 'adjust';
+  pointsDelta: number;
+  balanceAfter: number;
+  sourceReferenceType: 'sale' | 'refund' | 'appointment' | 'manual_adjustment';
+  sourceReferenceId?: string;
+  idempotencyKey?: string;
+  reasonForChange: string;
+  policyVersion: string;
+  staffId?: string;
+  staffName?: string;
+  expiresAt?: string;
+  createdAt: string;
+}
+
+export interface CustomerTierHistory {
+  id: string;
+  customerId: string;
+  orgId: string;
+  previousTier: string;
+  newTier: string;
+  qualifyingSpendSnapshot: number;
+  reason: string;
+  changedBy?: string;
+  createdAt: string;
+}
+
+export interface CustomerLoyaltyOverview {
+  customerId: string;
+  currentTier: string;
+  tierName: string;
+  tierDiscountPct: number;
+  tierQualifyingSpend: number;
+  availablePoints: number;
+  expiringPoints30d: number;
+  totalEarnedPoints: number;
+  totalRedeemedPoints: number;
+  policyActive: boolean;
+  earnSpendRatio: number;
+  pointsToCurrencyRatio: number;
+  maxRedeemPercentage: number;
+  ledgerHistory: LoyaltyPointsLedger[];
+}

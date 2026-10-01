@@ -412,7 +412,7 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
             }`}
           >
             <FileSignature className="w-3.5 h-3.5" />
-            <span>Cam Kết & Chữ Ký ({history?.treatmentConsents.length || 0})</span>
+            <span>Cam Kết & Chữ Ký Viết Tay Điện Tử ({history?.treatmentConsents.length || 0})</span>
           </button>
         </div>
 
@@ -1106,7 +1106,7 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 animate-scale-in">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-base text-slate-900">Cam Kết Điều Trị & Ký Điện Tử</h3>
+              <h3 className="font-bold text-base text-slate-900">Cam Kết Điều Trị & Chữ Ký Viết Tay Điện Tử</h3>
               <button onClick={() => setIsConsentModalOpen(false)} className="p-1 text-slate-400 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -1155,7 +1155,7 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
               {/* Signature Canvas */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-slate-800">Chữ Ký Trực Tiếp Khách Hàng:</span>
+                  <span className="text-xs font-bold text-slate-800">Chữ Ký Viết Tay Điện Tử Của Khách Hàng:</span>
                   <button
                     type="button"
                     onClick={clearSignature}

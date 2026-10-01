@@ -1,16 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2 } from 'lucide-react';
+import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2, Award } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { Customer } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 import { CustomerTreatmentRecords } from '../treatment/CustomerTreatmentRecords';
+import { CustomerLoyaltyCard } from '../loyalty/CustomerLoyaltyCard';
 
 export const CustView: React.FC = () => {
   const { customers, setCustomers, courses, sales, appointments, branches, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'branch' | 'all'>('branch');
   const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
-  const [customerProfileTab, setCustomerProfileTab] = useState<'overview' | 'treatment'>('treatment');
+  const [customerProfileTab, setCustomerProfileTab] = useState<'overview' | 'treatment' | 'loyalty'>('treatment');
 
   const isSoftLight = currentTheme.isSoftLight;
 
@@ -363,7 +364,7 @@ export const CustView: React.FC = () => {
             </div>
 
             {/* Profile Navigation Tabs */}
-            <div className="flex items-center p-1 rounded-2xl bg-slate-100 text-xs font-bold">
+            <div className="flex items-center p-1 rounded-2xl bg-slate-100 text-xs font-bold gap-1">
               <button
                 type="button"
                 onClick={() => setCustomerProfileTab('treatment')}
@@ -374,7 +375,20 @@ export const CustView: React.FC = () => {
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Hồ Sơ Điều Trị & Before / After (P8)</span>
+                <span>Hồ Sơ Điều Trị (P8)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCustomerProfileTab('loyalty')}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  customerProfileTab === 'loyalty'
+                    ? 'bg-white text-amber-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5 text-amber-600" />
+                <span>Thẻ Hạng & Điểm (P9)</span>
               </button>
 
               <button
@@ -387,12 +401,14 @@ export const CustView: React.FC = () => {
                 }`}
               >
                 <DollarSign className="w-3.5 h-3.5" />
-                <span>Giao Dịch & Gói Dịch Vụ</span>
+                <span>Giao Dịch & Gói</span>
               </button>
             </div>
 
             {customerProfileTab === 'treatment' ? (
               <CustomerTreatmentRecords customer={selectedCust} />
+            ) : customerProfileTab === 'loyalty' ? (
+              <CustomerLoyaltyCard customer={selectedCust} />
             ) : (
               <>
                 {/* Financial Summary: Differentiate Branch Scope vs Chain-wide */}

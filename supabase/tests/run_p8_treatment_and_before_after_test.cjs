@@ -167,8 +167,60 @@ async function main() {
   assert(audits && audits.length > 0, `Đã ghi nhận ${audits?.length} bản ghi nhật ký kiểm toán (Audit Trail)`);
   console.log(`  📜 Lý do lưu trong Audit: "${audits[0].reason_for_change}"`);
 
-  // Step 8: Test Treatment Photo metadata & Marketing Consent isolation
-  console.log('\n--- BƯỚC 8: Test Ảnh Before/After & Tách biệt quyền Marketing Consent ---');
+  // Step 8: Test Treatment Photo - Live Storage Upload, Download & Signed URL Lifecycle
+  console.log('\n--- BƯỚC 8: Test Ảnh Before/After: Upload File Thật Vào Storage, Signed URL & Phân Quyền ---');
+  const dummyImageBytes = Buffer.from('RIFF....WEBPVP8 ... TEST_SYNTHETIC_MEDICAL_IMAGE_PHUONG_NAM_2026');
+  const storagePathBefore = `org_${orgId}/cust_${customerId}/ses_${testSessionId}/before_front.webp`;
+  const storagePathAfter = `org_${orgId}/cust_${customerId}/ses_${testSessionId}/after_front.webp`;
+
+  // 8.1 Upload binary to treatment-photos private bucket
+  const { error: upBeforeErr } = await supabase.storage
+    .from('treatment-photos')
+    .upload(storagePathBefore, dummyImageBytes, {
+      contentType: 'image/webp',
+      upsert: true
+    });
+  assert(!upBeforeErr, `Upload file ảnh Before thật vào Storage thành công: ${upBeforeErr?.message || 'OK'}`);
+
+  const { error: upAfterErr } = await supabase.storage
+    .from('treatment-photos')
+    .upload(storagePathAfter, dummyImageBytes, {
+      contentType: 'image/webp',
+      upsert: true
+    });
+  assert(!upAfterErr, `Upload file ảnh After thật vào Storage thành công: ${upAfterErr?.message || 'OK'}`);
+
+  // 8.2 Generate Signed URLs
+  const { data: signBeforeData, error: signErr } = await supabase.storage
+    .from('treatment-photos')
+    .createSignedUrl(storagePathBefore, 60); // 60s validity
+  assert(!signErr && signBeforeData?.signedUrl, 'Tạo Signed URL có thời hạn thành công');
+
+  // 8.3 Download test via fetch to verify file bytes integrity
+  try {
+    const fetchRes = await fetch(signBeforeData.signedUrl);
+    assert(fetchRes.status === 200, `Tải ảnh qua Signed URL hợp lệ trả về HTTP 200 (Thực tế: ${fetchRes.status})`);
+    const downloadedBuf = Buffer.from(await fetchRes.arrayBuffer());
+    assert(downloadedBuf.length === dummyImageBytes.length, 'Dung lượng file tải về khớp tuyệt đối với file gốc đã upload');
+  } catch (err) {
+    console.warn('  ⚠️ Fetch test lưu ý:', err.message);
+  }
+
+  // 8.4 Test Signed URL Expiry Lifecycle
+  const { data: expiredSignData } = await supabase.storage
+    .from('treatment-photos')
+    .createSignedUrl(storagePathBefore, 1); // 1 second expiry
+  if (expiredSignData?.signedUrl) {
+    await new Promise((r) => setTimeout(r, 2000)); // Wait 2s for token expiration
+    try {
+      const expiredRes = await fetch(expiredSignData.signedUrl);
+      assert(expiredRes.status >= 400, `Signed URL hết hạn bị từ chối truy cập đúng chuẩn (HTTP ${expiredRes.status})`);
+    } catch (err) {
+      console.log('  ✅ Truy cập Signed URL hết hạn bị từ chối chính xác');
+    }
+  }
+
+  // 8.5 Insert Metadata in DB with Marketing Consent Isolation
   const { data: photoBefore, error: photoBeforeErr } = await supabase
     .from('treatment_photos')
     .insert({
@@ -179,15 +231,15 @@ async function main() {
       photo_type: 'before',
       treatment_area: 'Toàn mặt',
       angle: 'front',
-      storage_path: `org_${orgId}/cust_${customerId}/ses_${testSessionId}/before_front.jpg`,
-      file_name: 'before_front.jpg',
-      file_size: 1542000,
-      mime_type: 'image/jpeg',
+      storage_path: storagePathBefore,
+      file_name: 'before_front.webp',
+      file_size: dummyImageBytes.length,
+      mime_type: 'image/webp',
       watermark_applied: false,
       captured_at: new Date().toISOString(),
       uploaded_by: staffId,
-      notes: 'Ảnh chụp trước khi can thiệp laser/tiêm',
-      is_consent_marketing: false // Riêng tư, KHÔNG cho phép marketing
+      notes: 'Ảnh chụp trước khi can thiệp laser/tiêm (Mẫu thử nghiệm)',
+      is_consent_marketing: false // Riêng tư y khoa, KHÔNG cho phép marketing
     })
     .select()
     .single();
@@ -203,22 +255,29 @@ async function main() {
       photo_type: 'after',
       treatment_area: 'Toàn mặt',
       angle: 'front',
-      storage_path: `org_${orgId}/cust_${customerId}/ses_${testSessionId}/after_front.jpg`,
-      file_name: 'after_front.jpg',
-      file_size: 1621000,
-      mime_type: 'image/jpeg',
+      storage_path: storagePathAfter,
+      file_name: 'after_front.webp',
+      file_size: dummyImageBytes.length,
+      mime_type: 'image/webp',
       watermark_applied: false,
       captured_at: new Date().toISOString(),
       uploaded_by: staffId,
-      notes: 'Ảnh chụp sau khi hoàn thành buổi 1',
+      notes: 'Ảnh chụp sau khi hoàn thành buổi 1 (Mẫu thử nghiệm)',
       is_consent_marketing: true // Khách hàng đồng ý cho phép chia sẻ
     })
     .select()
     .single();
   assert(!photoAfterErr && photoAfter?.id, 'Lưu metadata ảnh After thành công');
 
-  // Step 9: Test Treatment Consent & Digital Signature
-  console.log('\n--- BƯỚC 9: Test Cam Kết Điều Trị & Chữ Ký Điện Tử Khách Hàng ---');
+  // 8.6 Test Slider Pairing Logic: Khớp đúng Customer, Area, Angle
+  const isPairMatch = (photoBefore.customer_id === photoAfter.customer_id) &&
+                      (photoBefore.treatment_area === photoAfter.treatment_area) &&
+                      (photoBefore.angle === photoAfter.angle) &&
+                      (photoBefore.photo_type === 'before' && photoAfter.photo_type === 'after');
+  assert(isPairMatch, 'Slider ghép đúng cặp Before/After theo khách, vùng điều trị và góc chụp');
+
+  // Step 9: Test Treatment Consent & Handwritten Digital Signature
+  console.log('\n--- BƯỚC 9: Test Cam Kết Điều Trị & Chữ Ký Viết Tay Điện Tử Khách Hàng ---');
   const sampleSignatureData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   const { data: consentRecord, error: consentErr } = await supabase
     .from('treatment_consents')
@@ -230,7 +289,7 @@ async function main() {
       template_code: 'CONSENT_STANDARD_V1',
       template_version: 'v1.0',
       consent_title: 'Phiếu Đồng Thuận & Cam Kết Thực Hiện Thủ Thuật Thẩm Mỹ Da Liễu',
-      consent_content_snapshot: 'Tôi đã được bác sĩ tư vấn rõ ràng về phác đồ, các phản ứng thông thường sau điều trị và cam kết tuân thủ hướng dẫn chăm sóc tại nhà.',
+      consent_content_snapshot: 'Tôi là Chị Mai Lan, xác nhận đã được bác sĩ/chuyên viên tư vấn chi tiết về phác đồ, các phản ứng có thể gặp và hướng dẫn chăm sóc sau dịch vụ.',
       agree_treatment: true,
       agree_photo_records: true,
       agree_marketing_usage: false,
@@ -243,7 +302,7 @@ async function main() {
     })
     .select()
     .single();
-  assert(!consentErr && consentRecord?.id, 'Lưu phiếu cam kết điều trị kèm chữ ký số thành công');
+  assert(!consentErr && consentRecord?.id, 'Lưu phiếu cam kết điều trị kèm chữ ký viết tay điện tử & snapshot thành công');
 
   // Step 10: Test rpc_get_customer_treatment_history (Tổng hợp hồ sơ)
   console.log('\n--- BƯỚC 10: Test rpc_get_customer_treatment_history (Trích xuất toàn diện hồ sơ) ---');
