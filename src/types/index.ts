@@ -1194,7 +1194,7 @@ export interface ChannelIntegration {
   id: string;
   orgId: string;
   branchId?: string;
-  channelType: 'zalo_oa' | 'facebook_messenger' | 'web_widget' | 'hotline_note';
+  channelType: 'telegram_bot' | 'facebook_messenger' | 'web_widget' | 'zalo_oa' | 'hotline_note';
   channelName: string;
   accountId?: string;
   appId?: string;
@@ -1212,7 +1212,7 @@ export interface ConversationThread {
   customerName?: string;
   customerPhone?: string;
   channelId?: string;
-  channelType: 'zalo_oa' | 'facebook_messenger' | 'web_widget' | 'hotline_note';
+  channelType: 'telegram_bot' | 'facebook_messenger' | 'web_widget' | 'zalo_oa' | 'hotline_note';
   externalUserId: string;
   externalUserName: string;
   externalUserAvatar?: string;

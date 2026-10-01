@@ -171,24 +171,32 @@ export const chatboxService = {
           id: 'mock-web',
           orgId,
           channelType: 'web_widget',
-          channelName: 'Live Chat Website',
+          channelName: 'Livechat Website Phương Nam',
           isConnected: true,
           isActive: true
         },
         {
-          id: 'mock-zalo',
+          id: 'mock-tg',
           orgId,
-          channelType: 'zalo_oa',
-          channelName: 'Zalo Official Account (PHƯƠNG NAM)',
-          isConnected: false, // Chưa kết nối
+          channelType: 'telegram_bot',
+          channelName: 'Telegram Bot CSKH (Chờ BotFather Token)',
+          isConnected: false,
           isActive: false
         },
         {
           id: 'mock-fb',
           orgId,
           channelType: 'facebook_messenger',
-          channelName: 'Facebook Fanpage Messenger',
-          isConnected: false, // Chưa kết nối
+          channelName: 'Fanpage-Tuấn Phạm (Messenger)',
+          isConnected: false,
+          isActive: false
+        },
+        {
+          id: 'mock-zalo',
+          orgId,
+          channelType: 'zalo_oa',
+          channelName: 'Zalo OA (Chưa cấu hình)',
+          isConnected: false,
           isActive: false
         }
       ];
