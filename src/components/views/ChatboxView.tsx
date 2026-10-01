@@ -107,9 +107,16 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
     }
   }, [selectedThread, loadMessages]);
 
+  // Auto-refresh threads and active messages every 3 seconds
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const interval = setInterval(() => {
+      loadThreads();
+      if (selectedThread?.id) {
+        loadMessages(selectedThread.id);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [loadThreads, loadMessages, selectedThread?.id]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +135,22 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
       });
 
       if (res.success) {
+        // Nếu là tin nhắn khách hàng (không phải ghi chú nội bộ) trên kênh Telegram, gửi trực tiếp qua Telegram Bot API
+        if (!isNote && selectedThread.channelType === 'telegram_bot' && selectedThread.externalUserId) {
+          try {
+            await fetch(`https://api.telegram.org/bot8607322875:AAF5dFuq_p7JXlNIOrbOdav9YP9EnzWw_iw/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: selectedThread.externalUserId,
+                text: content
+              })
+            });
+          } catch (tgErr) {
+            console.error('Lỗi đẩy tin nhắn ra Telegram Bot:', tgErr);
+          }
+        }
+
         setMessageInput('');
         loadMessages(selectedThread.id);
         loadThreads();
