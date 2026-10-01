@@ -205,7 +205,7 @@ export const chatboxService = {
     try {
       const { data, error } = await supabase
         .from('channel_integrations')
-        .select('id, organization_id, branch_id, channel_type, channel_name, account_id, app_id, is_connected, is_active, token_expires_at')
+        .select('id, organization_id, branch_id, channel_type, channel_name, account_id, app_id, access_token_enc, is_connected, is_active, token_expires_at')
         .eq('organization_id', orgId);
 
       if (error) throw error;
@@ -217,6 +217,7 @@ export const chatboxService = {
         channelName: ch.channel_name,
         accountId: ch.account_id,
         appId: ch.app_id,
+        accessTokenEnc: ch.access_token_enc,
         isConnected: Boolean(ch.is_connected),
         isActive: Boolean(ch.is_active),
         tokenExpiresAt: ch.token_expires_at

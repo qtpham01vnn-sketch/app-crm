@@ -52,6 +52,11 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
   const [isSending, setIsSending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedThreadRef = useRef<ConversationThread | null>(null);
+
+  useEffect(() => {
+    selectedThreadRef.current = selectedThread;
+  }, [selectedThread]);
 
   const loadChannels = useCallback(async () => {
     if (!org?.id) return;
@@ -63,9 +68,9 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
     }
   }, [org?.id]);
 
-  const loadThreads = useCallback(async () => {
+  const loadThreads = useCallback(async (isSilent = false) => {
     if (!org?.id) return;
-    setLoadingThreads(true);
+    if (!isSilent) setLoadingThreads(true);
     try {
       const { threads: data } = await chatboxService.getConversationThreads({
         orgId: org.id,
@@ -74,49 +79,51 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
         search: searchQuery.trim() || undefined
       });
       setThreads(data);
-      if (data.length > 0 && !selectedThread) {
+      if (data.length > 0 && !selectedThreadRef.current) {
         setSelectedThread(data[0]);
       }
     } catch (err) {
       console.error('Lỗi tải hội thoại:', err);
     } finally {
-      setLoadingThreads(false);
+      if (!isSilent) setLoadingThreads(false);
     }
-  }, [org?.id, statusFilter, channelFilter, searchQuery, selectedThread]);
+  }, [org?.id, statusFilter, channelFilter, searchQuery]);
 
-  const loadMessages = useCallback(async (threadId: string) => {
-    setLoadingMessages(true);
+  const loadMessages = useCallback(async (threadId: string, isSilent = false) => {
+    if (!isSilent) setLoadingMessages(true);
     try {
       const msgs = await chatboxService.getThreadMessages(threadId);
       setMessages(msgs);
     } catch (err) {
       console.error('Lỗi tải tin nhắn:', err);
     } finally {
-      setLoadingMessages(false);
+      if (!isSilent) setLoadingMessages(false);
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
     loadChannels();
-    loadThreads();
+    loadThreads(false);
   }, [loadChannels, loadThreads]);
 
+  // Load messages when selecting a thread
   useEffect(() => {
     if (selectedThread) {
-      loadMessages(selectedThread.id);
+      loadMessages(selectedThread.id, false);
     }
   }, [selectedThread, loadMessages]);
 
-  // Auto-refresh threads and active messages every 3 seconds
+  // Smooth silent background polling every 4 seconds without re-rendering loading states
   useEffect(() => {
     const interval = setInterval(() => {
-      loadThreads();
-      if (selectedThread?.id) {
-        loadMessages(selectedThread.id);
+      loadThreads(true);
+      if (selectedThreadRef.current?.id) {
+        loadMessages(selectedThreadRef.current.id, true);
       }
-    }, 3000);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [loadThreads, loadMessages, selectedThread?.id]);
+  }, [loadThreads, loadMessages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +142,7 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
       });
 
       if (res.success) {
-        // Nếu là tin nhắn khách hàng (không phải ghi chú nội bộ) trên kênh Telegram, gửi trực tiếp qua Telegram Bot API
+        // 1. Nếu là kênh Telegram Bot -> Gửi trực tiếp qua Telegram Bot API
         if (!isNote && selectedThread.channelType === 'telegram_bot' && selectedThread.externalUserId) {
           try {
             await fetch(`https://api.telegram.org/bot8607322875:AAF5dFuq_p7JXlNIOrbOdav9YP9EnzWw_iw/sendMessage`, {
@@ -151,9 +158,32 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
           }
         }
 
+        // 2. Nếu là kênh Facebook Messenger -> Gửi trực tiếp qua Meta Graph API
+        if (!isNote && selectedThread.channelType === 'facebook_messenger' && selectedThread.externalUserId) {
+          try {
+            const fbChannel = channels.find((c) => c.channelType === 'facebook_messenger' && c.accessTokenEnc);
+            const fbToken = fbChannel?.accessTokenEnc || 'EAAprnJJ6ZCckBSptRpHzg149sMUnJZAW390nPuyrZAcwrujL7KQwbMzl8qxxtbCht28bvIR3MVwUbonl0Js2RylxqFcZBll4Ngg5hZANUIgdZBZCIBOf3JFgWTXvHqM0jf3Ii9BzeRosxHepcja5ITQNjqWI7Tq3DAKo46hTTJGjifrFOnQQ8GGqaAd2VBWs7ji9hRQHWYt4gZDZD';
+            const fbRes = await fetch(`https://graph.facebook.com/v23.0/me/messages?access_token=${fbToken}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                recipient: { id: selectedThread.externalUserId },
+                message: { text: content }
+              })
+            });
+            const fbData = await fbRes.json();
+            if (fbData.error) {
+              console.error('Lỗi đẩy tin nhắn ra Facebook Messenger:', fbData.error);
+              showToast(`Facebook: ${fbData.error.message}`, 'error');
+            }
+          } catch (fbErr) {
+            console.error('Lỗi kết nối Facebook API:', fbErr);
+          }
+        }
+
         setMessageInput('');
-        loadMessages(selectedThread.id);
-        loadThreads();
+        loadMessages(selectedThread.id, true);
+        loadThreads(true);
       } else {
         showToast(res.error || 'Lỗi khi gửi tin nhắn', 'error');
       }

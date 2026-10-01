@@ -1198,6 +1198,7 @@ export interface ChannelIntegration {
   channelName: string;
   accountId?: string;
   appId?: string;
+  accessTokenEnc?: string;
   isConnected: boolean;
   isActive: boolean;
   tokenExpiresAt?: string;
