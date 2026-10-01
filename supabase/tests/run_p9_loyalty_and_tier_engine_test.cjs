@@ -101,8 +101,10 @@ async function main() {
     p_staff_id: staffId
   });
 
+  const expectedMultiplier = initialOverview?.current_tier === 'gold' ? 1.25 : initialOverview?.current_tier === 'silver' ? 1.1 : initialOverview?.current_tier === 'vip' ? 1.5 : 1.0;
+  const expectedPoints = Math.floor((eligibleSpend / 10000) * expectedMultiplier);
   assert(!earnErr && earnRes.success, `Tích điểm thành công: ${earnRes?.message || ''}`);
-  assert(earnRes.points_earned === 500, `Số điểm tích được chính xác 500 điểm (Thực tế: ${earnRes.points_earned})`);
+  assert(earnRes.points_earned === expectedPoints, `Số điểm tích được chính xác ${expectedPoints} điểm theo hệ số hạng ${expectedMultiplier}x (Thực tế: ${earnRes.points_earned})`);
 
   // ---------------------------------------------------------------------------
   // TEST 4: Chống Tích Trùng (Idempotency Check)
@@ -219,10 +221,10 @@ async function main() {
   // TEST 10: Xét Hạng & Thăng Hạng Thành Viên Tự Động (Tier Evaluation Engine)
   // ---------------------------------------------------------------------------
   console.log('\n--- BƯỚC 10: Test rpc_evaluate_customer_tier (Đánh giá & Thăng hạng tự động) ---');
-  // Cập nhật chi tiêu giả định lên 25 triệu (> 20 triệu -> Gold)
+  // Đặt lại hạng Silver và cập nhật chi tiêu giả định lên 25 triệu (> 20 triệu -> Thăng hạng Gold)
   await supabase
     .from('customer_loyalty_balances')
-    .update({ tier_qualifying_spend: 25000000 })
+    .update({ current_tier: 'silver', tier_qualifying_spend: 25000000 })
     .eq('customer_id', customerId);
 
   const { data: tierRes, error: tierErr } = await supabase.rpc('rpc_evaluate_customer_tier', {

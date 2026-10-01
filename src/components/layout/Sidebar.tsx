@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   Clock,
   Users,
+  MessageSquare,
   Sparkles,
   UserCheck,
   CalendarRange,
@@ -65,6 +66,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
       title: 'KHÁCH HÀNG & DỊCH VỤ',
       items: [
         { id: 'cust', label: 'Khách Hàng', icon: Users },
+        { id: 'chatbox', label: 'Hộp Thư CSKH', icon: MessageSquare },
         { id: 'courses', label: 'Gói Liệu Trình', icon: Sparkles, badge: courses.length },
         { id: 'svc', label: 'Dịch Vụ & Giá CN', icon: Scissors },
         { id: 'pkg', label: 'Gói Combo Dịch Vụ', icon: Layers },

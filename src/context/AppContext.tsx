@@ -63,6 +63,7 @@ export type NavTab =
   | 'book'
   | 'wait'
   | 'cust'
+  | 'chatbox'
   | 'courses'
   | 'staff'
   | 'roster'

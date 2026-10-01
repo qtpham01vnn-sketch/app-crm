@@ -1185,3 +1185,90 @@ export interface CustomerLoyaltyOverview {
   maxRedeemPercentage: number;
   ledgerHistory: LoyaltyPointsLedger[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase 10: Omnichannel Chatbox & CSKH Inbox
+// ---------------------------------------------------------------------------
+
+export interface ChannelIntegration {
+  id: string;
+  orgId: string;
+  branchId?: string;
+  channelType: 'zalo_oa' | 'facebook_messenger' | 'web_widget' | 'hotline_note';
+  channelName: string;
+  accountId?: string;
+  appId?: string;
+  isConnected: boolean;
+  isActive: boolean;
+  tokenExpiresAt?: string;
+}
+
+export interface ConversationThread {
+  id: string;
+  orgId: string;
+  branchId?: string;
+  branchName?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  channelId?: string;
+  channelType: 'zalo_oa' | 'facebook_messenger' | 'web_widget' | 'hotline_note';
+  externalUserId: string;
+  externalUserName: string;
+  externalUserAvatar?: string;
+  externalUserPhone?: string;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  lastMessagePreview?: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  threadId: string;
+  senderType: 'customer' | 'staff' | 'system' | 'internal_note';
+  senderStaffId?: string;
+  senderName: string;
+  isInternalNote: boolean;
+  messageType: 'text' | 'image' | 'attachment' | 'appointment_card';
+  content: string;
+  attachmentUrls: string[];
+  metadata?: Record<string, any>;
+  deliveryStatus: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  createdAt: string;
+}
+
+export interface MessageTemplate {
+  id: string;
+  orgId: string;
+  templateCode: string;
+  templateName: string;
+  category: 'appointment_reminder' | 'post_treatment_care' | 'birthday_greeting' | 'loyalty_tier_up';
+  channelSupported: string[];
+  contentTemplate: string;
+  variables: string[];
+  isActive: boolean;
+}
+
+export interface ScheduledNotification {
+  id: string;
+  orgId: string;
+  branchId?: string;
+  customerId: string;
+  appointmentId?: string;
+  treatmentSessionId?: string;
+  templateId?: string;
+  channelType: string;
+  scheduledFor: string;
+  renderedContent: string;
+  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  sentAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  createdAt: string;
+}

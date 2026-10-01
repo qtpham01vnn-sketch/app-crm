@@ -13,6 +13,7 @@ import { ApptsView } from './components/views/ApptsView';
 import { BookView } from './components/views/BookView';
 import { WaitView } from './components/views/WaitView';
 import { CustView } from './components/views/CustView';
+import { ChatboxView } from './components/views/ChatboxView';
 import { CoursesView } from './components/views/CoursesView';
 import { StaffView } from './components/views/StaffView';
 import { RosterView } from './components/views/RosterView';
@@ -117,6 +118,8 @@ const MainLayout: React.FC = () => {
         return <WaitView />;
       case 'cust':
         return <CustView />;
+      case 'chatbox':
+        return <ChatboxView onOpenNewApptModal={() => setIsNewApptModalOpen(true)} />;
       case 'courses':
         return <CoursesView onOpenDeductModal={(crs) => setDeductModalCourse(crs)} />;
       case 'staff':
