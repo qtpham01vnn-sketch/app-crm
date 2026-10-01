@@ -181,3 +181,42 @@ CREATE TRIGGER trg_sync_messenger_msg
     AFTER INSERT ON messenger_messages
     FOR EACH ROW
     EXECUTE FUNCTION fn_sync_messenger_msg_to_chat();
+
+-- -----------------------------------------------------------------------------
+-- 3. RPC HELPER: MÔ PHỎNG SỰ KIỆN TỪ WEBHOOK_CRM ĐỂ KIỂM THỬ
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION rpc_simulate_webhook_crm_inbound(
+    p_page_id TEXT,
+    p_sender_psid TEXT,
+    p_full_name TEXT,
+    p_phone TEXT,
+    p_text TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_conv_id UUID;
+    v_msg_id UUID;
+BEGIN
+    -- Upsert messenger_conversations
+    INSERT INTO messenger_conversations (page_id, sender_psid, full_name, phone, status, last_message_at)
+    VALUES (p_page_id, p_sender_psid, p_full_name, p_phone, 'collecting', NOW())
+    ON CONFLICT (page_id, sender_psid) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        phone = COALESCE(EXCLUDED.phone, messenger_conversations.phone),
+        last_message_at = NOW(),
+        updated_at = NOW()
+    RETURNING id INTO v_conv_id;
+
+    -- Insert messenger_messages
+    INSERT INTO messenger_messages (conversation_id, event_id, direction, sender_psid, text)
+    VALUES (v_conv_id, 'mid.sim_' || gen_random_uuid(), 'inbound', p_sender_psid, p_text)
+    RETURNING id INTO v_msg_id;
+
+    RETURN jsonb_build_object('success', TRUE, 'conversation_id', v_conv_id, 'message_id', v_msg_id);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION rpc_simulate_webhook_crm_inbound TO anon, authenticated, service_role;

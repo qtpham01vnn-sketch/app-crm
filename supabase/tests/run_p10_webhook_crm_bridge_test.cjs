@@ -22,42 +22,24 @@ async function main() {
 
   const pageId = 'page_tuan_pham_fanpage_2026';
   const senderPsid = 'fb_user_test_' + Date.now();
-  const testEventId = 'mid.test_' + Date.now();
+  const customerName = 'Chị Thu Hà (Khách Facebook Fanpage-Tuấn Phạm)';
+  const customerPhone = '0988776655';
+  const customerMessage = 'Chào Fanpage-Tuấn Phạm, mình muốn đặt lịch cấy trắng da vào Thứ 7 tuần này.';
 
   console.log('\n--- BƯỚC 1: Mô phỏng webhook_CRM tiếp nhận tin nhắn từ Facebook Fanpage-Tuấn Phạm ---');
 
-  // 1.1 webhook_CRM lưu hội thoại vào messenger_conversations
-  const { data: conv, error: convErr } = await supabase
-    .from('messenger_conversations')
-    .insert({
-      page_id: pageId,
-      sender_psid: senderPsid,
-      full_name: 'Khách Facebook Fanpage-Tuấn Phạm Thật',
-      phone: '0988776655',
-      status: 'collecting',
-      last_message_at: new Date().toISOString()
-    })
-    .select()
-    .single();
+  const { data: simRes, error: simErr } = await supabase.rpc('rpc_simulate_webhook_crm_inbound', {
+    p_page_id: pageId,
+    p_sender_psid: senderPsid,
+    p_full_name: customerName,
+    p_phone: customerPhone,
+    p_text: customerMessage
+  });
 
-  if (convErr) console.error('convErr:', convErr);
-  assert(!convErr && conv?.id, 'webhook_CRM lưu messenger_conversations thành công');
-
-  // 1.2 webhook_CRM lưu tin nhắn vào messenger_messages
-  const { data: msg, error: msgErr } = await supabase
-    .from('messenger_messages')
-    .insert({
-      conversation_id: conv.id,
-      event_id: testEventId,
-      direction: 'inbound',
-      sender_psid: senderPsid,
-      text: 'Chào Fanpage-Tuấn Phạm, mình muốn đặt lịch làm đẹp vào Thứ 7 tuần này.'
-    })
-    .select()
-    .single();
-
-  if (msgErr) console.error('msgErr:', msgErr);
-  assert(!msgErr && msg?.id, 'webhook_CRM lưu messenger_messages thành công');
+  if (simErr) {
+    console.error('simErr:', simErr);
+  }
+  assert(!simErr && simRes?.success, 'webhook_CRM tiếp nhận và ghi nhận vào messenger_conversations & messenger_messages thành công');
 
   console.log('\n--- BƯỚC 2: Kiểm tra App CRM Hộp Thư CSKH tự động đồng bộ qua Database Trigger ---');
 
@@ -69,15 +51,34 @@ async function main() {
     .eq('external_user_id', senderPsid)
     .single();
 
-  if (crmThread) {
-    assert(crmThread.external_user_name === 'Khách Facebook Fanpage-Tuấn Phạm Thật', 'App CRM nhận đúng tên khách từ webhook_CRM');
-    console.log(`  ✅ Thread CRM đã tạo tự động: ID = ${crmThread.id}`);
-  } else {
-    console.log('  ℹ️ Lưu ý: Trigger 033 sẽ tự động kích hoạt sau khi chạy migration 033 trên Supabase.');
-  }
+  assert(!threadErr && crmThread?.id, 'Thread tự động sinh trong conversation_threads của App CRM');
+  assert(crmThread.external_user_name === customerName, `App CRM nhận đúng tên khách: "${crmThread.external_user_name}"`);
+  assert(crmThread.external_user_phone === customerPhone, `App CRM nhận đúng SĐT khách: "${crmThread.external_user_phone}"`);
+  console.log(`  ✅ Thread ID trong CRM: ${crmThread.id}`);
+
+  // 2.2 Kiểm tra tin nhắn trong chat_messages
+  const { data: crmMsg, error: msgErr } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('thread_id', crmThread.id)
+    .single();
+
+  assert(!msgErr && crmMsg?.id, 'Tin nhắn tự động xuất hiện trong chat_messages của Hộp thư CSKH');
+  assert(crmMsg.content === customerMessage, `Nội dung tin nhắn khớp 100%: "${crmMsg.content}"`);
+  assert(crmMsg.sender_type === 'customer', 'Xác nhận đúng sender_type = customer');
+
+  console.log('\n--- BƯỚC 3: Kiểm tra hiển thị trên API Hộp Thư CSKH (rpc_get_conversation_threads) ---');
+
+  const { data: inboxData } = await supabase.rpc('rpc_get_conversation_threads', {
+    p_org_id: '11111111-1111-1111-1111-111111111111'
+  });
+
+  const matchingThread = (inboxData?.threads || []).find(t => t.id === crmThread.id);
+  assert(Boolean(matchingThread), 'Hội thoại từ Facebook Fanpage-Tuấn Phạm đã hiển thị trực tiếp trong Hộp thư CSKH');
+  assert(matchingThread.channel_type === 'facebook_messenger', 'Kênh hiển thị chuẩn xác: facebook_messenger');
 
   console.log('\n' + '='.repeat(80));
-  console.log('🎉 KIỂM TRA ĐẤU NỐI WEBHOOK_CRM HOÀN TẤT!');
+  console.log('🎉 TẤT CẢ CÁC BƯỚC ĐẤU NỐI WEBHOOK_CRM VÀO APP CRM ĐÃ HOÀN TOÀN THÀNH CÔNG (PASS 100%)!');
   console.log('='.repeat(80));
 }
 
