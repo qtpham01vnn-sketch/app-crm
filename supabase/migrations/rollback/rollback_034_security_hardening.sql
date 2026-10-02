@@ -1,26 +1,31 @@
 -- =============================================================================
--- ROLLBACK SCRIPT FOR MIGRATION 034
--- Use ONLY if migration 034 causes unexpected disruption
+-- ROLLBACK SCRIPT FOR MIGRATION 034 (SAFE RECOVERY)
+-- Target: PostgreSQL / Supabase
+-- NOTE: NEVER RESTORES ANONYMOUS ACCESS!
 -- =============================================================================
 
--- Disable RLS on extension tables if rollback is urgently required
-ALTER TABLE IF EXISTS conversation_threads DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS chat_messages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS treatment_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS treatment_photos DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS treatment_consents DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS commission_records DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS payroll_records DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS branch_transfers DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS stocktakes DISABLE ROW LEVEL SECURITY;
+-- Restore standard authenticated organization isolation if migration 034 needs rollback
+DROP POLICY IF EXISTS treatment_sessions_select_policy ON treatment_sessions;
+DROP POLICY IF EXISTS treatment_sessions_insert_policy ON treatment_sessions;
+DROP POLICY IF EXISTS treatment_sessions_update_policy ON treatment_sessions;
+DROP POLICY IF EXISTS treatment_photos_select_policy ON treatment_photos;
+DROP POLICY IF EXISTS treatment_photos_write_policy ON treatment_photos;
+DROP POLICY IF EXISTS payroll_records_select_policy ON payroll_records;
+DROP POLICY IF EXISTS payroll_records_admin_write ON payroll_records;
+DROP POLICY IF EXISTS commission_records_select_policy ON commission_records;
+DROP POLICY IF EXISTS commission_records_admin_write ON commission_records;
+DROP POLICY IF EXISTS branch_transfers_select_policy ON branch_transfers;
+DROP POLICY IF EXISTS branch_transfers_write_policy ON branch_transfers;
 
-DROP POLICY IF EXISTS payroll_role_policy ON payroll_records;
-DROP POLICY IF EXISTS payroll_admin_write_policy ON payroll_records;
-DROP POLICY IF EXISTS commission_role_policy ON commission_records;
-DROP POLICY IF EXISTS treatment_sessions_role_policy ON treatment_sessions;
-DROP POLICY IF EXISTS treatment_photos_role_policy ON treatment_photos;
-DROP POLICY IF EXISTS treatment_consents_role_policy ON treatment_consents;
-DROP POLICY IF EXISTS branch_transfers_access_policy ON branch_transfers;
-DROP POLICY IF EXISTS branch_transfers_mgr_write_policy ON branch_transfers;
-DROP POLICY IF EXISTS threads_org_policy ON conversation_threads;
-DROP POLICY IF EXISTS chat_messages_org_policy ON chat_messages;
+-- Fallback safe authenticated org-level policies
+CREATE POLICY treatment_sessions_fallback ON treatment_sessions
+    FOR ALL TO authenticated USING (organization_id = get_current_user_org_id());
+
+CREATE POLICY payroll_records_fallback ON payroll_records
+    FOR ALL TO authenticated USING (organization_id = get_current_user_org_id());
+
+CREATE POLICY commission_records_fallback ON commission_records
+    FOR ALL TO authenticated USING (organization_id = get_current_user_org_id());
+
+CREATE POLICY branch_transfers_fallback ON branch_transfers
+    FOR ALL TO authenticated USING (organization_id = get_current_user_org_id());
