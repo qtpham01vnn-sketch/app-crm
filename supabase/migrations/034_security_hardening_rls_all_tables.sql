@@ -69,12 +69,12 @@ DROP POLICY IF EXISTS branch_transfers_mgr_write_policy ON branch_transfers;
 DROP POLICY IF EXISTS rls_branch_transfer_items_all ON branch_transfer_items;
 DROP POLICY IF EXISTS branch_transfer_items_select ON branch_transfer_items;
 DROP POLICY IF EXISTS branch_transfer_items_write ON branch_transfer_items;
-DROP POLICY IF EXISTS rls_stocktakes_all ON stocktakes;
-DROP POLICY IF EXISTS stocktakes_select_policy ON stocktakes;
-DROP POLICY IF EXISTS stocktakes_write_policy ON stocktakes;
-DROP POLICY IF EXISTS rls_stocktake_items_all ON stocktake_items;
-DROP POLICY IF EXISTS stocktake_items_select_policy ON stocktake_items;
-DROP POLICY IF EXISTS stocktake_items_write_policy ON stocktake_items;
+DROP POLICY IF EXISTS rls_inventory_audits_all ON inventory_audits;
+DROP POLICY IF EXISTS inventory_audits_select_policy ON inventory_audits;
+DROP POLICY IF EXISTS inventory_audits_write_policy ON inventory_audits;
+DROP POLICY IF EXISTS rls_inventory_audit_items_all ON inventory_audit_items;
+DROP POLICY IF EXISTS inventory_audit_items_select_policy ON inventory_audit_items;
+DROP POLICY IF EXISTS inventory_audit_items_write_policy ON inventory_audit_items;
 
 -- Chatbox & CSKH
 DROP POLICY IF EXISTS rls_conversation_threads_all ON conversation_threads;
@@ -113,7 +113,7 @@ DROP POLICY IF EXISTS customer_tier_history_write ON customer_tier_history;
 -- Revoke direct table permissions from anon
 REVOKE ALL ON treatment_plans, treatment_sessions, treatment_session_audits, treatment_photos, treatment_consents FROM anon;
 REVOKE ALL ON payroll_periods, payroll_records, commission_records FROM anon;
-REVOKE ALL ON branch_transfers, branch_transfer_items, stocktakes, stocktake_items FROM anon;
+REVOKE ALL ON branch_transfers, branch_transfer_items, inventory_audits, inventory_audit_items FROM anon;
 REVOKE ALL ON loyalty_policies, loyalty_tier_policies, customer_loyalty_balances, loyalty_points_ledger, customer_tier_history FROM anon;
 REVOKE ALL ON conversation_threads, chat_messages, channel_integrations, message_templates FROM anon;
 
@@ -132,8 +132,8 @@ ALTER TABLE commission_records ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE branch_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE branch_transfer_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stocktakes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stocktake_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_audits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_audit_items ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE conversation_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
@@ -437,8 +437,8 @@ CREATE POLICY branch_transfer_items_write ON branch_transfer_items
         )
     );
 
--- --- 2. Kiểm kê kho (stocktakes & stocktake_items) ---
-CREATE POLICY stocktakes_select_policy ON stocktakes
+-- --- 2. Kiểm kê kho (inventory_audits & inventory_audit_items) ---
+CREATE POLICY inventory_audits_select_policy ON inventory_audits
     FOR SELECT TO authenticated
     USING (
         organization_id = get_current_user_org_id()
@@ -448,7 +448,7 @@ CREATE POLICY stocktakes_select_policy ON stocktakes
         )
     );
 
-CREATE POLICY stocktakes_write_policy ON stocktakes
+CREATE POLICY inventory_audits_write_policy ON inventory_audits
     FOR ALL TO authenticated
     USING (
         organization_id = get_current_user_org_id()
@@ -458,25 +458,25 @@ CREATE POLICY stocktakes_write_policy ON stocktakes
         )
     );
 
-CREATE POLICY stocktake_items_select_policy ON stocktake_items
+CREATE POLICY inventory_audit_items_select_policy ON inventory_audit_items
     FOR SELECT TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM stocktakes st
-            WHERE st.id = stocktake_items.stocktake_id
-              AND st.organization_id = get_current_user_org_id()
-              AND (get_current_user_role() = 'owner_admin' OR has_branch_access(st.branch_id))
+            SELECT 1 FROM inventory_audits ia
+            WHERE ia.id = inventory_audit_items.audit_id
+              AND ia.organization_id = get_current_user_org_id()
+              AND (get_current_user_role() = 'owner_admin' OR has_branch_access(ia.branch_id))
         )
     );
 
-CREATE POLICY stocktake_items_write_policy ON stocktake_items
+CREATE POLICY inventory_audit_items_write_policy ON inventory_audit_items
     FOR ALL TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM stocktakes st
-            WHERE st.id = stocktake_items.stocktake_id
-              AND st.organization_id = get_current_user_org_id()
-              AND (get_current_user_role() = 'owner_admin' OR (get_current_user_role() = 'branch_manager' AND has_branch_access(st.branch_id)))
+            SELECT 1 FROM inventory_audits ia
+            WHERE ia.id = inventory_audit_items.audit_id
+              AND ia.organization_id = get_current_user_org_id()
+              AND (get_current_user_role() = 'owner_admin' OR (get_current_user_role() = 'branch_manager' AND has_branch_access(ia.branch_id)))
         )
     );
 
