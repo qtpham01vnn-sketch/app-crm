@@ -4,6 +4,27 @@
 -- Bảo toàn 100% mã nguồn dự án webhook_CRM (Không can thiệp hay sửa file)
 -- =============================================================================
 
+-- 0. TABLES: MESSENGER_CONVERSATIONS & MESSENGER_MESSAGES
+CREATE TABLE IF NOT EXISTS messenger_conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    page_id VARCHAR(100),
+    sender_psid VARCHAR(100) UNIQUE,
+    full_name VARCHAR(255),
+    phone VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'open',
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS messenger_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID REFERENCES messenger_conversations(id) ON DELETE CASCADE,
+    sender_type VARCHAR(50),
+    message_text TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- -----------------------------------------------------------------------------
 -- 1. TRIGGER SYNC: TỪ MESSENGER_CONVERSATIONS SANG CONVERSATION_THREADS
 -- -----------------------------------------------------------------------------
