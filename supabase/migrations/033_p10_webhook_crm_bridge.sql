@@ -7,21 +7,24 @@
 -- 0. TABLES: MESSENGER_CONVERSATIONS & MESSENGER_MESSAGES
 CREATE TABLE IF NOT EXISTS messenger_conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    page_id VARCHAR(100),
-    sender_psid VARCHAR(100) UNIQUE,
+    page_id VARCHAR(100) NOT NULL DEFAULT 'default_page',
+    sender_psid VARCHAR(100) NOT NULL,
     full_name VARCHAR(255),
     phone VARCHAR(50),
     status VARCHAR(50) DEFAULT 'open',
     last_message_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_messenger_page_psid UNIQUE (page_id, sender_psid)
 );
 
 CREATE TABLE IF NOT EXISTS messenger_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID REFERENCES messenger_conversations(id) ON DELETE CASCADE,
-    sender_type VARCHAR(50),
-    message_text TEXT,
+    event_id VARCHAR(255),
+    direction VARCHAR(50) NOT NULL DEFAULT 'inbound',
+    sender_psid VARCHAR(100),
+    text TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

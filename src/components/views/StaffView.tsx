@@ -10,14 +10,15 @@ import {
   ShieldCheck,
   Award,
   Lock,
-  Calendar
+  Calendar,
+  KeyRound
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { masterDataService } from '../../services/masterDataService';
 import type { UserRole, Staff } from '../../types';
 
 export const StaffView: React.FC = () => {
-  const { branches, currentBranch, currentTheme, currentUser, isLiveMode, org, services, showToast } = useApp();
+  const { branches, currentBranch, currentTheme, currentRole, isLiveMode, org, services, showToast } = useApp();
   const [scope, setScope] = useState<'branch' | 'all'>('branch');
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +33,13 @@ export const StaffView: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+
+  // Password Reset Modal State
+  const [resetPwStaff, setResetPwStaff] = useState<Staff | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('PhuongNam@123');
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [isSubmittingPw, setIsSubmittingPw] = useState(false);
+  const [resetPwError, setResetPwError] = useState<string | null>(null);
 
   // Form State
   const [formFullName, setFormFullName] = useState('');
@@ -52,7 +60,8 @@ export const StaffView: React.FC = () => {
   const isSoftLight = currentTheme.isSoftLight;
 
   // Check management role to view/edit salaries
-  const isManagerOrAdmin = currentUser?.role === 'owner_admin' || currentUser?.role === 'branch_manager' || !currentUser?.role;
+  const isManagerOrAdmin = currentRole === 'owner_admin' || currentRole === 'branch_manager';
+
 
   const roleLabels: Record<UserRole, { label: string; color: string; bg: string }> = {
     owner_admin: { label: 'Chủ Cơ Sở (Admin)', color: 'text-purple-800', bg: 'bg-purple-100' },
@@ -198,6 +207,35 @@ export const StaffView: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resetPwStaff) return;
+    if (!newPasswordInput || newPasswordInput.trim().length < 6) {
+      setResetPwError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+    setIsSubmittingPw(true);
+    setResetPwError(null);
+    try {
+      const res = await masterDataService.adminResetStaffPassword({
+        staffId: resetPwStaff.id,
+        newPassword: newPasswordInput.trim()
+      });
+      if (!res.success) {
+        throw new Error(res.message || 'Không thể đổi mật khẩu.');
+      }
+      showToast(`🔑 Đã cấp lại mật khẩu cho ${resetPwStaff.name} thành công!`, 'success');
+      setResetPwStaff(null);
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      const msg = errorObj?.message || errorObj?.details || 'Lỗi khi đổi mật khẩu.';
+      setResetPwError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    } finally {
+      setIsSubmittingPw(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">
@@ -450,6 +488,25 @@ export const StaffView: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Password Management Button for Admin ONLY */}
+                {currentRole === 'owner_admin' && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetPwStaff(st);
+                        setNewPasswordInput('PhuongNam@123');
+                        setResetPwError(null);
+                        setShowNewPw(false);
+                      }}
+                      className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-amber-900 border border-amber-300/80 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                      <span>🔑 Cấp / Đổi Mật Khẩu</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })
@@ -766,6 +823,109 @@ export const StaffView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ─── MODAL CẤP / ĐỔI MẬT KHẨU NHÂN VIÊN CHO ADMIN ─── */}
+      {resetPwStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-2xs">
+                  <KeyRound className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Cấp / Đổi Mật Khẩu Nhân Viên</h3>
+                  <p className="text-[11px] text-slate-500">Quản trị viên trực tiếp đổi mật khẩu đăng nhập</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetPwStaff(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Staff Info Box */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900">{resetPwStaff.name}</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">
+                  {resetPwStaff.code}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 flex items-center gap-1.5 pt-0.5">
+                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>Email đăng nhập:</span>
+                <strong className="text-slate-900 font-mono font-semibold">{resetPwStaff.email || 'Chưa có email'}</strong>
+              </p>
+            </div>
+
+            {resetPwError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                {resetPwError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Mật khẩu mới (Tối thiểu 6 ký tự)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPw ? 'text' : 'password'}
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    placeholder="Nhập mật khẩu mới..."
+                    className="w-full pl-3.5 pr-14 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPw(!showNewPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                  >
+                    {showNewPw ? 'Ẩn' : 'Hiện'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick default password button */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewPasswordInput('PhuongNam@123')}
+                  className="text-[11px] px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-semibold transition-all cursor-pointer shadow-2xs"
+                >
+                  ⚡ Đặt nhanh: PhuongNam@123
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setResetPwStaff(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingPw}
+                onClick={handleConfirmResetPassword}
+                className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>{isSubmittingPw ? 'Đang cập nhật...' : 'Xác nhận Đổi Mật Khẩu'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

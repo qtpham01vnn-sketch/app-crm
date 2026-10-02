@@ -721,6 +721,36 @@ export const masterDataService = {
   },
 
   /**
+   * ADMIN RESET STAFF PASSWORD
+   * Cho phép Chủ cơ sở (Admin) cấp / đổi mật khẩu trực tiếp cho nhân viên
+   */
+  async adminResetStaffPassword(params: {
+    staffId: string;
+    newPassword: string;
+  }): Promise<{ success: boolean; message: string }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: true, message: 'Đã cập nhật mật khẩu thành công (Mô phỏng offline).' };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_admin_reset_staff_password', {
+      p_staff_id: params.staffId,
+      p_new_password: params.newPassword.trim()
+    });
+
+    if (error) {
+      console.error('Lỗi gọi RPC rpc_admin_reset_staff_password:', error);
+      throw new Error(error.message || error.details || 'Không thể đổi mật khẩu nhân viên.');
+    }
+
+    const res = data as any;
+    return {
+      success: res?.success ?? true,
+      message: res?.message || 'Đã cập nhật mật khẩu thành công!'
+    };
+  },
+
+
+  /**
    * 8. APPOINTMENTS (LỊCH HẸN TIẾP ĐÓN)
    */
   async getAppointments(orgId?: string, branchId?: string): Promise<Appointment[]> {

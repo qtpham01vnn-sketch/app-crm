@@ -399,7 +399,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (livePromotions.length > 0) setPromotions(livePromotions);
       if (liveStaff.length > 0) {
         setStaffList(liveStaff);
-        setCurrentUser((prev) => liveStaff.find((s) => s.id === prev?.id) || liveStaff[0]);
+        // Sync currentUser with logged in session
+        const currentSession = await authService.getCurrentSession();
+        const matched = liveStaff.find((s) => s.id === currentSession?.staffId || s.email === currentSession?.email);
+        if (matched) {
+          setCurrentUser(matched);
+        } else if (currentSession && currentSession.role) {
+          setCurrentUser({
+            id: currentSession.staffId || currentSession.userId || 'unknown',
+            orgId: currentSession.orgId || '',
+            name: currentSession.staffName || currentSession.email || 'Nhân viên',
+            code: currentSession.staffCode || 'NV',
+            role: currentSession.role,
+            phone: '',
+            email: currentSession.email || '',
+            branchIds: currentSession.assignedBranchIds || [],
+            primaryBranchId: currentSession.assignedBranchIds?.[0] || '',
+            baseSalary: 0,
+            commissionRate: 0,
+            status: 'active'
+          });
+        } else {
+          setCurrentUser(liveStaff[0]);
+        }
       }
       if (liveCustomers.length > 0) setCustomers(liveCustomers);
       if (liveAppointments && liveAppointments.length > 0) setAppointments(liveAppointments);

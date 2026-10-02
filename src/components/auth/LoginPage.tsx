@@ -13,13 +13,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, errorMessa
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(externalError || null);
 
+  const [showPassword, setShowPassword] = useState(false);
+
+  const fillAccount = (accEmail: string) => {
+    setEmail(accEmail);
+    setPassword('PhuongNam@123');
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
     try {
-      const result = await authService.loginWithPassword(email, password);
+      const result = await authService.loginWithPassword(email.trim(), password.trim());
       if (result.success) {
         onLoginSuccess();
       } else {
@@ -51,9 +59,46 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, errorMessa
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-200">
           <h2 className="text-lg font-bold text-slate-900 mb-1">Đăng nhập</h2>
-          <p className="text-xs text-slate-500 mb-6">
+          <p className="text-xs text-slate-500 mb-4">
             Sử dụng tài khoản nhân viên được cấp bởi quản trị viên
           </p>
+
+          {/* Quick Selection for Staging */}
+          <div className="mb-5 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl">
+            <p className="text-[11px] font-bold text-amber-900 mb-1.5 flex items-center gap-1">
+              ⚡ Điền nhanh tài khoản Diễn tập Staging:
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => fillAccount('admin.staging@phuongnam.vn')}
+                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+              >
+                👑 Admin Tổng
+              </button>
+              <button
+                type="button"
+                onClick={() => fillAccount('manager.q1@phuongnam.vn')}
+                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+              >
+                🏢 Quản lý Q1
+              </button>
+              <button
+                type="button"
+                onClick={() => fillAccount('reception.q1@phuongnam.vn')}
+                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+              >
+                👩‍💼 Lễ tân Q1
+              </button>
+              <button
+                type="button"
+                onClick={() => fillAccount('doctor.tuan@phuongnam.vn')}
+                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+              >
+                👨‍⚕️ Bác sĩ Tuấn
+              </button>
+            </div>
+          </div>
 
           {/* Error message */}
           {(error || externalError) && (
@@ -85,17 +130,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, errorMessa
               <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 mb-1.5">
                 Mật khẩu
               </label>
-              <input
-                id="login-password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-medium cursor-pointer"
+                >
+                  {showPassword ? 'Ẩn' : 'Hiện'}
+                </button>
+              </div>
             </div>
 
             <button
