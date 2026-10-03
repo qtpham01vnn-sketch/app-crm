@@ -1,7 +1,7 @@
 -- =============================================================================
 -- PHUONG NAM CRM — FULL STAGING DATABASE INITIALIZATION SCRIPT
 -- Target: Staging Project (yvwsitkgpujeqlgeiuge)
--- Generated at: 2026-10-03T02:18:39.401Z
+-- Generated at: 2026-10-03T02:34:45.270Z
 -- =============================================================================
 
 
@@ -15112,9 +15112,25 @@ BEGIN
         RAISE EXCEPTION 'Không thể đổi mật khẩu cho nhân sự thuộc tổ chức khác.';
     END IF;
 
-    IF v_target_email IS NULL OR trim(v_target_email) = '' THEN
-        RAISE EXCEPTION 'Hồ sơ nhân viên chưa có email để đăng nhập.';
-    END IF;
+    -- 4.b. Kiểm tra an toàn đa tổ chức (Multi-org Guard)
+    -- Vì mật khẩu auth.users tác động toàn tài khoản trên mọi tổ chức,
+    -- nếu nhân sự đang có membership hoạt động tại tổ chức khác, chặn để tránh can thiệp chéo.
+    DECLARE
+        v_other_org_count INT := 0;
+    BEGIN
+        SELECT COUNT(DISTINCT om.organization_id)
+        INTO v_other_org_count
+        FROM public.organization_memberships om
+        WHERE om.staff_id IN (
+            SELECT id FROM public.staff_profiles WHERE (v_target_auth_uid IS NOT NULL AND auth_user_id = v_target_auth_uid) OR email = v_target_email
+        )
+        AND om.organization_id <> v_caller_org_id
+        AND om.is_active = TRUE;
+
+        IF v_other_org_count > 0 THEN
+            RAISE EXCEPTION 'Tài khoản nhân sự này đang liên kết với % tổ chức khác. Quản trị viên đơn tổ chức không được phép đổi mật khẩu ảnh hưởng toàn tài khoản.', v_other_org_count;
+        END IF;
+    END;
 
     -- 5. Mã hóa mật khẩu mới bằng bcrypt
     v_hashed_pw := extensions.crypt(trim(p_new_password), extensions.gen_salt('bf'));
@@ -15176,46 +15192,29 @@ BEGIN
             updated_at = NOW();
     END IF;
 
-    -- 8. Kiểm tra liên kết đa tổ chức (multi-org)
-    DECLARE
-        v_other_org_count INT := 0;
-    BEGIN
-        SELECT COUNT(DISTINCT om.organization_id)
-        INTO v_other_org_count
-        FROM public.organization_memberships om
-        WHERE om.staff_id IN (
-            SELECT id FROM public.staff_profiles WHERE auth_user_id = v_target_auth_uid OR email = v_target_email
-        )
-        AND om.organization_id <> v_caller_org_id
-        AND om.is_active = TRUE;
-
-        -- Ghi Audit Log bất biến (KHÔNG ghi mật khẩu thô hoặc hashed_pw)
-        INSERT INTO public.audit_events (
-            organization_id, actor_staff_id, actor_role, event_action, entity_table, entity_id, after_state
-        ) VALUES (
-            v_caller_org_id,
-            (SELECT id FROM public.staff_profiles WHERE auth_user_id = v_caller_uid LIMIT 1),
-            v_caller_role::text,
-            'auth.reset_password',
-            'staff_profiles',
-            p_staff_id,
-            jsonb_build_object(
-                'email', v_target_email,
-                'reset_by', v_caller_uid,
-                'has_multiple_org_memberships', (v_other_org_count > 0),
-                'other_active_org_count', v_other_org_count,
-                'timestamp', NOW()
-            )
-        );
-
-        RETURN jsonb_build_object(
-            'success', TRUE,
-            'message', format('Đã cấp lại mật khẩu thành công cho nhân viên %s (%s).', v_target_name, v_target_email),
-            'staff_id', p_staff_id,
+    -- 8. Ghi Audit Log bất biến (KHÔNG ghi mật khẩu thô hoặc hashed_pw)
+    INSERT INTO public.audit_events (
+        organization_id, actor_staff_id, actor_role, event_action, entity_table, entity_id, after_state
+    ) VALUES (
+        v_caller_org_id,
+        (SELECT id FROM public.staff_profiles WHERE auth_user_id = v_caller_uid LIMIT 1),
+        v_caller_role::text,
+        'auth.reset_password',
+        'staff_profiles',
+        p_staff_id,
+        jsonb_build_object(
             'email', v_target_email,
-            'is_multi_org', (v_other_org_count > 0)
-        );
-    END;
+            'reset_by', v_caller_uid,
+            'timestamp', NOW()
+        )
+    );
+
+    RETURN jsonb_build_object(
+        'success', TRUE,
+        'message', format('Đã cấp lại mật khẩu thành công cho nhân viên %s (%s).', v_target_name, v_target_email),
+        'staff_id', p_staff_id,
+        'email', v_target_email
+    );
 END;
 $$;
 
