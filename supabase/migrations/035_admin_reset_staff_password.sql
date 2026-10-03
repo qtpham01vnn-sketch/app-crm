@@ -125,25 +125,46 @@ BEGIN
             updated_at = NOW();
     END IF;
 
-    -- 8. Ghi Audit Log bất biến
-    INSERT INTO public.audit_events (
-        organization_id, actor_staff_id, actor_role, event_action, entity_table, entity_id, after_state
-    ) VALUES (
-        v_caller_org_id,
-        (SELECT id FROM public.staff_profiles WHERE auth_user_id = v_caller_uid LIMIT 1),
-        v_caller_role::text,
-        'auth.reset_password',
-        'staff_profiles',
-        p_staff_id,
-        jsonb_build_object('email', v_target_email, 'reset_by', v_caller_uid, 'timestamp', NOW())
-    );
+    -- 8. Kiểm tra liên kết đa tổ chức (multi-org)
+    DECLARE
+        v_other_org_count INT := 0;
+    BEGIN
+        SELECT COUNT(DISTINCT om.organization_id)
+        INTO v_other_org_count
+        FROM public.organization_memberships om
+        WHERE om.staff_id IN (
+            SELECT id FROM public.staff_profiles WHERE auth_user_id = v_target_auth_uid OR email = v_target_email
+        )
+        AND om.organization_id <> v_caller_org_id
+        AND om.is_active = TRUE;
 
-    RETURN jsonb_build_object(
-        'success', TRUE,
-        'message', format('Đã cấp lại mật khẩu thành công cho nhân viên %s (%s).', v_target_name, v_target_email),
-        'staff_id', p_staff_id,
-        'email', v_target_email
-    );
+        -- Ghi Audit Log bất biến (KHÔNG ghi mật khẩu thô hoặc hashed_pw)
+        INSERT INTO public.audit_events (
+            organization_id, actor_staff_id, actor_role, event_action, entity_table, entity_id, after_state
+        ) VALUES (
+            v_caller_org_id,
+            (SELECT id FROM public.staff_profiles WHERE auth_user_id = v_caller_uid LIMIT 1),
+            v_caller_role::text,
+            'auth.reset_password',
+            'staff_profiles',
+            p_staff_id,
+            jsonb_build_object(
+                'email', v_target_email,
+                'reset_by', v_caller_uid,
+                'has_multiple_org_memberships', (v_other_org_count > 0),
+                'other_active_org_count', v_other_org_count,
+                'timestamp', NOW()
+            )
+        );
+
+        RETURN jsonb_build_object(
+            'success', TRUE,
+            'message', format('Đã cấp lại mật khẩu thành công cho nhân viên %s (%s).', v_target_name, v_target_email),
+            'staff_id', p_staff_id,
+            'email', v_target_email,
+            'is_multi_org', (v_other_org_count > 0)
+        );
+    END;
 END;
 $$;
 

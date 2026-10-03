@@ -1,7 +1,7 @@
 import React from 'react';
-import { Database, CheckCircle2 } from 'lucide-react';
+import { Database, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { isSupabaseConfigured } from '../../lib/supabase';
+import { supabaseEnvType, supabaseProjectRef } from '../../lib/supabase';
 
 export const MockDataBanner: React.FC = () => {
   const { currentBranch, currentRole, currentTheme } = useApp();
@@ -15,18 +15,36 @@ export const MockDataBanner: React.FC = () => {
     technician_doctor: 'Kỹ thuật viên / Bác sĩ'
   };
 
+  const isStaging = supabaseEnvType === 'staging';
+  const isLive = supabaseEnvType === 'live';
+
   return (
     <div
       className={`relative z-30 px-3 md:px-4 py-1.5 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between shadow-xs border-b gap-1.5 sm:gap-2 shrink-0 w-full overflow-hidden transition-colors duration-300 ${
         isSoftLight
-          ? 'bg-[#FCFAF7] text-[#26342F] border-[#E5E7E4]'
-          : isSupabaseConfigured
+          ? isStaging
+            ? 'bg-amber-50 text-amber-900 border-amber-200'
+            : 'bg-[#FCFAF7] text-[#26342F] border-[#E5E7E4]'
+          : isStaging
+          ? 'bg-gradient-to-r from-amber-900 via-orange-950 to-slate-900 border-amber-500/40 text-white'
+          : isLive
           ? 'bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 border-emerald-500/40 text-white'
           : 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-500/30 text-white'
       }`}
     >
       <div className="flex items-center space-x-2 min-w-0">
-        {isSupabaseConfigured ? (
+        {isStaging ? (
+          <span
+            className={`font-extrabold px-2.5 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1.5 border shrink-0 ${
+              isSoftLight
+                ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400/50'
+                : 'bg-amber-500/30 text-amber-200 border-amber-400/50 ring-1 ring-amber-400/30'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+            STAGING • {supabaseProjectRef}
+          </span>
+        ) : isLive ? (
           <span
             className={`font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] tracking-wider flex items-center gap-1 border shrink-0 ${
               isSoftLight
@@ -35,7 +53,7 @@ export const MockDataBanner: React.FC = () => {
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            SUPABASE LIVE
+            SUPABASE LIVE • {supabaseProjectRef}
           </span>
         ) : (
           <span
@@ -48,12 +66,16 @@ export const MockDataBanner: React.FC = () => {
           </span>
         )}
         <span
-          className={`hidden md:inline text-xs truncate ${
-            isSoftLight ? 'text-[#59665F]' : 'text-slate-200'
+          className={`hidden md:inline text-xs truncate font-medium ${
+            isSoftLight
+              ? isStaging ? 'text-amber-800' : 'text-[#59665F]'
+              : isStaging ? 'text-amber-200/90' : 'text-slate-200'
           }`}
         >
-          {isSupabaseConfigured
-            ? 'PostgreSQL Supabase • P2 Auth & RLS'
+          {isStaging
+            ? 'Môi trường Diễn Tập Kỹ Thuật (Staging DB: yvwsitkgpujeqlgeiuge) • Tách biệt 100% với dữ liệu Live'
+            : isLive
+            ? 'Hệ thống Production Chính thức • P2-P10 Auth & RLS Active'
             : 'Chế độ xem trước giao diện P1 (Dữ liệu giả lập).'}
         </span>
       </div>

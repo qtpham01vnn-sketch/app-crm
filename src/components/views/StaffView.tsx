@@ -36,7 +36,7 @@ export const StaffView: React.FC = () => {
 
   // Password Reset Modal State
   const [resetPwStaff, setResetPwStaff] = useState<Staff | null>(null);
-  const [newPasswordInput, setNewPasswordInput] = useState('PhuongNam@123');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
   const [showNewPw, setShowNewPw] = useState(false);
   const [isSubmittingPw, setIsSubmittingPw] = useState(false);
   const [resetPwError, setResetPwError] = useState<string | null>(null);
@@ -871,14 +871,14 @@ export const StaffView: React.FC = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Mật khẩu mới (Tối thiểu 6 ký tự)
+                  Mật khẩu mới (Tối thiểu 6 ký tự, bảo mật riêng cho nhân sự)
                 </label>
                 <div className="relative">
                   <input
                     type={showNewPw ? 'text' : 'password'}
                     value={newPasswordInput}
                     onChange={(e) => setNewPasswordInput(e.target.value)}
-                    placeholder="Nhập mật khẩu mới..."
+                    placeholder="Nhập hoặc tạo mật khẩu riêng..."
                     className="w-full pl-3.5 pr-14 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                   <button
@@ -891,15 +891,27 @@ export const StaffView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quick default password button */}
+              {/* Dynamic secure random password generator */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setNewPasswordInput('PhuongNam@123')}
-                  className="text-[11px] px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-semibold transition-all cursor-pointer shadow-2xs"
+                  onClick={() => {
+                    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+                    const array = new Uint32Array(12);
+                    window.crypto.getRandomValues(array);
+                    const generated = Array.from(array, (x) => chars[x % chars.length]).join('');
+                    setNewPasswordInput(generated);
+                    setShowNewPw(true);
+                  }}
+                  className="text-[11px] px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-semibold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
                 >
-                  ⚡ Đặt nhanh: PhuongNam@123
+                  🎲 Tạo mật khẩu ngẫu nhiên an toàn
                 </button>
+                {newPasswordInput && (
+                  <span className="text-[10px] text-slate-500 italic">
+                    (Vui lòng gửi riêng mật khẩu này cho nhân sự sau khi xác nhận)
+                  </span>
+                )}
               </div>
             </div>
 

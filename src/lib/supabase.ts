@@ -10,6 +10,19 @@ export const isSupabaseConfigured = Boolean(
   supabaseUrl !== 'https://your-project.supabase.co'
 );
 
+// Environment detection
+export const supabaseEnvType: 'staging' | 'live' | 'custom' | 'mock' = supabaseUrl.includes('yvwsitkgpujeqlgeiuge')
+  ? 'staging'
+  : supabaseUrl.includes('lskrcerzxltlrcewigrw')
+  ? 'live'
+  : isSupabaseConfigured
+  ? 'custom'
+  : 'mock';
+
+export const supabaseProjectRef = supabaseUrl
+  ? supabaseUrl.replace(/^https?:\/\//, '').split('.')[0]
+  : 'none';
+
 // Create Supabase client with safe fallback if not configured
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
@@ -20,3 +33,4 @@ export const supabase = isSupabaseConfigured
       }
     })
   : null;
+

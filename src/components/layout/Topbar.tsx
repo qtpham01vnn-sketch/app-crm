@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APP_THEMES } from '../../mock/themes';
+import { supabaseEnvType } from '../../lib/supabase';
 import type { UserRole } from '../../types';
 
 export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobileMenu }) => {
@@ -106,12 +107,13 @@ export const Topbar: React.FC<{ onOpenMobileMenu: () => void }> = ({ onOpenMobil
             <span
               className="hidden sm:inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 transition-all"
               style={{
-                backgroundColor: currentTheme.badgeBg,
-                color: currentTheme.primaryColor,
-                borderColor: isSoftLight ? '#E5E7E4' : currentTheme.primaryColor
+                backgroundColor: supabaseEnvType === 'staging' ? '#fef3c7' : currentTheme.badgeBg,
+                color: supabaseEnvType === 'staging' ? '#b45309' : currentTheme.primaryColor,
+                borderColor: supabaseEnvType === 'staging' ? '#fde68a' : isSoftLight ? '#E5E7E4' : currentTheme.primaryColor
               }}
             >
-              <Sparkles className="w-3 h-3 mr-0.5" /> {isLiveMode ? 'Live' : 'Demo'}
+              <Sparkles className="w-3 h-3 mr-0.5" />
+              {supabaseEnvType === 'staging' ? 'Staging' : supabaseEnvType === 'live' ? 'Live' : 'Demo'}
             </span>
           </div>
         </div>

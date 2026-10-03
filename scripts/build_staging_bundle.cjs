@@ -39,6 +39,7 @@ const migrationFiles = [
   '032_p10_chatbox_and_cskh_inbox.sql',
   '033_p10_webhook_crm_bridge.sql',
   '034_security_hardening_rls_all_tables.sql',
+  '035_admin_reset_staff_password.sql',
   '035_loyalty_server_hardening_and_approval_guard.sql'
 ];
 
