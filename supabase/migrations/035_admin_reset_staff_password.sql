@@ -168,3 +168,44 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_admin_reset_staff_password(UUID, TEXT) TO authenticated;
+
+-- -----------------------------------------------------------------------------
+-- SEED MẪU TỔ CHỨC B & TÀI KHOẢN ĐA TỔ CHỨC ĐỂ KIỂM THỬ CÁCH LY THỰC TẾ
+-- -----------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_org_b UUID := '22222222-2222-2222-2222-222222222222';
+    v_branch_b UUID := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+    v_staff_b UUID := '88888888-8888-8888-8888-888888888882';
+    v_multi_staff UUID := '99999999-9999-9999-9999-999999999998';
+BEGIN
+    INSERT INTO organizations (id, name, created_at, updated_at)
+    VALUES (v_org_b, 'Thẩm Mỹ Viện Sài Gòn (Org B Độc Lập)', NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO branches (id, organization_id, code, name, address, created_at, updated_at)
+    VALUES (v_branch_b, v_org_b, 'CN-ORGB-Q3', 'Chi Nhánh Quận 3 (Org B)', '456 CMT8, Q3', NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO staff_profiles (id, organization_id, full_name, code, email, phone, is_active, created_at, updated_at)
+    VALUES (v_staff_b, v_org_b, 'Trần Văn Hoàng (Org B)', 'STG_STF_ORGB', 'staff.orgb@phuongnam.vn', '0908888999', TRUE, NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO organization_memberships (organization_id, staff_id, role, assigned_branch_ids, is_active, created_at, updated_at)
+    VALUES (v_org_b, v_staff_b, 'branch_manager', ARRAY[v_branch_b], TRUE, NOW(), NOW())
+    ON CONFLICT (staff_id, organization_id) DO NOTHING;
+
+    -- Tài khoản test multi-org
+    INSERT INTO staff_profiles (id, organization_id, full_name, code, email, phone, is_active, created_at, updated_at)
+    VALUES (v_multi_staff, '11111111-1111-1111-1111-111111111111', 'Chuyên Gia Đa Tổ Chức', 'MULTI_ORG_01', 'multi.org@phuongnam.vn', '0909998877', TRUE, NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO organization_memberships (organization_id, staff_id, role, assigned_branch_ids, is_active, created_at, updated_at)
+    VALUES ('11111111-1111-1111-1111-111111111111', v_multi_staff, 'technician_doctor', ARRAY['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID], TRUE, NOW(), NOW())
+    ON CONFLICT (staff_id, organization_id) DO NOTHING;
+
+    INSERT INTO organization_memberships (organization_id, staff_id, role, assigned_branch_ids, is_active, created_at, updated_at)
+    VALUES (v_org_b, v_multi_staff, 'technician_doctor', ARRAY[v_branch_b], TRUE, NOW(), NOW())
+    ON CONFLICT (staff_id, organization_id) DO NOTHING;
+END;
+$$;
