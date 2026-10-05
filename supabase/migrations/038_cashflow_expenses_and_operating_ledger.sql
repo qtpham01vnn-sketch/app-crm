@@ -544,6 +544,106 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- 7.b. RPC GHI BÚT TOÁN DÒNG TIỀN VÀO SỔ CÁI (INFLOW/OUTFLOW ACID ENTRY)
+-- Dùng cho POS, Tiền đặt cọc, Thu hồi nợ, Hoàn tiền với khóa FOR UPDATE & Chống ghi trùng
+-- -----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS rpc_record_cashflow_entry(UUID, UUID, UUID, VARCHAR, VARCHAR, VARCHAR, UUID, VARCHAR, BIGINT, VARCHAR, TEXT);
+DROP FUNCTION IF EXISTS rpc_record_cashflow_entry;
+
+CREATE OR REPLACE FUNCTION rpc_record_cashflow_entry(
+    p_org_id UUID,
+    p_branch_id UUID,
+    p_account_id UUID,
+    p_flow_type VARCHAR,
+    p_transaction_category VARCHAR,
+    p_reference_type VARCHAR,
+    p_reference_id UUID,
+    p_reference_code VARCHAR,
+    p_amount BIGINT,
+    p_payment_method VARCHAR DEFAULT 'cash',
+    p_notes TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_staff_id UUID;
+    v_curr_bal BIGINT;
+    v_new_bal BIGINT;
+    v_ledger_id UUID;
+    v_existing_ledger_id UUID;
+BEGIN
+    IF p_amount <= 0 THEN
+        RAISE EXCEPTION 'Số tiền giao dịch phải lớn hơn 0';
+    END IF;
+
+    -- Kiểm tra chống ghi lặp theo reference_id & transaction_category
+    IF p_reference_id IS NOT NULL THEN
+        SELECT id INTO v_existing_ledger_id
+        FROM cashflow_ledger
+        WHERE reference_id = p_reference_id 
+          AND transaction_category = p_transaction_category
+        LIMIT 1;
+
+        IF v_existing_ledger_id IS NOT NULL THEN
+            RETURN jsonb_build_object(
+                'success', true,
+                'is_idempotent', true,
+                'ledger_id', v_existing_ledger_id,
+                'message', 'Giao dịch đã được ghi sổ cái trước đó'
+            );
+        END IF;
+    END IF;
+
+    SELECT current_balance INTO v_curr_bal
+    FROM financial_accounts
+    WHERE id = p_account_id
+    FOR UPDATE;
+
+    IF v_curr_bal IS NULL THEN
+        RAISE EXCEPTION 'Không tìm thấy tài khoản quỹ';
+    END IF;
+
+    IF p_flow_type = 'inflow' THEN
+        v_new_bal := v_curr_bal + p_amount;
+    ELSIF p_flow_type = 'outflow' THEN
+        v_new_bal := v_curr_bal - p_amount;
+    ELSE
+        RAISE EXCEPTION 'flow_type không hợp lệ';
+    END IF;
+
+    UPDATE financial_accounts
+    SET current_balance = v_new_bal,
+        updated_at = NOW()
+    WHERE id = p_account_id;
+
+    SELECT id INTO v_staff_id FROM staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1;
+
+    INSERT INTO cashflow_ledger (
+        organization_id, branch_id, account_id, flow_type, transaction_category,
+        reference_type, reference_id, reference_code, amount, balance_before,
+        balance_after, payment_method, occurred_at, actor_staff_id, notes
+    ) VALUES (
+        p_org_id, p_branch_id, p_account_id, p_flow_type, p_transaction_category,
+        p_reference_type, p_reference_id, p_reference_code, p_amount, v_curr_bal,
+        v_new_bal, p_payment_method, NOW(), v_staff_id, p_notes
+    )
+    RETURNING id INTO v_ledger_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'is_idempotent', false,
+        'ledger_id', v_ledger_id,
+        'balance_before', v_curr_bal,
+        'balance_after', v_new_bal,
+        'message', 'Ghi sổ cái và cập nhật quỹ thành công'
+    );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- 8. RPC BÁO CÁO KẾT QUẢ KINH DOANH VẬN HÀNH (ĐỐI CHIẾU P7 VÀ THUẬT NGỮ CHUẨN)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rpc_get_operating_pnl_report(

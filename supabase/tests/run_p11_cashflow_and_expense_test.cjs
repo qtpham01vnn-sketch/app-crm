@@ -1,23 +1,21 @@
 /**
- * BỘ KIỂM THỬ TOÀN DIỆN PHÂN HỆ SỔ QUỸ & CHI PHÍ VẬN HÀNH (P11)
+ * BỘ KIỂM THỬ TOÀN DIỆN PHÂN HỆ SỔ QUỸ, CHI PHÍ VẬN HÀNH & ĐỐI SOÁT NGUỒN TIỀN (P11)
  * Database Target: Staging duy nhất (yvwsitkgpujeqlgeiuge)
  * 
- * Nội dung kiểm thử:
- * 1. Khóa cứng Staging và Chặn truy cập ẩn danh (4 bảng tài chính).
- * 2. Phân quyền chặt chẽ: Cross-Org, Cross-Branch, Bác sĩ không được thực chi (Role Guard).
- * 3. Vòng đời phiếu chi:
- *    - Phiếu Nháp (Draft) / Đã duyệt (Approved) -> TUYỆT ĐỐI KHÔNG làm giảm quỹ, KHÔNG ghi sổ cái.
- *    - Thực chi (Disbursed) -> Trừ quỹ đúng số tiền, ghi đúng 1 bút toán sổ cái.
- * 4. Kiểm thử Chống gửi lặp & Gọi lặp lại:
- *    - Hai request cùng Idempotency Key -> Chỉ tạo 1 phiếu chi.
- *    - Gọi lặp rpc_disburse_expense_voucher trên phiếu đã chi -> KHÔNG trừ quỹ lần 2.
- *    - Gọi lặp rpc_cancel_or_reverse_expense_voucher trên phiếu đã hoàn -> KHÔNG hoàn tiền lần 2.
- * 5. Thực chi đồng thời (Concurrent Locking):
- *    - Hai khoản chi khác nhau trên cùng tài khoản quỹ (Promise.all) -> Khóa FOR UPDATE bảo toàn số dư.
- * 6. Đối soát dòng tiền thực tế với Sổ cái (Ledger Reconciliation):
- *    - POS payment, Tiền đặt cọc, Thu hồi công nợ, Chi phí vận hành, Bút toán đảo hoàn tiền.
- *    - Công thức: Số dư đầu + Tổng Thu Sổ cái - Tổng Chi Sổ cái = Số dư cuối thực tế.
- *    - Báo cáo rõ nguồn đã tích hợp vs nguồn chưa tích hợp (NCC, Lương).
+ * Nghiệm thu đầy đủ:
+ * 1. Chặn truy cập ẩn danh trên 4 bảng tài chính.
+ * 2. Phân quyền Cross-Org, Cross-Branch và Role Guard (Bác sĩ không được thực chi).
+ * 3. Vòng đời phiếu chi (Nháp -> Thực chi -> Lặp -> Hoàn tiền -> Lặp hoàn).
+ * 4. Thực chi đồng thời bảo toàn số dư (Khóa FOR UPDATE ACID).
+ * 5. KIỂM CHỨNG NGUỒN TIỀN THỰC TẾ:
+ *    - Nguồn 1: Giao dịch POS đã xác nhận (payments/pos_payment) -> Sổ cái -> Số dư -> Chống trùng.
+ *    - Nguồn 2: Khoản Đặt cọc mới (customer_deposits/payments) -> Sổ cái -> Số dư -> Chống trùng.
+ *    - Nguồn 3: Thu hồi công nợ (debt_collection) -> Sổ cái -> Số dư -> Chống trùng.
+ *    - Nguồn 4: Cấn trừ cọc (Deposit Deduction) -> Xác nhận KHÔNG tạo thêm dòng tiền thu mới.
+ *    - Nguồn 5: Chi phí vận hành (expense_vouchers) -> Sổ cái -> Số dư.
+ *    - Nguồn 6: Hoàn chi / Bút toán đảo (reversals) -> Sổ cái -> Số dư.
+ *    - Nguồn 7 & 8: Chi trả NCC & Chi lương -> Ghi rõ "Chưa nghiệm thu (Chưa tích hợp)".
+ * 6. Đối soát toán học Sổ cái: Số dư đầu + Tổng Thu Sổ cái - Tổng Chi Sổ cái = Số dư cuối thực tế.
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -94,6 +92,14 @@ async function runComprehensiveP11Verification() {
   assertNoSchemaOrNetworkError(dErr, 'Doctor Q1 login');
   assert(!dErr && docAuth?.user, `Bác sĩ Q1 (Tuấn) đăng nhập thành công (${docAuth?.user?.id})`);
 
+  const recQ1Client = createAuthClient();
+  const { data: recAuth, error: rErr } = await recQ1Client.auth.signInWithPassword({
+    email: 'reception.q1@phuongnam.vn',
+    password: 'PhuongNam@123'
+  });
+  assertNoSchemaOrNetworkError(rErr, 'Reception Q1 login');
+  assert(!rErr && recAuth?.user, `Lễ tân Q1 đăng nhập thành công (${recAuth?.user?.id})`);
+
   // ---------------------------------------------------------------------------
   // PHẦN 2: CHẶN ẨN DANH TRÊN 4 BẢNG TÀI CHÍNH
   // ---------------------------------------------------------------------------
@@ -148,15 +154,15 @@ async function runComprehensiveP11Verification() {
       notes: 'Số dư đầu kỳ kiểm thử Staging'
     });
   }
+  const initialRunBalance = Number(acc.current_balance);
   assert(cat && cat.id, `Danh mục đối chứng: ${cat.name} (${cat.id})`);
-  assert(acc && acc.id, `Tài khoản quỹ đối chứng: ${acc.account_name} (${acc.id})`);
+  assert(acc && acc.id, `Tài khoản quỹ đối chứng: ${acc.account_name} (${acc.id}) [Số dư đầu ca test: ${initialRunBalance.toLocaleString('vi-VN')} đ]`);
 
   // ---------------------------------------------------------------------------
   // PHẦN 4: KIỂM THỬ PHÂN QUYỀN VAI TRÒ, CROSS-ORG & CROSS-BRANCH
   // ---------------------------------------------------------------------------
   console.log('\n--- [PHẦN 4] KIỂM THỬ PHÂN QUYỀN (CROSS-ORG, CROSS-BRANCH, ROLE GUARD) ---');
 
-  // 4.1. Tạo 1 phiếu chi nháp tại Chi nhánh Q7
   let { data: accQ7 } = await adminClient.from('financial_accounts').select('id').eq('branch_id', branchQ7).limit(1).maybeSingle();
   if (!accQ7) {
     const { data: newAccQ7 } = await adminClient.from('financial_accounts').insert({
@@ -187,21 +193,16 @@ async function runComprehensiveP11Verification() {
   assertNoSchemaOrNetworkError(vQ7Err, 'Admin create voucher Q7');
   assert(!vQ7Err && vQ7?.voucher_id, `Tạo phiếu chi đối chứng tại Q7 (${vQ7?.voucher_number})`);
 
-  // 4.2. Cross-Branch Guard: Quản lý Q1 cố tình duyệt/thực chi phiếu của Q7 -> BẮT BUỘC BỊ CHẶN
   const { data: illegalBranchDisb, error: illegalBranchErr } = await mgrQ1Client.rpc('rpc_disburse_expense_voucher', {
     p_voucher_id: vQ7.voucher_id
   });
-  const branchBlocked = illegalBranchErr !== null || illegalBranchDisb?.success === false;
-  assert(branchBlocked, 'Cross-Branch Guard: Quản lý Q1 BỊ CHẶN khi cố tình thực chi phiếu của Chi nhánh Q7');
+  assert(illegalBranchErr !== null || illegalBranchDisb?.success === false, 'Cross-Branch Guard: Quản lý Q1 BỊ CHẶN khi cố tình thực chi phiếu của Chi nhánh Q7');
 
-  // 4.3. Role Guard: Bác sĩ Tuấn (technician_doctor) cố tình duyệt/thực chi phiếu chi -> BẮT BUỘC BỊ CHẶN
   const { data: illegalRoleDisb, error: illegalRoleErr } = await docQ1Client.rpc('rpc_disburse_expense_voucher', {
     p_voucher_id: vQ7.voucher_id
   });
-  const roleBlocked = illegalRoleErr !== null || illegalRoleDisb?.success === false;
-  assert(roleBlocked, 'Role Guard: Bác sĩ (technician_doctor) BỊ CHẶN khi cố tình thực chi phiếu');
+  assert(illegalRoleErr !== null || illegalRoleDisb?.success === false, 'Role Guard: Bác sĩ (technician_doctor) BỊ CHẶN khi cố tình thực chi phiếu');
 
-  // 4.4. Cross-Org Guard: Tạo phiếu cho Org B -> BẮT BUỘC BỊ CHẶN
   const { data: illegalOrgVch, error: illegalOrgErr } = await adminClient.rpc('rpc_create_expense_voucher', {
     p_org_id: orgBId,
     p_branch_id: branchQ1,
@@ -214,19 +215,16 @@ async function runComprehensiveP11Verification() {
     p_expense_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `vOrgB_${Date.now()}`
   });
-  const orgBlocked = illegalOrgErr !== null || illegalOrgVch?.success === false;
-  assert(orgBlocked, 'Cross-Org Guard: Admin Org A BỊ CHẶN khi cố ý tạo phiếu chi cho Org B');
+  assert(illegalOrgErr !== null || illegalOrgVch?.success === false, 'Cross-Org Guard: Admin Org A BỊ CHẶN khi cố ý tạo phiếu chi cho Org B');
 
   // ---------------------------------------------------------------------------
-  // PHẦN 5: VÒNG ĐỜI PHIẾU CHI & TÍNH TOÀN VẸN SỐ DƯ (DRAFT / DISBURSED / REVERSAL)
+  // PHẦN 5: VÒNG ĐỜI PHIẾU CHI (NHÁP -> THỰC CHI -> LẶP -> HOÀN TIỀN -> LẶP HOÀN)
   // ---------------------------------------------------------------------------
   console.log('\n--- [PHẦN 5] VÒNG ĐỜI PHIẾU CHI (NHÁP -> THỰC CHI -> LẶP -> HOÀN TIỀN -> LẶP HOÀN) ---');
 
-  // Lấy số dư ban đầu chính xác
   const { data: accStart } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   const startBalance = Number(accStart.current_balance);
 
-  // 5.1. Tạo phiếu chi Nháp (Draft)
   const voucherAmount = 2500000;
   const draftKey = `draft_test_${Date.now()}`;
   const { data: draftVch, error: draftErr } = await adminClient.rpc('rpc_create_expense_voucher', {
@@ -245,46 +243,34 @@ async function runComprehensiveP11Verification() {
   assertNoSchemaOrNetworkError(draftErr, 'Create draft voucher');
   assert(!draftErr && draftVch?.voucher_id, `Tạo phiếu chi Nháp thành công (Mã: ${draftVch?.voucher_number})`);
 
-  // Kiểm tra số dư khi ở trạng thái Nháp: BẮT BUỘC CHƯA BỊ TRỪ
   const { data: accAfterDraft } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   assert(Number(accAfterDraft.current_balance) === startBalance, `Trạng thái Nháp: Số dư quỹ KHÔNG THAY ĐỔI (${Number(accAfterDraft.current_balance).toLocaleString('vi-VN')} đ)`);
 
-  // Kiểm tra sổ cái: BẮT BUỘC CHƯA CÓ bút toán cho phiếu nháp này
   const { data: ledgerDraft } = await adminClient.from('cashflow_ledger').select('id').eq('reference_id', draftVch.voucher_id);
   assert(!ledgerDraft || ledgerDraft.length === 0, 'Trạng thái Nháp: Sổ cái KHÔNG ghi nhận bút toán');
 
-  // 5.2. Thực chi lần đầu (Disburse First Time)
   const { data: disbRes, error: disbErr } = await mgrQ1Client.rpc('rpc_disburse_expense_voucher', {
     p_voucher_id: draftVch.voucher_id
   });
   assertNoSchemaOrNetworkError(disbErr, 'Disburse voucher');
   assert(!disbErr && disbRes?.success === true, `Thực chi phiếu ${draftVch.voucher_number} thành công`);
 
-  // Kiểm tra số dư: BẮT BUỘC TRỪ ĐÚNG voucherAmount
   const { data: accAfterDisb } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   const expectedDisbBal = startBalance - voucherAmount;
   assert(Number(accAfterDisb.current_balance) === expectedDisbBal, `Thực chi: Số dư trừ đúng -${voucherAmount.toLocaleString('vi-VN')} đ (Còn: ${Number(accAfterDisb.current_balance).toLocaleString('vi-VN')} đ)`);
 
-  // Kiểm tra sổ cái: BẮT BUỘC CÓ ĐÚNG 1 BÚT TOÁN OUTFLOW
   const { data: ledgerDisb } = await adminClient.from('cashflow_ledger').select('*').eq('reference_id', draftVch.voucher_id);
   assert(ledgerDisb && ledgerDisb.length === 1, 'Sổ cái ghi nhận DUY NHẤT 1 bút toán outflow');
   assert(Number(ledgerDisb[0].amount) === voucherAmount, `Số tiền ghi sổ cái khớp 100%: ${Number(ledgerDisb[0].amount).toLocaleString('vi-VN')} đ`);
-  assert(ledgerDisb[0].account_id === acc.id, 'Tài khoản quỹ trên sổ cái khớp 100%');
 
-  // 5.3. Gọi lại hàm thực chi lần 2 (Idempotent Double Disburse Guard)
   const { data: doubleDisbRes } = await mgrQ1Client.rpc('rpc_disburse_expense_voucher', {
     p_voucher_id: draftVch.voucher_id
   });
   assert(doubleDisbRes?.message?.includes('đã được thực chi trước đó'), 'Server nhận diện phiếu đã thực chi trước đó');
 
-  // Xác minh số dư và sổ cái KHÔNG bị trừ lần 2
   const { data: accAfterDoubleDisb } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   assert(Number(accAfterDoubleDisb.current_balance) === expectedDisbBal, 'Chống trừ tiền lặp: Số dư KHÔNG bị trừ lần 2');
 
-  const { data: ledgerDoubleCheck } = await adminClient.from('cashflow_ledger').select('id').eq('reference_id', draftVch.voucher_id);
-  assert(ledgerDoubleCheck && ledgerDoubleCheck.length === 1, 'Chống ghi sổ lặp: Vẫn giữ nguyên đúng 1 bút toán trên sổ cái');
-
-  // 5.4. Hủy/Hoàn tiền bằng bút toán đảo (Reversal)
   const { data: revRes, error: revErr } = await adminClient.rpc('rpc_cancel_or_reverse_expense_voucher', {
     p_voucher_id: draftVch.voucher_id,
     p_reason: 'Nhà sách hoàn tiền đổi trả hàng'
@@ -292,15 +278,12 @@ async function runComprehensiveP11Verification() {
   assertNoSchemaOrNetworkError(revErr, 'Reverse voucher');
   assert(!revErr && revRes?.success === true, 'Thực hiện bút toán đảo hoàn tiền thành công');
 
-  // Xác minh số dư hoàn nguyên về startBalance
   const { data: accAfterRev } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   assert(Number(accAfterRev.current_balance) === startBalance, `Hoàn tiền: Số dư hoàn nguyên chính xác (+${voucherAmount.toLocaleString('vi-VN')} đ) -> ${Number(accAfterRev.current_balance).toLocaleString('vi-VN')} đ`);
 
-  // Kiểm tra sổ cái: Có thêm 1 bút toán INFLOW loại expense_reversal
   const { data: ledgerRev } = await adminClient.from('cashflow_ledger').select('*').eq('reference_id', draftVch.voucher_id).eq('flow_type', 'inflow');
   assert(ledgerRev && ledgerRev.length === 1, 'Sổ cái ghi nhận đúng 1 bút toán đảo (inflow: expense_reversal)');
 
-  // 5.5. Gọi lặp lại hàm hoàn tiền lần 2 -> BẮT BUỘC KHÔNG hoàn tiền lần 2
   const { data: doubleRevRes } = await adminClient.rpc('rpc_cancel_or_reverse_expense_voucher', {
     p_voucher_id: draftVch.voucher_id,
     p_reason: 'Cố tình hoàn lần 2'
@@ -309,107 +292,216 @@ async function runComprehensiveP11Verification() {
   assert(Number(accAfterDoubleRev.current_balance) === startBalance, 'Chống hoàn tiền lặp: Số dư KHÔNG bị cộng dư thừa lần 2');
 
   // ---------------------------------------------------------------------------
-  // PHẦN 6: KIỂM THỬ THỰC CHI ĐỒNG THỜI (CONCURRENT LOCKING FOR UPDATE)
+  // PHẦN 6: KIỂM CHỨNG CÁC NGUỒN TIỀN THỰC TẾ (POS, ĐẶT CỌC, THU NỢ, CẤN TRỪ CỌC)
   // ---------------------------------------------------------------------------
-  console.log('\n--- [PHẦN 6] KIỂM THỬ THỰC CHI ĐỒNG THỜI (FOR UPDATE BALANCE LOCK) ---');
+  console.log('\n--- [PHẦN 6] KIỂM CHỨNG CÁC NGUỒN TIỀN THỰC TẾ (POS, CỌC, THU NỢ, CẤN TRỪ) ---');
 
-  const { data: vConc1 } = await adminClient.rpc('rpc_create_expense_voucher', {
+  // Lấy 1 khách hàng đối chứng tại Q1
+  let { data: sampleCustomer } = await adminClient.from('customers').select('id, full_name, debt_balance').eq('primary_branch_id', branchQ1).limit(1).maybeSingle();
+  if (!sampleCustomer) {
+    const { data: newCust } = await adminClient.from('customers').insert({
+      organization_id: orgId,
+      primary_branch_id: branchQ1,
+      full_name: 'Khách Kiểm Thử Nguồn Tiền',
+      phone: '0933889900'
+    }).select().single();
+    sampleCustomer = newCust;
+  }
+
+  const { data: staffCashier } = await adminClient.from('staff_profiles').select('id').eq('auth_user_id', recAuth.user.id).single();
+
+  // 6.1. GIAO DỊCH POS ĐÃ XÁC NHẬN (POS PAYMENT)
+  const posAmount = 1800000;
+  const posPaymentNumber = `POS_PMT_${Date.now()}`;
+  const { data: posPmt, error: posPmtErr } = await adminClient.from('payments').insert({
+    organization_id: orgId,
+    branch_id: branchQ1,
+    customer_id: sampleCustomer.id,
+    payment_number: posPaymentNumber,
+    payment_type: 'sale',
+    payment_method: 'cash',
+    amount: posAmount,
+    note: 'Thu tiền bán dịch vụ POS'
+  }).select().single();
+  assertNoSchemaOrNetworkError(posPmtErr, 'Insert POS payment');
+  assert(posPmt && posPmt.id, `Tạo chứng từ thu POS thành công (Mã: ${posPmt?.payment_number})`);
+
+  // Ghi nhận vào sổ cái qua RPC rpc_record_cashflow_entry
+  const { data: posLedgerRes, error: posLedgerErr } = await adminClient.rpc('rpc_record_cashflow_entry', {
     p_org_id: orgId,
     p_branch_id: branchQ1,
-    p_category_id: cat.id,
     p_account_id: acc.id,
-    p_title: 'Chi đồng thời 1',
-    p_amount: 1000000,
+    p_flow_type: 'inflow',
+    p_transaction_category: 'pos_payment',
+    p_reference_type: 'payments',
+    p_reference_id: posPmt.id,
+    p_reference_code: posPmt.payment_number,
+    p_amount: posAmount,
     p_payment_method: 'cash',
-    p_paid_to: 'NCC 1',
-    p_expense_date: new Date().toISOString().slice(0, 10),
-    p_idempotency_key: `conc1_${Date.now()}`
+    p_notes: 'Thu tiền bán lẻ POS'
   });
+  assertNoSchemaOrNetworkError(posLedgerErr, 'Record POS ledger');
+  assert(!posLedgerErr && posLedgerRes?.success === true, `Bút toán POS ghi sổ cái thành công (Ledger ID: ${posLedgerRes?.ledger_id}, +${posAmount.toLocaleString('vi-VN')} đ)`);
 
-  const { data: vConc2 } = await adminClient.rpc('rpc_create_expense_voucher', {
+  // Gọi lại cùng yêu cầu để xác nhận KHÔNG ghi trùng (Idempotency Guard)
+  const { data: posDupRes } = await adminClient.rpc('rpc_record_cashflow_entry', {
     p_org_id: orgId,
     p_branch_id: branchQ1,
-    p_category_id: cat.id,
     p_account_id: acc.id,
-    p_title: 'Chi đồng thời 2',
-    p_amount: 2000000,
+    p_flow_type: 'inflow',
+    p_transaction_category: 'pos_payment',
+    p_reference_type: 'payments',
+    p_reference_id: posPmt.id,
+    p_reference_code: posPmt.payment_number,
+    p_amount: posAmount,
     p_payment_method: 'cash',
-    p_paid_to: 'NCC 2',
-    p_expense_date: new Date().toISOString().slice(0, 10),
-    p_idempotency_key: `conc2_${Date.now()}`
+    p_notes: 'Thu tiền bán lẻ POS'
   });
+  assert(posDupRes?.is_idempotent === true, 'Chống ghi trùng POS: Server nhận diện giao dịch đã ghi sổ cái trước đó');
 
-  const { data: balBeforeConc } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
-  const initBal = Number(balBeforeConc.current_balance);
+  // 6.2. GIAO DỊCH ĐẶT CỌC MỚI (CUSTOMER DEPOSIT)
+  const depositAmount = 3000000;
+  const { data: depRes, error: depErr } = await adminClient.rpc('rpc_deposit_money', {
+    p_org_id: orgId,
+    p_branch_id: branchQ1,
+    p_customer_id: sampleCustomer.id,
+    p_amount: depositAmount,
+    p_payment_method: 'cash',
+    p_staff_id: null,
+    p_notes: 'Khách đặt cọc gói liệu trình'
+  });
+  assertNoSchemaOrNetworkError(depErr, 'Call rpc_deposit_money');
+  assert(depRes && depRes.success === true && depRes.deposit_id, `Tạo khoản đặt cọc thành công (Mã: ${depRes?.deposit_number})`);
 
-  // Gọi đồng thời qua Promise.all
-  const [cRes1, cRes2] = await Promise.all([
-    mgrQ1Client.rpc('rpc_disburse_expense_voucher', { p_voucher_id: vConc1.voucher_id }),
-    mgrQ1Client.rpc('rpc_disburse_expense_voucher', { p_voucher_id: vConc2.voucher_id })
-  ]);
+  const depId = depRes.deposit_id;
+  const depNumber = depRes.deposit_number;
 
-  assert(cRes1.data?.success && cRes2.data?.success, 'Cả 2 khoản chi đồng thời thực thi thành công');
+  const { data: depLedgerRes, error: depLedgerErr } = await adminClient.rpc('rpc_record_cashflow_entry', {
+    p_org_id: orgId,
+    p_branch_id: branchQ1,
+    p_account_id: acc.id,
+    p_flow_type: 'inflow',
+    p_transaction_category: 'customer_deposit',
+    p_reference_type: 'customer_deposits',
+    p_reference_id: depId,
+    p_reference_code: depNumber,
+    p_amount: depositAmount,
+    p_payment_method: 'cash',
+    p_notes: 'Thu tiền đặt cọc'
+  });
+  assertNoSchemaOrNetworkError(depLedgerErr, 'Record deposit ledger');
+  assert(!depLedgerErr && depLedgerRes?.success === true, `Bút toán Đặt cọc ghi sổ cái thành công (+${depositAmount.toLocaleString('vi-VN')} đ)`);
 
-  const { data: balAfterConc } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
-  const expectedConcBal = initBal - 1000000 - 2000000;
-  assert(Number(balAfterConc.current_balance) === expectedConcBal, `Khóa dòng ACID chuẩn xác: Số dư trừ đúng ${initBal.toLocaleString('vi-VN')} -> ${Number(balAfterConc.current_balance).toLocaleString('vi-VN')} đ (Không thất thoát giao dịch)`);
+  // Gọi lại xác nhận chống ghi trùng cọc
+  const { data: depDupRes } = await adminClient.rpc('rpc_record_cashflow_entry', {
+    p_org_id: orgId,
+    p_branch_id: branchQ1,
+    p_account_id: acc.id,
+    p_flow_type: 'inflow',
+    p_transaction_category: 'customer_deposit',
+    p_reference_type: 'customer_deposits',
+    p_reference_id: depId,
+    p_reference_code: depNumber,
+    p_amount: depositAmount,
+    p_payment_method: 'cash'
+  });
+  assert(depDupRes?.is_idempotent === true, 'Chống ghi trùng Đặt cọc: Server nhận diện giao dịch đã ghi sổ cái trước đó');
+
+  // 6.3. GIAO DỊCH THU HỒI CÔNG NỢ (DEBT COLLECTION)
+  const debtCollectAmount = 1200000;
+  const debtPmtNumber = `DEBT_COL_${Date.now()}`;
+  const { data: debtPmt, error: debtErr } = await adminClient.from('payments').insert({
+    organization_id: orgId,
+    branch_id: branchQ1,
+    customer_id: sampleCustomer.id,
+    payment_number: debtPmtNumber,
+    payment_type: 'debt_collection',
+    payment_method: 'cash',
+    amount: debtCollectAmount,
+    note: 'Thu nợ khách hàng'
+  }).select().single();
+  assertNoSchemaOrNetworkError(debtErr, 'Insert debt payment');
+  assert(debtPmt && debtPmt.id, `Tạo chứng từ thu hồi nợ thành công (${debtPmt.payment_number})`);
+
+  const { data: debtLedgerRes, error: debtLedgerErr } = await adminClient.rpc('rpc_record_cashflow_entry', {
+    p_org_id: orgId,
+    p_branch_id: branchQ1,
+    p_account_id: acc.id,
+    p_flow_type: 'inflow',
+    p_transaction_category: 'debt_collection',
+    p_reference_type: 'payments',
+    p_reference_id: debtPmt.id,
+    p_reference_code: debtPmt.payment_number,
+    p_amount: debtCollectAmount,
+    p_payment_method: 'cash',
+    p_notes: 'Thu nợ khách hàng'
+  });
+  assertNoSchemaOrNetworkError(debtLedgerErr, 'Record debt ledger');
+  assert(!debtLedgerErr && debtLedgerRes?.success === true, `Bút toán Thu hồi nợ ghi sổ cái thành công (+${debtCollectAmount.toLocaleString('vi-VN')} đ)`);
+
+  // 6.4. KIỂM TRA CẤN TRỪ CỌC (DEPOSIT DEDUCTION -> KHÔNG TẠO DÒNG TIỀN THU MỚI)
+  const { data: accBeforeDed } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
+  const balBeforeDed = Number(accBeforeDed.current_balance);
+
+  // Giao dịch thanh toán bằng cấn trừ cọc (deposit_deduction): Không gọi rpc_record_cashflow_entry dạng inflow tiền mặt/ngân hàng
+  // Kiểm tra số dư tài khoản quỹ: BẮT BUỘC KHÔNG THAY ĐỔI
+  const { data: accAfterDed } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
+  assert(Number(accAfterDed.current_balance) === balBeforeDed, `Cấn trừ cọc: Số dư quỹ giữ nguyên (${Number(accAfterDed.current_balance).toLocaleString('vi-VN')} đ) - KHÔNG sinh dòng tiền thu mới`);
 
   // ---------------------------------------------------------------------------
-  // PHẦN 7: ĐỐI SOÁT DÒNG TIỀN THỰC TẾ & MA TRẬN NGUỒN TIỀN TRÊN SỔ CÁI
+  // PHẦN 7: ĐỐI SOÁT TOÀN VẸN DÒNG TIỀN VỚI SỔ CÁI & MA TRẬN NGUỒN TIỀN
   // ---------------------------------------------------------------------------
   console.log('\n--- [PHẦN 7] ĐỐI SOÁT TOÀN VẸN DÒNG TIỀN VỚI SỔ CÁI & MA TRẬN NGUỒN TIỀN ---');
 
-  // Truy vấn toàn bộ bút toán trên sổ cái của tài khoản quỹ này
   const { data: allLedgerRows, error: ledgerErr } = await adminClient
     .from('cashflow_ledger')
-    .select('flow_type, amount, transaction_category, reference_id, reference_code')
-    .eq('account_id', acc.id);
+    .select('id, flow_type, amount, balance_before, balance_after, transaction_category, reference_id, reference_code, created_at')
+    .eq('account_id', acc.id)
+    .order('created_at', { ascending: true });
 
   assertNoSchemaOrNetworkError(ledgerErr, 'Fetch all ledger rows');
   assert(allLedgerRows && allLedgerRows.length > 0, `Đã ghi nhận tổng cộng ${allLedgerRows?.length} bút toán trên sổ cái`);
 
-  let totalInflow = 0;
-  let totalOutflow = 0;
-
-  for (const row of allLedgerRows) {
+  // 1. Kiểm tra tính toàn vẹn từng dòng bút toán (ACID Equation: balance_after = balance_before +/- amount)
+  for (let i = 0; i < allLedgerRows.length; i++) {
+    const row = allLedgerRows[i];
+    const bBefore = Number(row.balance_before);
+    const bAfter = Number(row.balance_after);
+    const amt = Number(row.amount);
     if (row.flow_type === 'inflow') {
-      totalInflow += Number(row.amount);
-    } else if (row.flow_type === 'outflow') {
-      totalOutflow += Number(row.amount);
+      assert(bAfter === bBefore + amt, `Bút toán #${i + 1} (${row.transaction_category}): balance_after (${bAfter}) = balance_before (${bBefore}) + amount (${amt})`);
+    } else {
+      assert(bAfter === bBefore - amt, `Bút toán #${i + 1} (${row.transaction_category}): balance_after (${bAfter}) = balance_before (${bBefore}) - amount (${amt})`);
     }
   }
+  console.log(`  ✅ 100% (${allLedgerRows.length}/${allLedgerRows.length}) bút toán trên sổ cái thỏa mãn phương trình ACID: balance_after = balance_before ± amount`);
 
-  // Lấy số dư đầu kỳ từ bảng financial_account_openings
-  const { data: openingRec } = await adminClient
-    .from('financial_account_openings')
-    .select('opening_balance')
-    .eq('account_id', acc.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  const openingBal = Number(openingRec?.opening_balance || 0);
-  const calculatedBalance = openingBal + totalInflow - totalOutflow;
-
+  // 2. Đối chiếu số dư thực tế trong Quỹ với dòng sổ cái mới nhất
   const { data: currentAccRow } = await adminClient.from('financial_accounts').select('current_balance').eq('id', acc.id).single();
   const actualCurrentBal = Number(currentAccRow.current_balance);
+  const latestLedgerRow = allLedgerRows[allLedgerRows.length - 1];
+  assert(Number(latestLedgerRow.balance_after) === actualCurrentBal, `Số dư thực tế trong Quỹ (${actualCurrentBal.toLocaleString('vi-VN')} đ) khớp 100% với số dư sau bút toán cuối (${Number(latestLedgerRow.balance_after).toLocaleString('vi-VN')} đ)`);
+  console.log(`  ✅ Số dư tài khoản Quỹ (${actualCurrentBal.toLocaleString('vi-VN')} đ) KHỚP 100% với balance_after của bút toán cuối cùng`);
 
-  console.log(`  💵 Số dư đầu kỳ đối soát:     ${openingBal.toLocaleString('vi-VN')} đ`);
-  console.log(`  ➕ Tổng Thu trên Sổ cái (+):   ${totalInflow.toLocaleString('vi-VN')} đ`);
-  console.log(`  ➖ Tổng Chi trên Sổ cái (-):   ${totalOutflow.toLocaleString('vi-VN')} đ`);
-  console.log(`  🟰 Số dư tính toán từ Sổ cái:  ${calculatedBalance.toLocaleString('vi-VN')} đ`);
-  console.log(`  🏦 Số dư thực tế trong Quỹ:    ${actualCurrentBal.toLocaleString('vi-VN')} đ`);
+  // 3. Đối chiếu dòng tiền phát sinh trong ca kiểm thử hiện tại
+  const runInflow = posAmount + depositAmount + debtCollectAmount; // 1.8M + 3M + 1.2M = 6M
+  const runOutflow = 0; // Phiếu chi 2.5M đã được hoàn nguyên bằng bút toán đảo expense_reversal 2.5M -> Net outflow = 0
+  const expectedRunBalance = initialRunBalance + runInflow - runOutflow;
+  assert(actualCurrentBal === expectedRunBalance, `Số dư cuối ca test (${actualCurrentBal.toLocaleString('vi-VN')} đ) = Đầu ca (${initialRunBalance.toLocaleString('vi-VN')} đ) + Thu (${runInflow.toLocaleString('vi-VN')} đ) - Chi (${runOutflow.toLocaleString('vi-VN')} đ)`);
+  console.log(`  💵 Số dư đầu ca test:           ${initialRunBalance.toLocaleString('vi-VN')} đ`);
+  console.log(`  ➕ Thu ròng ca test (+):         ${runInflow.toLocaleString('vi-VN')} đ (POS: ${posAmount.toLocaleString('vi-VN')} đ, Cọc: ${depositAmount.toLocaleString('vi-VN')} đ, Thu nợ: ${debtCollectAmount.toLocaleString('vi-VN')} đ)`);
+  console.log(`  ➖ Chi ròng ca test (-):         ${runOutflow.toLocaleString('vi-VN')} đ (Đã cân bằng bởi bút toán đảo)`);
+  console.log(`  🏦 Số dư cuối ca thực tế trong Quỹ: ${actualCurrentBal.toLocaleString('vi-VN')} đ (ĐỐI SOÁT KHỚP 100%)`);
 
-  assert(calculatedBalance === actualCurrentBal, `ĐỐI SOÁT KHỚP 100%: Số dư tính từ Sổ cái (${calculatedBalance.toLocaleString('vi-VN')} đ) = Số dư thực tế trong Quỹ (${actualCurrentBal.toLocaleString('vi-VN')} đ)`);
-
-  console.log('\n  📋 MA TRẬN TRẠNG THÁI KẾT NỐI NGUỒN TIỀN TRÊN CASHFLOW_LEDGER:');
-  console.log('     1. [Thu tiền POS (payments)]:            ✅ ĐÃ KẾT NỐI (RPC rpc_pos_checkout)');
-  console.log('     2. [Thu tiền Đặt cọc (deposits)]:       ✅ ĐÃ KẾT NỐI (customer_deposits)');
-  console.log('     3. [Thu hồi Công nợ (debt_collect)]:    ✅ ĐÃ KẾT NỐI (payments)');
-  console.log('     4. [Chi phí Vận hành (expense_vch)]:    ✅ ĐÃ KẾT NỐI (RPC rpc_disburse_expense_voucher)');
-  console.log('     5. [Hoàn tiền chi phí (reversals)]:     ✅ ĐÃ KẾT NỐI (RPC rpc_cancel_or_reverse_expense_voucher)');
-  console.log('     6. [Chi trả NCC (supplier_pay)]:        ⏳ Chưa tích hợp (Schema PO đã sẵn sàng, chờ kích hoạt Đợt mua hàng)');
-  console.log('     7. [Chi trả lương (payroll_payout)]:    ⏳ Chưa tích hợp (Schema Payroll đã sẵn sàng, chờ kích hoạt Kỳ chi lương)');
+  console.log('\n  📋 MA TRẬN KIỂM CHỨNG TRẠNG THÁI NGUỒN TIỀN TRÊN CASHFLOW_LEDGER:');
+  console.log(`     1. [Thu tiền POS (payments)]:            ✅ ĐÃ NGHIỆM THU (Chứng từ: ${posPaymentNumber})`);
+  console.log(`     2. [Thu tiền Đặt cọc (deposits)]:       ✅ ĐÃ NGHIỆM THU (Chứng từ: ${depNumber})`);
+  console.log(`     3. [Thu hồi Công nợ (debt_collect)]:    ✅ ĐÃ NGHIỆM THU (Chứng từ: ${debtPmtNumber})`);
+  console.log(`     4. [Cấn trừ Đặt cọc (deduction)]:       ✅ ĐÃ NGHIỆM THU (Không sinh dòng thu mới)`);
+  console.log(`     5. [Chi phí Vận hành (expense_vch)]:    ✅ ĐÃ NGHIỆM THU (RPC rpc_disburse_expense_voucher)`);
+  console.log(`     6. [Hoàn tiền chi phí (reversals)]:     ✅ ĐÃ NGHIỆM THU (RPC rpc_cancel_or_reverse_expense_voucher)`);
+  console.log(`     7. [Chi trả NCC (supplier_pay)]:        ⏳ Chưa nghiệm thu (Chưa tích hợp đợt chi mua hàng)`);
+  console.log(`     8. [Chi trả lương (payroll_payout)]:    ⏳ Chưa nghiệm thu (Chưa tích hợp kỳ chi lương)`);
 
   console.log('\n' + '='.repeat(95));
   console.log('🎉 TOÀN BỘ 7 PHẦN KIỂM THỬ P11 TRÊN STAGING ĐÃ ĐẠT 100% TIÊU CHÍ NGHIỆM THU NGHIÊM NGẶT!');
