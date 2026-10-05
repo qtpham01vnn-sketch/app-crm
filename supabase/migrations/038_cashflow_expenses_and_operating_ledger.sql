@@ -243,6 +243,9 @@ CREATE OR REPLACE RULE prevent_cashflow_delete AS ON DELETE TO cashflow_ledger D
 -- -----------------------------------------------------------------------------
 -- 5. RPC TẠO PHIẾU CHI (DRAFT / SUBMITTED)
 -- -----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS rpc_create_expense_voucher(UUID, UUID, UUID, UUID, VARCHAR, BIGINT, VARCHAR, VARCHAR, DATE, TEXT, TEXT[], VARCHAR);
+DROP FUNCTION IF EXISTS rpc_create_expense_voucher;
+
 CREATE OR REPLACE FUNCTION rpc_create_expense_voucher(
     p_org_id UUID,
     p_branch_id UUID,
@@ -365,6 +368,10 @@ $$;
 -- 6. RPC PHÊ DUYỆT & THỰC CHI ACID (RPC_DISBURSE_EXPENSE_VOUCHER)
 -- Khóa dòng số dư (SELECT FOR UPDATE) để đảm bảo toàn vẹn giao dịch
 -- -----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS rpc_disburse_expense_voucher(UUID);
+DROP FUNCTION IF EXISTS rpc_disburse_expense_voucher(UUID, VARCHAR);
+DROP FUNCTION IF EXISTS rpc_disburse_expense_voucher;
+
 CREATE OR REPLACE FUNCTION rpc_disburse_expense_voucher(
     p_voucher_id UUID,
     p_idempotency_key VARCHAR DEFAULT NULL
@@ -468,6 +475,10 @@ $$;
 -- -----------------------------------------------------------------------------
 -- 7. RPC HỦY / HOÀN PHIẾU CHI BẰNG BÚT TOÁN ĐẢO (RPC_CANCEL_EXPENSE_VOUCHER)
 -- -----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS rpc_cancel_or_reverse_expense_voucher(UUID, TEXT);
+DROP FUNCTION IF EXISTS rpc_cancel_or_reverse_expense_voucher(UUID);
+DROP FUNCTION IF EXISTS rpc_cancel_or_reverse_expense_voucher;
+
 CREATE OR REPLACE FUNCTION rpc_cancel_or_reverse_expense_voucher(
     p_voucher_id UUID,
     p_reason TEXT
