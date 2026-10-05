@@ -44,8 +44,7 @@
 | **P10 Mốc A CSKH Inbox** | `ChatboxView.tsx`, `chatboxService.ts` | `032` (`conversation_threads`, `chat_messages`, `channel_integrations`) | ✅ LIVE | ✅ LIVE | `run_p10_chatbox_and_cskh_test.cjs` (PASS 100% 7 kịch bản: Ghi chú nội bộ, phân công, quiet hours) | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc A** |
 | **P10 Mốc B Facebook Messenger** | `scripts/facebook_messenger_sync.cjs`, `ChatboxView.tsx` | `033` (`webhook_crm`, Database Trigger Bridge) | ✅ LIVE | ✅ LIVE | `run_p10_webhook_crm_bridge_test.cjs` PASS; Đấu nối Trang "Fanpage-Tuấn Phạm" (ID: 809750085555882) | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc B** |
 | **P10 Mốc B Telegram Bot** | `scripts/telegram_bot_sync.cjs`, `ChatboxView.tsx` | `032` (`conversation_threads`, `chat_messages`) | ✅ LIVE | ✅ LIVE | Kết nối Bot `@phuongnam_cskh_bot` nhận & gửi tin trực tiếp 2 chiều | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc B** |
-| **P10 Mốc B Zalo OA** | `ChatboxView.tsx` | `032` (`channel_integrations`) | ⏳ Chờ | ⏳ Chờ | Chưa có tài khoản Zalo OA chính thức; giao diện và schema sẵn sàng | ⏳ Còn chờ tài khoản | **P10 Mốc B** |
-| **Sổ quỹ & Chi phí P&L Đầy đủ** | `ExpView.tsx` | `expenses`, `expense_transactions` | ⚠️ State | ⚠️ State | Chi phí vận hành độc lập, chưa hoàn chỉnh kết nối bút toán sổ quỹ đa quỹ ngân hàng | ⏳ Chưa hoàn thiện | **P5/P7 Bổ sung** |
+| **Sổ quỹ & Chi phí P&L Đầy đủ** | `ExpView.tsx`, `expenseService.ts` | `038` (`expense_vouchers`, `financial_accounts`, `cashflow_ledger`) | ✅ LIVE | ✅ LIVE | `run_p11_cashflow_and_expense_test.cjs` PASS | 🚀 Đã triển khai | **P5/P7 Bổ sung (P11)** |
 
 ---
 

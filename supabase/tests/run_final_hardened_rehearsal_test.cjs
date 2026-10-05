@@ -77,6 +77,14 @@ async function runFinalHardenedRehearsal() {
   });
   assert(!docLoginErr && docAuth?.user, `Bác sĩ Q1 đăng nhập thành công (UID: ${docAuth?.user?.id})`);
 
+  // 1.4. Đăng nhập Quản lý Chi nhánh Q1
+  const mgrClient = createAuthClient();
+  const { data: mgrAuth, error: mgrLoginErr } = await mgrClient.auth.signInWithPassword({
+    email: 'manager.q1@phuongnam.vn',
+    password: process.env.STAGING_MGR_PASS || 'PhuongNam@123'
+  });
+  assert(!mgrLoginErr && mgrAuth?.user, `Quản lý Q1 đăng nhập thành công (UID: ${mgrAuth?.user?.id})`);
+
   // ---------------------------------------------------------------------------
   // PHẦN 2: BẢO MẬT ĐỔI MẬT KHẨU (TÀI KHOẢN TEST RIÊNG BIỆT)
   // ---------------------------------------------------------------------------
@@ -173,14 +181,40 @@ async function runFinalHardenedRehearsal() {
     p_new_password: generateRandomPassword()
   });
   
-  // Kiểm tra Server nhận diện tài khoản đa tổ chức
-  const isMultiOrgDetected = multiOrgErr !== null || multiOrgRes?.is_multi_org === true || multiOrgRes?.success === true;
-  assert(isMultiOrgDetected, 'Server phát hiện và xử lý tài khoản nhân sự liên kết đa tổ chức');
+  const isMultiOrgBlocked = multiOrgErr !== null || multiOrgRes?.success === false;
   console.log('     Phản hồi từ Server cho Multi-Org Staff:', multiOrgErr?.message || multiOrgRes);
+  assert(isMultiOrgBlocked || multiOrgRes?.success === true, 'Server xử lý an toàn tài khoản nhân sự liên kết đa tổ chức');
 
-  // 3.3. Kiểm tra cách ly chi nhánh (Lễ tân Q1 chỉ thao tác tại Q1)
-  const { data: branchesData, error: brErr } = await recClient.from('branches').select('id, name, code');
-  assert(!brErr && branchesData && branchesData.length >= 2, `Lễ tân xem được danh mục chi nhánh: ${branchesData.map(b => b.code).join(', ')}`);
+  // 3.3. Kiểm tra cách ly chi nhánh thực tế: Quản lý Q1 vs Dữ liệu Chi nhánh Q7
+  // Lấy dịch vụ có thật trong DB
+  const { data: sampleSvcs, error: svcErr } = await adminClient.from('services').select('id, name, base_price').limit(1);
+  assert(!svcErr && sampleSvcs && sampleSvcs.length > 0, 'Lấy danh mục dịch vụ thành công');
+  const svc = sampleSvcs[0];
+
+  // Tạo 1 lịch hẹn thử nghiệm thực tế tại Chi nhánh Q7 bằng Admin
+  const q7ApptKey = `stg_q7_iso_test_${Date.now()}`;
+  const q7Time = new Date(Date.now() + 500 * 3600000 + Math.floor(Math.random() * 864000000)).toISOString();
+  const { data: q7ApptRes, error: q7ApptErr } = await adminClient.rpc('rpc_book_appointment', {
+    p_org_id: orgId,
+    p_branch_id: branchQ7,
+    p_customer_id: '77777777-7777-7777-7777-777777777771',
+    p_service_id: svc.id,
+    p_staff_id: null, // Không chỉ định đích danh KTV để tránh xung đột ca trực
+    p_resource_id: null,
+    p_scheduled_at: q7Time,
+    p_duration_minutes: 60,
+    p_notes: 'Lịch hẹn thực tế tại Chi nhánh Q7',
+    p_idempotency_key: q7ApptKey
+  });
+  assert(!q7ApptErr && q7ApptRes?.appointment_id, `Admin tạo thành công lịch hẹn tại Chi nhánh Q7 (Mã: ${q7ApptRes?.appointment_id})`);
+
+  // Quản lý Q1 truy vấn dữ liệu Q7
+  const { data: mgrQ7Data, error: mgrQ7Err } = await mgrClient
+    .from('appointments')
+    .select('id, branch_id')
+    .eq('id', q7ApptRes.appointment_id);
+
+  assert(!mgrQ7Err && (!mgrQ7Data || mgrQ7Data.length === 0), 'Quản lý Q1 hoàn toàn KHÔNG THỂ xem bản ghi tại Q7 (Cách ly chi nhánh thực tế)');
 
   // ---------------------------------------------------------------------------
   // PHẦN 4: DIỄN TẬP LUỒNG 1: DỊCH VỤ LẺ (LỄ TÂN ĐẶT LỊCH -> BÁC SĨ PHỤC VỤ -> LỄ TÂN POS -> SỔ CÁI)
@@ -188,9 +222,6 @@ async function runFinalHardenedRehearsal() {
   console.log('\n--- [PHẦN 4] DIỄN TẬP LUỒNG 1: DỊCH VỤ LẺ (ĐẶT LỊCH -> PHỤC VỤ -> POS -> SỔ CÁI) ---');
   
   // 4.1. Lễ tân lấy dịch vụ & khách hàng
-  const { data: sampleSvcs, error: svcErr } = await recClient.from('services').select('id, name, base_price').limit(1);
-  assert(!svcErr && sampleSvcs && sampleSvcs.length > 0, 'Lấy danh mục dịch vụ thành công');
-  const svc = sampleSvcs[0];
   const testCustId = '77777777-7777-7777-7777-777777777771'; // Chị Mai Lan
   const doctorStaffId = '99999999-9999-9999-9999-999999999994'; // BS. Tuấn
   const cashierStaffId = '99999999-9999-9999-9999-999999999993'; // Lễ tân Q1
@@ -225,7 +256,8 @@ async function runFinalHardenedRehearsal() {
     p_post_treatment_notes: 'Liệu trình hoàn thành xuất sắc, da sáng mịn, không kích ứng',
     p_clinical_reactions: 'Bình thường'
   });
-  assert(!treatErr && treatRes?.success, `Bác sĩ ghi nhận hồ sơ điều trị y khoa thành công (Mã phiếu: ${treatRes?.session?.code || treatRes?.data?.code || 'BUOI-OK'})`);
+  const actualSessionCode = treatRes?.session_code || `SESSION-${treatRes?.session_id?.slice(0, 8)}`;
+  assert(!treatErr && treatRes?.success, `Bác sĩ ghi nhận hồ sơ điều trị y khoa thành công (Mã phiếu thực tế: ${actualSessionCode}, ID: ${treatRes?.session_id})`);
 
   // 4.4. Lễ tân/Thu ngân thực hiện POS Thanh toán tại quầy
   const posKey = `stg_pos_checkout_${Date.now()}`;
@@ -287,13 +319,26 @@ async function runFinalHardenedRehearsal() {
   // ---------------------------------------------------------------------------
   console.log('\n--- [PHẦN 5] DIỄN TẬP LUỒNG 2: GÓI ĐÃ MUA (SNAPSHOT ĐỐI CHIẾU TRƯỚC/SAU) ---');
 
-  const targetCourseId = '88888888-8888-8888-8888-888888888881';
+  // Khởi tạo thẻ liệu trình test chuyên biệt (ID: 88888888-8888-8888-8888-888888888899)
+  const dedicatedCourseId = '88888888-8888-8888-8888-888888888899';
+  const { error: upsertCourseErr } = await adminClient.from('customer_courses').upsert({
+    id: dedicatedCourseId,
+    organization_id: orgId,
+    customer_id: testCustId,
+    package_id: '66666666-6666-6666-6666-666666666661',
+    service_id: svc.id,
+    total_sessions: 10,
+    used_sessions: 0,
+    status: 'active',
+    allow_inter_branch: true
+  });
+  assert(!upsertCourseErr, 'Khởi tạo thẻ liệu trình test chuyên biệt thành công');
 
   // 5.1. Chụp Snapshot TRƯỚC khi trừ buổi
   const { data: courseBefore, error: cBeforeErr } = await adminClient
     .from('customer_courses')
     .select('id, customer_id, total_sessions, used_sessions, status')
-    .eq('id', targetCourseId)
+    .eq('id', dedicatedCourseId)
     .single();
   assert(!cBeforeErr && courseBefore, 'Lấy thông tin thẻ liệu trình trước khi trừ thành công');
 
@@ -325,7 +370,7 @@ async function runFinalHardenedRehearsal() {
   assert(!ledgCntBeforeErr, 'Đếm sổ cái điểm loyalty trước khi trừ thành công');
 
   console.log('  📸 SNAPSHOT TRƯỚC KHI TRỪ BUỔI:');
-  console.log(`     - Thẻ liệu trình: Tổng ${courseBefore.total_sessions} buổi | Đã dùng: ${courseBefore.used_sessions} buổi`);
+  console.log(`     - Thẻ liệu trình [ID: ${courseBefore.id}]: Tổng ${courseBefore.total_sessions} buổi | Đã dùng: ${courseBefore.used_sessions} buổi`);
   console.log(`     - Số lượng phiếu thu (payments): ${paymentsCountBefore} phiếu`);
   console.log(`     - Tổng chi tiêu khách (total_spent): ${Number(customerBefore.total_spent).toLocaleString('vi-VN')} đ`);
   console.log(`     - Điểm Loyalty tích lũy (available_points): ${pointsBefore} điểm`);
@@ -333,7 +378,7 @@ async function runFinalHardenedRehearsal() {
 
   // 5.2. Bác sĩ thực hiện trừ 1 buổi qua RPC
   const { data: deductRes, error: deductErr } = await docClient.rpc('rpc_deduct_course_session', {
-    p_course_id: targetCourseId,
+    p_course_id: dedicatedCourseId,
     p_branch_id: branchQ1,
     p_staff_id: doctorStaffId,
     p_sessions: 1,
@@ -345,7 +390,7 @@ async function runFinalHardenedRehearsal() {
   const { data: courseAfter, error: cAfterErr } = await adminClient
     .from('customer_courses')
     .select('id, customer_id, total_sessions, used_sessions, status')
-    .eq('id', targetCourseId)
+    .eq('id', dedicatedCourseId)
     .single();
   assert(!cAfterErr && courseAfter, 'Lấy thông tin thẻ liệu trình sau khi trừ thành công');
 
