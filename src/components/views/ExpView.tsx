@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Receipt, Plus, TrendingUp, TrendingDown, DollarSign, 
-  Building2, Calendar, FileText, CheckCircle2,
-  PieChart, RefreshCw, X, ArrowUpRight, ArrowDownLeft
+  Building2, Calendar, FileText, CheckCircle2, AlertCircle,
+  PieChart, RefreshCw, X, ArrowUpRight, ArrowDownLeft, Ban, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { expenseService } from '../../services/expenseService';
-import type { ExpenseCategory, FinancialAccount, ExpenseVoucher, CashflowEntry, PnLSummary } from '../../services/expenseService';
+import type { ExpenseCategory, FinancialAccount, ExpenseVoucher, CashflowEntry, OperatingPnLReport } from '../../services/expenseService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 export const ExpView: React.FC = () => {
   const { currentBranch, authSession } = useApp();
@@ -15,13 +16,14 @@ export const ExpView: React.FC = () => {
   // Tabs
   const [activeTab, setActiveTab] = useState<'vouchers' | 'cashflow' | 'pnl'>('vouchers');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Data states
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [vouchers, setVouchers] = useState<ExpenseVoucher[]>([]);
   const [cashflow, setCashflow] = useState<CashflowEntry[]>([]);
-  const [pnlSummary, setPnlSummary] = useState<PnLSummary | null>(null);
+  const [pnlReport, setPnlReport] = useState<OperatingPnLReport | null>(null);
 
   // Filter states
   const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
@@ -31,7 +33,8 @@ export const ExpView: React.FC = () => {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('rent');
+  const [newCategoryId, setNewCategoryId] = useState('');
+  const [newAccountId, setNewAccountId] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newPaymentMethod, setNewPaymentMethod] = useState<'cash' | 'bank_transfer'>('cash');
   const [newPaidTo, setNewPaidTo] = useState('');
@@ -41,22 +44,28 @@ export const ExpView: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [cats, accs, vchs, cfl, pnl] = await Promise.all([
         expenseService.getCategories(orgId),
         expenseService.getAccounts(orgId, currentBranch?.id),
         expenseService.getVouchers(orgId, currentBranch?.id, startDate, endDate),
         expenseService.getCashflowLedger(orgId, currentBranch?.id, 50),
-        expenseService.getPnLReport(orgId, currentBranch?.id, startDate, endDate)
+        expenseService.getOperatingPnLReport(orgId, currentBranch?.id, startDate, endDate)
       ]);
 
       setCategories(cats);
+      if (cats.length > 0 && !newCategoryId) setNewCategoryId(cats[0].id);
+
       setAccounts(accs);
+      if (accs.length > 0 && !newAccountId) setNewAccountId(accs[0].id);
+
       setVouchers(vchs);
       setCashflow(cfl);
-      setPnlSummary(pnl);
-    } catch {
-      // Fallback
+      setPnlReport(pnl);
+    } catch (err: any) {
+      console.error('Lỗi khi tải dữ liệu sổ quỹ & chi phí:', err);
+      setErrorMessage(err.message || 'Lỗi không xác định khi kết nối cơ sở dữ liệu');
     } finally {
       setIsLoading(false);
     }
@@ -69,8 +78,8 @@ export const ExpView: React.FC = () => {
   const handleCreateVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
     const amountNum = parseInt(newAmount.replace(/\D/g, ''), 10);
-    if (!newTitle || isNaN(amountNum) || amountNum <= 0) {
-      setNotification({ type: 'error', message: 'Vui lòng nhập tên khoản chi và số tiền hợp lệ' });
+    if (!newTitle || !newCategoryId || !newAccountId || isNaN(amountNum) || amountNum <= 0) {
+      setNotification({ type: 'error', message: 'Vui lòng điền đầy đủ tiêu đề, chọn danh mục, tài khoản quỹ và số tiền hợp lệ.' });
       return;
     }
 
@@ -79,14 +88,14 @@ export const ExpView: React.FC = () => {
       const res = await expenseService.createVoucher({
         orgId,
         branchId: currentBranch?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-        categoryCode: newCategory,
+        categoryId: newCategoryId,
+        accountId: newAccountId,
         title: newTitle,
         amount: amountNum,
         paymentMethod: newPaymentMethod,
         paidTo: newPaidTo,
         expenseDate: new Date().toISOString().slice(0, 10),
-        notes: newNotes,
-        autoApprove: true
+        notes: newNotes
       });
 
       if (res.success) {
@@ -107,8 +116,35 @@ export const ExpView: React.FC = () => {
     }
   };
 
-  const totalExpense = vouchers
-    .filter(v => v.status === 'approved')
+  const handleDisburse = async (voucherId: string) => {
+    if (!window.confirm('Xác nhận duyệt và thực chi khoản tiền này từ tài khoản quỹ?')) return;
+    try {
+      const res = await expenseService.disburseVoucher(voucherId);
+      if (res.success) {
+        setNotification({ type: 'success', message: `Đã thực chi phiếu ${res.voucher_number} thành công!` });
+        await loadData();
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: `Lỗi thực chi: ${err.message}` });
+    }
+  };
+
+  const handleCancelOrReverse = async (voucherId: string) => {
+    const reason = window.prompt('Nhập lý do hủy/hoàn phiếu chi:');
+    if (!reason) return;
+    try {
+      const res = await expenseService.cancelOrReverseVoucher(voucherId, reason);
+      if (res.success) {
+        setNotification({ type: 'success', message: 'Đã hủy/hoàn phiếu chi thành công!' });
+        await loadData();
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: `Lỗi hủy/hoàn: ${err.message}` });
+    }
+  };
+
+  const totalDisbursed = vouchers
+    .filter(v => v.status === 'disbursed')
     .reduce((sum, v) => sum + Number(v.amount), 0);
 
   const filteredVouchers = categoryFilter === 'all' 
@@ -124,7 +160,14 @@ export const ExpView: React.FC = () => {
             <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-base text-slate-800">Sổ Quỹ & Chi Phí Vận Hành (P&L)</h3>
+            <div className="flex items-center space-x-2">
+              <h3 className="font-bold text-base text-slate-800">Sổ Quỹ & Chi Phí Vận Hành (P&L)</h3>
+              {!isSupabaseConfigured && (
+                <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                  Demo Mode
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500">Quản lý dòng tiền thu/chi, phiếu chi thực tế và báo cáo kết quả kinh doanh</p>
           </div>
         </div>
@@ -149,6 +192,17 @@ export const ExpView: React.FC = () => {
         </div>
       </div>
 
+      {/* ERROR BANNER */}
+      {errorMessage && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start space-x-3 text-xs">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">Lỗi truy vấn cơ sở dữ liệu:</p>
+            <p className="font-mono mt-1 text-[11px]">{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
       {/* NOTIFICATION */}
       {notification && (
         <div className={`p-3 rounded-xl text-xs font-medium flex items-center justify-between ${
@@ -164,43 +218,43 @@ export const ExpView: React.FC = () => {
       {/* TOP KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tổng Thu (Dòng Tiền Vào)</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Thực Thu Bán Hàng (POS)</span>
           <div className="flex items-center space-x-2">
             <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
             <span className="text-lg font-black text-emerald-700">
-              {((pnlSummary?.cashflow.cash_inflow || 0)).toLocaleString('vi-VN')}đ
+              {((pnlReport?.sales_and_revenue.cash_collected || 0)).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tổng Chi Vận Hành</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Chi Phí Vận Hành Đã Chi</span>
           <div className="flex items-center space-x-2">
             <ArrowUpRight className="w-5 h-5 text-rose-600" />
             <span className="text-lg font-black text-rose-700">
-              {totalExpense.toLocaleString('vi-VN')}đ
+              {totalDisbursed.toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Lợi Nhuận Gộp (Gross)</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Lợi Nhuận Gộp Sau COGS</span>
           <div className="flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-indigo-600" />
             <span className="text-lg font-black text-indigo-700">
-              {((pnlSummary?.pnl.gross_profit || 0)).toLocaleString('vi-VN')}đ
+              {((pnlReport?.cogs_and_gross_profit.gross_profit_after_cogs || 0)).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Lợi Nhuận Ròng Thuần (P&L)</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Lợi Nhuận Hoạt Động Sơ Bộ</span>
           <div className="flex items-center space-x-2">
             <DollarSign className="w-5 h-5 text-sky-600" />
             <span className={`text-lg font-black ${
-              (pnlSummary?.pnl.net_operating_profit || 0) >= 0 ? 'text-sky-700' : 'text-rose-700'
+              (pnlReport?.operating_surplus_preliminary.amount || 0) >= 0 ? 'text-sky-700' : 'text-rose-700'
             }`}>
-              {((pnlSummary?.pnl.net_operating_profit || 0)).toLocaleString('vi-VN')}đ
+              {((pnlReport?.operating_surplus_preliminary.amount || 0)).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
@@ -241,7 +295,7 @@ export const ExpView: React.FC = () => {
           }`}
         >
           <PieChart className="w-4 h-4" />
-          <span>Báo Cáo Lãi/Lỗ (P&L)</span>
+          <span>Báo Cáo Hoạt Động Kinh Doanh (P&L)</span>
         </button>
       </div>
 
@@ -295,13 +349,14 @@ export const ExpView: React.FC = () => {
                 <th className="p-3">Hình Thức</th>
                 <th className="p-3">Trạng Thái</th>
                 <th className="p-3 text-right">Số Tiền</th>
+                <th className="p-3 text-center">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredVouchers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">
-                    Không có phiếu chi nào trong khoảng thời gian đã chọn
+                  <td colSpan={8} className="text-center py-8 text-slate-400 font-medium">
+                    {errorMessage ? 'Lỗi kết nối cơ sở dữ liệu' : 'Không có phiếu chi nào trong khoảng thời gian đã chọn'}
                   </td>
                 </tr>
               ) : (
@@ -318,13 +373,48 @@ export const ExpView: React.FC = () => {
                       {v.payment_method === 'bank_transfer' ? 'Chuyển khoản' : 'Tiền mặt'}
                     </td>
                     <td className="p-3">
-                      <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Đã duyệt</span>
-                      </span>
+                      {v.status === 'disbursed' ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Đã thực chi</span>
+                        </span>
+                      ) : v.status === 'reversed' ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Đã hoàn tiền</span>
+                        </span>
+                      ) : v.status === 'cancelled' ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          <Ban className="w-3 h-3" />
+                          <span>Đã hủy</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          <span>Chờ thực chi</span>
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-right font-black text-rose-700">
                       {Number(v.amount).toLocaleString('vi-VN')}đ
+                    </td>
+                    <td className="p-3 text-center space-x-1">
+                      {v.status === 'draft' && (
+                        <button 
+                          onClick={() => handleDisburse(v.id)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          Duyệt & Chi
+                        </button>
+                      )}
+                      {v.status === 'disbursed' && (
+                        <button 
+                          onClick={() => handleCancelOrReverse(v.id)}
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold border border-rose-200 cursor-pointer transition-colors"
+                          title="Hoàn tiền bằng bút toán đảo"
+                        >
+                          Hoàn chi
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -363,7 +453,7 @@ export const ExpView: React.FC = () => {
                 <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-bold">
                   <th className="p-3">Thời Điểm</th>
                   <th className="p-3">Loại Dòng Tiền</th>
-                  <th className="p-3">Danh Mục</th>
+                  <th className="p-3">Hạng Mục</th>
                   <th className="p-3">Nội Dung</th>
                   <th className="p-3 text-right">Số Tiền</th>
                 </tr>
@@ -372,7 +462,7 @@ export const ExpView: React.FC = () => {
                 {cashflow.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">
-                      Chưa có phát sinh dòng tiền nào
+                      {errorMessage ? 'Lỗi kết nối cơ sở dữ liệu' : 'Chưa có phát sinh dòng tiền nào'}
                     </td>
                   </tr>
                 ) : (
@@ -406,33 +496,40 @@ export const ExpView: React.FC = () => {
       {activeTab === 'pnl' && (
         <div className="space-y-6">
           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
-            <h4 className="font-bold text-sm text-slate-900 border-b border-slate-200 pb-2">Báo Cáo Kết Quả Hoạt Động Kinh Doanh (P&L)</h4>
+            <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
+              <span className="text-[10px] text-slate-500 italic">Đối chiếu theo nguồn P7.1 & P7.2</span>
+            </div>
             
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="font-bold text-slate-700">1. Tổng Doanh Thu Bán Hàng & Dịch Vụ:</span>
-                <span className="font-bold text-slate-900">{((pnlSummary?.pnl.total_revenue || 0)).toLocaleString('vi-VN')}đ</span>
+                <span className="font-bold text-slate-700">1. Tổng Doanh Thu Hóa Đơn (Net Invoiced Sales):</span>
+                <span className="font-bold text-slate-900">{((pnlReport?.sales_and_revenue.net_invoiced_sales || 0)).toLocaleString('vi-VN')}đ</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                <span>2. Giá Vốn Hàng Bán (COGS):</span>
-                <span className="font-mono text-rose-600">- {((pnlSummary?.pnl.total_cogs || 0)).toLocaleString('vi-VN')}đ</span>
+                <span>2. Giá Vốn Hàng Bán & Tiêu Hao (COGS):</span>
+                <span className="font-mono text-rose-600">- {((pnlReport?.cogs_and_gross_profit.total_cogs || 0)).toLocaleString('vi-VN')}đ</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-200 font-bold bg-indigo-50/50 px-2 rounded-lg">
-                <span className="text-indigo-900">3. LỢI NHUẬN GỘP (1 - 2):</span>
+                <span className="text-indigo-900">3. LỢI NHUẬN GỘP SAU COGS (1 - 2):</span>
                 <span className="text-indigo-700 font-black">
-                  {((pnlSummary?.pnl.gross_profit || 0)).toLocaleString('vi-VN')}đ 
-                  <span className="text-[10px] ml-1 text-indigo-500 font-normal">({pnlSummary?.pnl.gross_profit_margin || 0}%)</span>
+                  {((pnlReport?.cogs_and_gross_profit.gross_profit_after_cogs || 0)).toLocaleString('vi-VN')}đ 
+                  <span className="text-[10px] ml-1 text-indigo-500 font-normal">({pnlReport?.cogs_and_gross_profit.gross_profit_margin_pct || 0}%)</span>
                 </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                <span>4. Tổng Chi Phí Vận Hành:</span>
-                <span className="font-mono text-rose-600">- {((pnlSummary?.pnl.total_expenses || 0)).toLocaleString('vi-VN')}đ</span>
+                <span>4. Hoa Hồng KTV & Bác Sĩ:</span>
+                <span className="font-mono text-rose-600">- {((pnlReport?.operating_deductions.staff_commissions || 0)).toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+                <span>5. Chi Phí Vận Hành Đã Thực Chi (OPEX):</span>
+                <span className="font-mono text-rose-600">- {((pnlReport?.operating_deductions.operating_expenses_opex || 0)).toLocaleString('vi-VN')}đ</span>
               </div>
               <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black bg-sky-50 px-2 rounded-lg text-sm">
-                <span className="text-sky-900">5. LỢI NHUẬN RÒNG THUẦN (EBITDA) (3 - 4):</span>
-                <span className={`${(pnlSummary?.pnl.net_operating_profit || 0) >= 0 ? 'text-sky-800' : 'text-rose-700'}`}>
-                  {((pnlSummary?.pnl.net_operating_profit || 0)).toLocaleString('vi-VN')}đ
-                  <span className="text-xs ml-1 text-slate-500 font-normal">({pnlSummary?.pnl.net_profit_margin || 0}%)</span>
+                <span className="text-sky-900">6. LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS) (3 - 4 - 5):</span>
+                <span className={`${(pnlReport?.operating_surplus_preliminary.amount || 0) >= 0 ? 'text-sky-800' : 'text-rose-700'}`}>
+                  {((pnlReport?.operating_surplus_preliminary.amount || 0)).toLocaleString('vi-VN')}đ
+                  <span className="text-xs ml-1 text-slate-500 font-normal">({pnlReport?.operating_surplus_preliminary.operating_margin_pct || 0}%)</span>
                 </span>
               </div>
             </div>
@@ -464,17 +561,31 @@ export const ExpView: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Danh Mục Chi *</label>
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.code}>{c.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Danh Mục Chi *</label>
+                  <select
+                    value={newCategoryId}
+                    onChange={(e) => setNewCategoryId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Tài Khoản Quỹ *</label>
+                  <select
+                    value={newAccountId}
+                    onChange={(e) => setNewAccountId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.account_name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -517,10 +628,10 @@ export const ExpView: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Ghi Chú & Số Chứng Từ</label>
+                <label className="font-bold text-slate-700 block mb-1">Ghi Chú & Số Hóa Đơn</label>
                 <textarea
                   rows={2}
-                  placeholder="Số hóa đơn đỏ, ghi chú thêm..."
+                  placeholder="Số hóa đơn đỏ, ghi chú chứng từ..."
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
@@ -540,7 +651,7 @@ export const ExpView: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold cursor-pointer transition-colors shadow-xs"
                 >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu & Duyệt Chi'}
+                  {isSubmitting ? 'Đang tạo...' : 'Tạo Phiếu Chi'}
                 </button>
               </div>
             </form>

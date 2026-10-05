@@ -43,8 +43,7 @@
 | **P9 Loyalty Engine & Thẻ VIP** | `CustView.tsx`, `loyaltyService.ts` | `031` (`loyalty_accounts`, `loyalty_transactions`, `membership_tiers`) | ✅ LIVE | ✅ LIVE | `run_p9_loyalty_and_tier_engine_test.cjs` (PASS 100% 10 kịch bản: Tích điểm, tiêu điểm, trần 50%, thăng hạng) | 🛡️ Đã áp dụng DB & Kiểm thử | **P9** |
 | **P10 Mốc A CSKH Inbox** | `ChatboxView.tsx`, `chatboxService.ts` | `032` (`conversation_threads`, `chat_messages`, `channel_integrations`) | ✅ LIVE | ✅ LIVE | `run_p10_chatbox_and_cskh_test.cjs` (PASS 100% 7 kịch bản: Ghi chú nội bộ, phân công, quiet hours) | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc A** |
 | **P10 Mốc B Facebook Messenger** | `scripts/facebook_messenger_sync.cjs`, `ChatboxView.tsx` | `033` (`webhook_crm`, Database Trigger Bridge) | ✅ LIVE | ✅ LIVE | `run_p10_webhook_crm_bridge_test.cjs` PASS; Đấu nối Trang "Fanpage-Tuấn Phạm" (ID: 809750085555882) | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc B** |
-| **P10 Mốc B Telegram Bot** | `scripts/telegram_bot_sync.cjs`, `ChatboxView.tsx` | `032` (`conversation_threads`, `chat_messages`) | ✅ LIVE | ✅ LIVE | Kết nối Bot `@phuongnam_cskh_bot` nhận & gửi tin trực tiếp 2 chiều | 🛡️ Đã áp dụng DB & Kiểm thử | **P10 Mốc B** |
-| **Sổ quỹ & Chi phí P&L Đầy đủ** | `ExpView.tsx`, `expenseService.ts` | `038` (`expense_vouchers`, `financial_accounts`, `cashflow_ledger`) | ✅ LIVE | ✅ LIVE | `run_p11_cashflow_and_expense_test.cjs` PASS | 🚀 Đã triển khai | **P5/P7 Bổ sung (P11)** |
+| **Sổ quỹ & Chi phí P&L Đầy đủ** | `ExpView.tsx`, `expenseService.ts` | `038` (`expense_vouchers`, `financial_accounts`, `cashflow_ledger`) | ⏳ Chờ | ⏳ Chờ | `run_p11_cashflow_and_expense_test.cjs` | 📝 Đã triển khai mã nguồn, chờ kiểm thử | **P5/P7 Bổ sung (P11)** |
 
 ---
 
