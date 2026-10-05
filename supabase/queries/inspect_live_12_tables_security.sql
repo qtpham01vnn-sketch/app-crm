@@ -1,11 +1,9 @@
 -- =============================================================================
--- READ-ONLY SECURITY AUDIT QUERY FOR 12 TARGET TABLES (SUPABASE LIVE / STAGING)
--- An toàn 100%: Chỉ sử dụng SELECT trên PostgreSQL Catalog, tuyệt đối không sửa đổi dữ liệu.
+-- READ-ONLY SECURITY AUDIT QUERY FOR 12 TARGET TABLES (SUPABASE LIVE CATALOG)
+-- 100% CHỈ ĐỌC: Sử dụng aclexplode(pg_class.relacl), pg_tables, pg_policies
+-- Trích xuất đầy đủ quyền PUBLIC, anon, authenticated, service_role & toàn bộ Policy.
 -- =============================================================================
 
--- =============================================================================
--- TRUY VẤN 1: TỔNG HỢP TOÀN DIỆN DƯỚI DẠNG JSON (Copy 1 dòng duy nhất để gửi)
--- =============================================================================
 WITH target_tables AS (
     SELECT unnest(ARRAY[
         'payroll_records', 'commission_records', 'roster_shifts',
@@ -14,26 +12,77 @@ WITH target_tables AS (
         'branch_transfer_items', 'purchase_orders', 'goods_receipt_notes'
     ]) AS table_name
 ),
-rls_status AS (
+table_meta AS (
+    SELECT 
+        tt.table_name,
+        EXISTS (
+            SELECT 1 FROM pg_class c 
+            JOIN pg_namespace n ON n.oid = c.relnamespace 
+            WHERE n.nspname = 'public' AND c.relname = tt.table_name
+        ) AS table_exists,
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS rls_forced,
+        c.relowner::regrole::text AS table_owner
+    FROM target_tables tt
+    LEFT JOIN pg_class c ON c.relname = tt.table_name 
+      AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+),
+raw_acls AS (
+    -- Trích xuất chính xác toàn bộ ACLs kể cả pseudo-role PUBLIC bằng aclexplode
     SELECT 
         c.relname AS table_name,
-        c.relrowsecurity AS rls_enabled,
-        c.relforcerowsecurity AS rls_forced
+        CASE 
+            WHEN ae.grantee = 0 THEN 'PUBLIC' 
+            ELSE COALESCE(pg_get_userbyid(ae.grantee), 'UNKNOWN') 
+        END AS grantee,
+        ae.privilege_type,
+        ae.is_grantable,
+        pg_get_userbyid(ae.grantor) AS grantor
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) ae
     WHERE n.nspname = 'public'
       AND c.relname IN (SELECT table_name FROM target_tables)
 ),
-table_grants AS (
+aggregated_acls AS (
     SELECT 
         table_name,
         grantee,
         array_agg(privilege_type ORDER BY privilege_type) AS privileges
-    FROM information_schema.role_table_grants
-    WHERE table_schema = 'public'
-      AND table_name IN (SELECT table_name FROM target_tables)
-      AND grantee IN ('anon', 'authenticated', 'public', 'service_role')
+    FROM raw_acls
+    WHERE grantee IN ('PUBLIC', 'anon', 'authenticated', 'service_role', 'postgres')
     GROUP BY table_name, grantee
+),
+effective_rights AS (
+    -- Kiểm tra quyền thực tế (Effective Privileges) có thể thực hiện bởi các role Supabase
+    SELECT 
+        tt.table_name,
+        jsonb_build_object(
+            'anon', jsonb_build_object(
+                'select', has_table_privilege('anon', 'public.' || quote_ident(tt.table_name), 'SELECT'),
+                'insert', has_table_privilege('anon', 'public.' || quote_ident(tt.table_name), 'INSERT'),
+                'update', has_table_privilege('anon', 'public.' || quote_ident(tt.table_name), 'UPDATE'),
+                'delete', has_table_privilege('anon', 'public.' || quote_ident(tt.table_name), 'DELETE')
+            ),
+            'authenticated', jsonb_build_object(
+                'select', has_table_privilege('authenticated', 'public.' || quote_ident(tt.table_name), 'SELECT'),
+                'insert', has_table_privilege('authenticated', 'public.' || quote_ident(tt.table_name), 'INSERT'),
+                'update', has_table_privilege('authenticated', 'public.' || quote_ident(tt.table_name), 'UPDATE'),
+                'delete', has_table_privilege('authenticated', 'public.' || quote_ident(tt.table_name), 'DELETE')
+            ),
+            'service_role', jsonb_build_object(
+                'select', has_table_privilege('service_role', 'public.' || quote_ident(tt.table_name), 'SELECT'),
+                'insert', has_table_privilege('service_role', 'public.' || quote_ident(tt.table_name), 'INSERT'),
+                'update', has_table_privilege('service_role', 'public.' || quote_ident(tt.table_name), 'UPDATE'),
+                'delete', has_table_privilege('service_role', 'public.' || quote_ident(tt.table_name), 'DELETE')
+            )
+        ) AS effective_privileges
+    FROM target_tables tt
+    WHERE EXISTS (
+        SELECT 1 FROM pg_class c 
+        JOIN pg_namespace n ON n.oid = c.relnamespace 
+        WHERE n.nspname = 'public' AND c.relname = tt.table_name
+    )
 ),
 policies_list AS (
     SELECT 
@@ -42,33 +91,40 @@ policies_list AS (
         permissive,
         roles,
         cmd,
-        qual AS using_expression,
-        with_check AS with_check_expression
+        qual AS using_condition,
+        with_check AS with_check_condition
     FROM pg_policies
     WHERE schemaname = 'public'
       AND tablename IN (SELECT table_name FROM target_tables)
 )
 SELECT jsonb_pretty(jsonb_build_object(
-    'audit_timestamp', now(),
+    'audit_title', 'SUPABASE LIVE 12 TABLES SECURITY AUDIT',
+    'database_name', current_database(),
+    'audit_timestamp_utc', timezone('UTC', now()),
     'tables_audit', (
         SELECT jsonb_agg(
             jsonb_build_object(
-                'table_name', t.table_name,
-                'rls', (
-                    SELECT jsonb_build_object(
-                        'enabled', COALESCE(r.rls_enabled, false),
-                        'forced', COALESCE(r.rls_forced, false)
-                    )
-                    FROM rls_status r WHERE r.table_name = t.table_name
+                'table_name', m.table_name,
+                'exists', m.table_exists,
+                'owner', m.table_owner,
+                'rls_status', jsonb_build_object(
+                    'enabled', COALESCE(m.rls_enabled, false),
+                    'forced', COALESCE(m.rls_forced, false)
                 ),
-                'grants', (
+                'acl_grants_direct', (
                     SELECT jsonb_agg(
                         jsonb_build_object(
-                            'grantee', g.grantee,
-                            'privileges', g.privileges
+                            'grantee', a.grantee,
+                            'privileges', a.privileges
                         )
                     )
-                    FROM table_grants g WHERE g.table_name = t.table_name
+                    FROM aggregated_acls a WHERE a.table_name = m.table_name
+                ),
+                'effective_role_permissions', (
+                    SELECT e.effective_privileges FROM effective_rights e WHERE e.table_name = m.table_name
+                ),
+                'policies_count', (
+                    SELECT COUNT(*) FROM policies_list p WHERE p.table_name = m.table_name
                 ),
                 'policies', (
                     SELECT jsonb_agg(
@@ -77,72 +133,14 @@ SELECT jsonb_pretty(jsonb_build_object(
                             'permissive', p.permissive,
                             'roles', p.roles,
                             'cmd', p.cmd,
-                            'using', p.using_expression,
-                            'with_check', p.with_check_expression
+                            'using', p.using_condition,
+                            'with_check', p.with_check_condition
                         )
                     )
-                    FROM policies_list p WHERE p.table_name = t.table_name
+                    FROM policies_list p WHERE p.table_name = m.table_name
                 )
-            ) ORDER BY t.table_name
+            ) ORDER BY m.table_name
         )
-        FROM target_tables t
+        FROM table_meta m
     )
 )) AS live_security_configuration_json;
-
--- =============================================================================
--- TRUY VẤN 2: BẢNG CHI TIẾT TRẠNG THÁI RLS TỪNG BẢNG
--- =============================================================================
-SELECT 
-    c.relname AS table_name,
-    CASE WHEN c.relrowsecurity THEN 'ENABLED' ELSE 'DISABLED (VULNERABLE)' END AS rls_status,
-    CASE WHEN c.relforcerowsecurity THEN 'FORCED' ELSE 'NO' END AS rls_forced
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'public'
-  AND c.relname IN (
-    'payroll_records', 'commission_records', 'roster_shifts',
-    'treatment_sessions', 'treatment_photos', 'treatment_consents',
-    'treatment_plans', 'treatment_session_audits', 'branch_transfers',
-    'branch_transfer_items', 'purchase_orders', 'goods_receipt_notes'
-  )
-ORDER BY c.relname;
-
--- =============================================================================
--- TRUY VẤN 3: BẢNG CHI TIẾT QUYỀN GRANTS (ANON, PUBLIC, AUTHENTICATED, SERVICE_ROLE)
--- =============================================================================
-SELECT 
-    table_name,
-    grantee,
-    privilege_type,
-    is_grantable
-FROM information_schema.role_table_grants
-WHERE table_schema = 'public'
-  AND table_name IN (
-    'payroll_records', 'commission_records', 'roster_shifts',
-    'treatment_sessions', 'treatment_photos', 'treatment_consents',
-    'treatment_plans', 'treatment_session_audits', 'branch_transfers',
-    'branch_transfer_items', 'purchase_orders', 'goods_receipt_notes'
-  )
-  AND grantee IN ('anon', 'authenticated', 'public', 'service_role')
-ORDER BY table_name, grantee, privilege_type;
-
--- =============================================================================
--- TRUY VẤN 4: TOÀN BỘ DANH SÁCH POLICY VÀ ĐIỀU KIỆN (USING / WITH CHECK)
--- =============================================================================
-SELECT 
-    tablename,
-    policyname,
-    permissive,
-    roles,
-    cmd,
-    qual AS using_condition,
-    with_check AS with_check_condition
-FROM pg_policies
-WHERE schemaname = 'public'
-  AND tablename IN (
-    'payroll_records', 'commission_records', 'roster_shifts',
-    'treatment_sessions', 'treatment_photos', 'treatment_consents',
-    'treatment_plans', 'treatment_session_audits', 'branch_transfers',
-    'branch_transfer_items', 'purchase_orders', 'goods_receipt_notes'
-  )
-ORDER BY tablename, policyname;
