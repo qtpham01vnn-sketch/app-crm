@@ -100,8 +100,60 @@ async function runP11StagingVerification() {
   // ---------------------------------------------------------------------------
   console.log('\n--- [PHẦN 3] ĐỒNG THỜI 1: HAI YÊU CẦU CÙNG IDEMPOTENCY KEY (CHỐNG TẠO TRÙNG) ---');
   
-  const { data: cat } = await adminClient.from('expense_categories').select('id, name').eq('organization_id', orgId).limit(1).single();
-  const { data: acc } = await adminClient.from('financial_accounts').select('id, account_name, current_balance').eq('branch_id', branchQ1).limit(1).single();
+  // Đảm bảo tồn tại Danh mục chi phí mẫu
+  let { data: cat } = await adminClient
+    .from('expense_categories')
+    .select('id, name')
+    .eq('organization_id', orgId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!cat) {
+    const { data: newCat, error: cErr } = await adminClient.from('expense_categories').insert({
+      organization_id: orgId,
+      code: 'TIEN_INTERNET',
+      name: 'Chi phí Internet & Viễn thông',
+      group_type: 'operating',
+      description: 'Cước viễn thông định kỳ'
+    }).select().single();
+    assert(!cErr && newCat, 'Tạo danh mục chi phí đối chứng thành công');
+    cat = newCat;
+  }
+
+  // Đảm bảo tồn tại Tài khoản quỹ mẫu với số dư đối chứng
+  let { data: acc } = await adminClient
+    .from('financial_accounts')
+    .select('id, account_name, current_balance')
+    .eq('branch_id', branchQ1)
+    .limit(1)
+    .maybeSingle();
+
+  if (!acc) {
+    const { data: newAcc, error: accErr } = await adminClient.from('financial_accounts').insert({
+      organization_id: orgId,
+      branch_id: branchQ1,
+      account_code: 'QUY_TM_Q1',
+      account_name: 'Quỹ tiền mặt Chi nhánh Quận 1',
+      account_type: 'cash',
+      initial_balance: 50000000,
+      current_balance: 50000000,
+      is_active: true
+    }).select().single();
+    assert(!accErr && newAcc, 'Tạo tài khoản quỹ đối chứng thành công');
+    acc = newAcc;
+
+    // Ghi vết số dư đầu kỳ vào bảng kiểm toán financial_account_openings
+    await adminClient.from('financial_account_openings').insert({
+      organization_id: orgId,
+      account_id: acc.id,
+      opening_balance: 50000000,
+      effective_date: '2026-10-01',
+      notes: 'Số dư đầu kỳ kiểm thử Staging'
+    });
+  }
+
+  assert(cat && cat.id, `Danh mục đối chứng: ${cat.name} (${cat.id})`);
+  assert(acc && acc.id, `Tài khoản quỹ đối chứng: ${acc.account_name} (Số dư: ${Number(acc.current_balance).toLocaleString('vi-VN')} đ)`);
 
   const dupKey = `idem_test_${Date.now()}`;
   const [resA, resB] = await Promise.all([

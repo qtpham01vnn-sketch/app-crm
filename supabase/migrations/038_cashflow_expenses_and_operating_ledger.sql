@@ -75,6 +75,18 @@ CREATE POLICY financial_accounts_select_policy ON financial_accounts
         )
     );
 
+DROP POLICY IF EXISTS financial_accounts_admin_modify ON financial_accounts;
+CREATE POLICY financial_accounts_admin_modify ON financial_accounts
+    FOR ALL TO authenticated
+    USING (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (SELECT get_current_user_role()) = 'owner_admin'
+    )
+    WITH CHECK (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (SELECT get_current_user_role()) = 'owner_admin'
+    );
+
 -- -----------------------------------------------------------------------------
 -- 2.b. NHẬT KÝ KHỞI TẠO & ĐIỀU CHỈNH SỐ DƯ ĐẦU KỲ (FINANCIAL_ACCOUNT_OPENINGS)
 -- -----------------------------------------------------------------------------
@@ -100,6 +112,14 @@ CREATE POLICY financial_account_openings_select ON financial_account_openings
     USING (
         organization_id = (SELECT get_current_user_org_id())
         AND (SELECT get_current_user_role()) IN ('owner_admin', 'branch_manager')
+    );
+
+DROP POLICY IF EXISTS financial_account_openings_insert ON financial_account_openings;
+CREATE POLICY financial_account_openings_insert ON financial_account_openings
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (SELECT get_current_user_role()) = 'owner_admin'
     );
 
 -- -----------------------------------------------------------------------------
@@ -253,12 +273,14 @@ DECLARE
     v_acc_branch_id UUID;
 BEGIN
     -- 1. Xác thực người dùng
-    SELECT id, role INTO v_staff_id, v_role
+    SELECT id INTO v_staff_id
     FROM staff_profiles
     WHERE auth_user_id = auth.uid() 
       AND organization_id = p_org_id 
       AND is_active = TRUE
     LIMIT 1;
+
+    v_role := (SELECT get_current_user_role());
 
     IF v_staff_id IS NULL THEN
         RAISE EXCEPTION 'Phiên làm việc không hợp lệ hoặc tài khoản bị vô hiệu hóa';
@@ -374,12 +396,14 @@ BEGIN
     END IF;
 
     -- 2. Xác thực quyền người thực thi
-    SELECT id, role INTO v_staff_id, v_role
+    SELECT id INTO v_staff_id
     FROM staff_profiles
     WHERE auth_user_id = auth.uid() 
       AND organization_id = v_voucher.organization_id
       AND is_active = TRUE
     LIMIT 1;
+
+    v_role := (SELECT get_current_user_role());
 
     IF v_staff_id IS NULL OR v_role NOT IN ('owner_admin', 'branch_manager') THEN
         RAISE EXCEPTION 'Bạn không có quyền duyệt và thực chi phiếu này';
@@ -465,10 +489,12 @@ BEGIN
         RAISE EXCEPTION 'Không tìm thấy phiếu chi';
     END IF;
 
-    SELECT id, role INTO v_staff_id, v_role
+    SELECT id INTO v_staff_id
     FROM staff_profiles
     WHERE auth_user_id = auth.uid() AND organization_id = v_voucher.organization_id
     LIMIT 1;
+
+    v_role := (SELECT get_current_user_role());
 
     IF v_staff_id IS NULL OR v_role <> 'owner_admin' THEN
         RAISE EXCEPTION 'Chỉ Quản trị viên mới có quyền hủy/hoàn phiếu chi';

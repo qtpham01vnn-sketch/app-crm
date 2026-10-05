@@ -1,51 +1,91 @@
 -- =============================================================================
 -- MIGRATION 037: BUSINESS POLICY REFINEMENT & HARDENING (STAGING HARDENING)
 -- Mục đích:
--- 1. Giới hạn chặt chẽ theo Tổ chức, Chi nhánh, Vai trò và Bác sĩ phụ trách.
--- 2. Ràng buộc quan hệ ảnh - buổi điều trị - khách hàng (treatment_photos).
--- 3. Phân định phạm vi chi nhánh của cam kết điều trị (treatment_consents).
--- 4. Đảm bảo quyền hai đầu chi nhánh gửi/nhận cho điều chuyển kho (branch_transfers).
--- 5. Bảo vệ hồ sơ đã khóa và nhật ký kiểm toán bất biến (Immutable Audits).
+-- 1. Dọn sạch triệt để toàn bộ policy cũ để tránh cộng dồn Permissive OR.
+-- 2. Giới hạn chặt chẽ theo Tổ chức, Chi nhánh, Vai trò và Bác sĩ phụ trách.
+-- 3. Ràng buộc quan hệ ảnh - buổi điều trị - khách hàng (treatment_photos).
+-- 4. Phân định phạm vi chi nhánh của cam kết điều trị qua customers.primary_branch_id (treatment_consents).
+-- 5. Đảm bảo quyền hai đầu chi nhánh gửi/nhận cho điều chuyển kho (branch_transfers).
+-- 6. Bảo vệ hồ sơ đã khóa (completed/locked) và nhật ký kiểm toán bất biến (Immutable Audits).
 -- =============================================================================
 
 BEGIN;
 
 -- -----------------------------------------------------------------------------
--- BƯỚC 1: DỌN SẠCH CÁC POLICY CŨ ĐỂ KHÔNG BỊ CỘNG DỒN PERMISSIVE OR
+-- BƯỚC 1: DỌN SẠCH TOÀN BỘ CÁC POLICY CŨ TRÊN CẢ 7 BẢNG LIÊN QUAN
 -- -----------------------------------------------------------------------------
+-- 1. treatment_sessions
+DROP POLICY IF EXISTS rls_treatment_sessions_read ON public.treatment_sessions;
+DROP POLICY IF EXISTS rls_treatment_sessions_write ON public.treatment_sessions;
+DROP POLICY IF EXISTS rls_treatment_sessions_all ON public.treatment_sessions;
+DROP POLICY IF EXISTS rls_treatment_sessions_authenticated ON public.treatment_sessions;
+DROP POLICY IF EXISTS treatment_sessions_role_policy ON public.treatment_sessions;
 DROP POLICY IF EXISTS rls_treatment_sessions_auth_read ON public.treatment_sessions;
 DROP POLICY IF EXISTS rls_treatment_sessions_auth_write ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_select_policy ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_insert_policy ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_update_policy ON public.treatment_sessions;
 
+-- 2. treatment_photos
+DROP POLICY IF EXISTS rls_treatment_photos_read ON public.treatment_photos;
+DROP POLICY IF EXISTS rls_treatment_photos_write ON public.treatment_photos;
+DROP POLICY IF EXISTS rls_treatment_photos_all ON public.treatment_photos;
+DROP POLICY IF EXISTS rls_treatment_photos_authenticated ON public.treatment_photos;
+DROP POLICY IF EXISTS treatment_photos_role_policy ON public.treatment_photos;
 DROP POLICY IF EXISTS rls_treatment_photos_auth_read ON public.treatment_photos;
 DROP POLICY IF EXISTS rls_treatment_photos_auth_write ON public.treatment_photos;
 DROP POLICY IF EXISTS treatment_photos_select_policy ON public.treatment_photos;
 DROP POLICY IF EXISTS treatment_photos_insert_policy ON public.treatment_photos;
 
+-- 3. treatment_consents
+DROP POLICY IF EXISTS rls_treatment_consents_read ON public.treatment_consents;
+DROP POLICY IF EXISTS rls_treatment_consents_write ON public.treatment_consents;
+DROP POLICY IF EXISTS rls_treatment_consents_all ON public.treatment_consents;
+DROP POLICY IF EXISTS rls_treatment_consents_authenticated ON public.treatment_consents;
+DROP POLICY IF EXISTS treatment_consents_role_policy ON public.treatment_consents;
 DROP POLICY IF EXISTS rls_treatment_consents_auth_read ON public.treatment_consents;
 DROP POLICY IF EXISTS rls_treatment_consents_auth_write ON public.treatment_consents;
 DROP POLICY IF EXISTS treatment_consents_select_policy ON public.treatment_consents;
 DROP POLICY IF EXISTS treatment_consents_insert_policy ON public.treatment_consents;
 
+-- 4. treatment_plans
+DROP POLICY IF EXISTS rls_treatment_plans_read ON public.treatment_plans;
+DROP POLICY IF EXISTS rls_treatment_plans_write ON public.treatment_plans;
+DROP POLICY IF EXISTS rls_treatment_plans_all ON public.treatment_plans;
+DROP POLICY IF EXISTS rls_treatment_plans_authenticated ON public.treatment_plans;
+DROP POLICY IF EXISTS treatment_plans_role_policy ON public.treatment_plans;
 DROP POLICY IF EXISTS rls_treatment_plans_auth_read ON public.treatment_plans;
 DROP POLICY IF EXISTS rls_treatment_plans_auth_write ON public.treatment_plans;
 DROP POLICY IF EXISTS treatment_plans_select_policy ON public.treatment_plans;
 DROP POLICY IF EXISTS treatment_plans_insert_policy ON public.treatment_plans;
 DROP POLICY IF EXISTS treatment_plans_update_policy ON public.treatment_plans;
 
+-- 5. treatment_session_audits
+DROP POLICY IF EXISTS rls_treatment_session_audits_read ON public.treatment_session_audits;
+DROP POLICY IF EXISTS rls_treatment_session_audits_write ON public.treatment_session_audits;
+DROP POLICY IF EXISTS rls_treatment_session_audits_all ON public.treatment_session_audits;
+DROP POLICY IF EXISTS rls_treatment_session_audits_authenticated ON public.treatment_session_audits;
 DROP POLICY IF EXISTS rls_treatment_session_audits_auth_read ON public.treatment_session_audits;
 DROP POLICY IF EXISTS rls_treatment_session_audits_auth_write ON public.treatment_session_audits;
 DROP POLICY IF EXISTS treatment_session_audits_select_policy ON public.treatment_session_audits;
 DROP POLICY IF EXISTS treatment_session_audits_insert_policy ON public.treatment_session_audits;
 
+-- 6. branch_transfers
+DROP POLICY IF EXISTS rls_branch_transfers_read ON public.branch_transfers;
+DROP POLICY IF EXISTS rls_branch_transfers_write ON public.branch_transfers;
+DROP POLICY IF EXISTS rls_branch_transfers_all ON public.branch_transfers;
+DROP POLICY IF EXISTS rls_branch_transfers_authenticated ON public.branch_transfers;
 DROP POLICY IF EXISTS rls_branch_transfers_auth_read ON public.branch_transfers;
 DROP POLICY IF EXISTS rls_branch_transfers_auth_write ON public.branch_transfers;
 DROP POLICY IF EXISTS branch_transfers_select_policy ON public.branch_transfers;
 DROP POLICY IF EXISTS branch_transfers_insert_policy ON public.branch_transfers;
 DROP POLICY IF EXISTS branch_transfers_update_policy ON public.branch_transfers;
 
+-- 7. branch_transfer_items
+DROP POLICY IF EXISTS rls_branch_transfer_items_read ON public.branch_transfer_items;
+DROP POLICY IF EXISTS rls_branch_transfer_items_write ON public.branch_transfer_items;
+DROP POLICY IF EXISTS rls_branch_transfer_items_all ON public.branch_transfer_items;
+DROP POLICY IF EXISTS rls_branch_transfer_items_authenticated ON public.branch_transfer_items;
 DROP POLICY IF EXISTS rls_branch_transfer_items_auth_read ON public.branch_transfer_items;
 DROP POLICY IF EXISTS rls_branch_transfer_items_auth_write ON public.branch_transfer_items;
 DROP POLICY IF EXISTS branch_transfer_items_select_policy ON public.branch_transfer_items;
@@ -163,7 +203,7 @@ CREATE POLICY treatment_photos_insert_policy ON public.treatment_photos
     );
 
 -- -----------------------------------------------------------------------------
--- BƯỚC 5: CAM KẾT ĐIỀU TRỊ (treatment_consents): Phân định chi nhánh & người chứng kiến
+-- BƯỚC 5: CAM KẾT ĐIỀU TRỊ (treatment_consents): Phân định qua primary_branch_id & witness
 -- -----------------------------------------------------------------------------
 CREATE POLICY treatment_consents_select_policy ON public.treatment_consents
     FOR SELECT TO authenticated
@@ -175,7 +215,7 @@ CREATE POLICY treatment_consents_select_policy ON public.treatment_consents
             OR EXISTS (
                 SELECT 1 FROM public.customers c 
                 WHERE c.id = treatment_consents.customer_id 
-                  AND (c.branch_id IS NULL OR (SELECT has_branch_access(c.branch_id)))
+                  AND (c.primary_branch_id IS NULL OR (SELECT has_branch_access(c.primary_branch_id)))
             )
         )
     );
@@ -191,7 +231,7 @@ CREATE POLICY treatment_consents_insert_policy ON public.treatment_consents
                 AND EXISTS (
                     SELECT 1 FROM public.customers c 
                     WHERE c.id = treatment_consents.customer_id 
-                      AND (c.branch_id IS NULL OR (SELECT has_branch_access(c.branch_id)))
+                      AND (c.primary_branch_id IS NULL OR (SELECT has_branch_access(c.primary_branch_id)))
                 )
             )
         )
@@ -200,7 +240,6 @@ CREATE POLICY treatment_consents_insert_policy ON public.treatment_consents
 -- -----------------------------------------------------------------------------
 -- BƯỚC 6: NHẬT KÝ KIỂM TOÁN ĐIỀU TRỊ (treatment_session_audits): BẤT BIẾN (IMMUTABLE AUDIT)
 -- -----------------------------------------------------------------------------
--- Chỉ cho phép SELECT và INSERT (không bao giờ cho phép UPDATE / DELETE nhật ký kiểm toán)
 CREATE POLICY treatment_session_audits_select_policy ON public.treatment_session_audits
     FOR SELECT TO authenticated
     USING (
