@@ -1,19 +1,60 @@
 -- =============================================================================
--- MIGRATION 037: BUSINESS POLICY REFINEMENT & HARDENING (TÁCH RIÊNG)
+-- MIGRATION 037: BUSINESS POLICY REFINEMENT & HARDENING (STAGING HARDENING)
 -- Mục đích:
--- 1. Kiểm tra người phụ trách buổi điều trị & phác đồ (performed_by, lead_doctor_id).
--- 2. Ràng buộc quan hệ ảnh - buổi - khách trong treatment_photos.
+-- 1. Giới hạn chặt chẽ theo Tổ chức, Chi nhánh, Vai trò và Bác sĩ phụ trách.
+-- 2. Ràng buộc quan hệ ảnh - buổi điều trị - khách hàng (treatment_photos).
 -- 3. Phân định phạm vi chi nhánh của cam kết điều trị (treatment_consents).
--- 4. Đảm bảo quyền hai đầu chi nhánh gửi và chi nhánh nhận cho branch_transfers.
+-- 4. Đảm bảo quyền hai đầu chi nhánh gửi/nhận cho điều chuyển kho (branch_transfers).
+-- 5. Bảo vệ hồ sơ đã khóa và nhật ký kiểm toán bất biến (Immutable Audits).
 -- =============================================================================
 
 BEGIN;
 
--- 1. BUỔI ĐIỀU TRỊ (treatment_sessions): Bác sĩ thực hiện, Quản lý chi nhánh, Admin
+-- -----------------------------------------------------------------------------
+-- BƯỚC 1: DỌN SẠCH CÁC POLICY CŨ ĐỂ KHÔNG BỊ CỘNG DỒN PERMISSIVE OR
+-- -----------------------------------------------------------------------------
+DROP POLICY IF EXISTS rls_treatment_sessions_auth_read ON public.treatment_sessions;
+DROP POLICY IF EXISTS rls_treatment_sessions_auth_write ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_select_policy ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_insert_policy ON public.treatment_sessions;
 DROP POLICY IF EXISTS treatment_sessions_update_policy ON public.treatment_sessions;
 
+DROP POLICY IF EXISTS rls_treatment_photos_auth_read ON public.treatment_photos;
+DROP POLICY IF EXISTS rls_treatment_photos_auth_write ON public.treatment_photos;
+DROP POLICY IF EXISTS treatment_photos_select_policy ON public.treatment_photos;
+DROP POLICY IF EXISTS treatment_photos_insert_policy ON public.treatment_photos;
+
+DROP POLICY IF EXISTS rls_treatment_consents_auth_read ON public.treatment_consents;
+DROP POLICY IF EXISTS rls_treatment_consents_auth_write ON public.treatment_consents;
+DROP POLICY IF EXISTS treatment_consents_select_policy ON public.treatment_consents;
+DROP POLICY IF EXISTS treatment_consents_insert_policy ON public.treatment_consents;
+
+DROP POLICY IF EXISTS rls_treatment_plans_auth_read ON public.treatment_plans;
+DROP POLICY IF EXISTS rls_treatment_plans_auth_write ON public.treatment_plans;
+DROP POLICY IF EXISTS treatment_plans_select_policy ON public.treatment_plans;
+DROP POLICY IF EXISTS treatment_plans_insert_policy ON public.treatment_plans;
+DROP POLICY IF EXISTS treatment_plans_update_policy ON public.treatment_plans;
+
+DROP POLICY IF EXISTS rls_treatment_session_audits_auth_read ON public.treatment_session_audits;
+DROP POLICY IF EXISTS rls_treatment_session_audits_auth_write ON public.treatment_session_audits;
+DROP POLICY IF EXISTS treatment_session_audits_select_policy ON public.treatment_session_audits;
+DROP POLICY IF EXISTS treatment_session_audits_insert_policy ON public.treatment_session_audits;
+
+DROP POLICY IF EXISTS rls_branch_transfers_auth_read ON public.branch_transfers;
+DROP POLICY IF EXISTS rls_branch_transfers_auth_write ON public.branch_transfers;
+DROP POLICY IF EXISTS branch_transfers_select_policy ON public.branch_transfers;
+DROP POLICY IF EXISTS branch_transfers_insert_policy ON public.branch_transfers;
+DROP POLICY IF EXISTS branch_transfers_update_policy ON public.branch_transfers;
+
+DROP POLICY IF EXISTS rls_branch_transfer_items_auth_read ON public.branch_transfer_items;
+DROP POLICY IF EXISTS rls_branch_transfer_items_auth_write ON public.branch_transfer_items;
+DROP POLICY IF EXISTS branch_transfer_items_select_policy ON public.branch_transfer_items;
+DROP POLICY IF EXISTS branch_transfer_items_insert_policy ON public.branch_transfer_items;
+DROP POLICY IF EXISTS branch_transfer_items_update_policy ON public.branch_transfer_items;
+
+-- -----------------------------------------------------------------------------
+-- BƯỚC 2: BUỔI ĐIỀU TRỊ (treatment_sessions) & BẢO VỆ HỒ SƠ ĐÃ KHÓA
+-- -----------------------------------------------------------------------------
 CREATE POLICY treatment_sessions_select_policy ON public.treatment_sessions
     FOR SELECT TO authenticated
     USING (
@@ -43,14 +84,51 @@ CREATE POLICY treatment_sessions_update_policy ON public.treatment_sessions
         AND (
             (SELECT get_current_user_role()) = 'owner_admin'
             OR ((SELECT get_current_user_role()) = 'branch_manager' AND (SELECT has_branch_access(branch_id)))
-            OR (performed_by = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1))
+            OR (
+                performed_by = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1)
+                AND status NOT IN ('completed', 'locked')
+            )
         )
     );
 
--- 2. ẢNH TRƯỚC/SAU (treatment_photos): Ràng buộc quan hệ ảnh - buổi - khách
-DROP POLICY IF EXISTS treatment_photos_select_policy ON public.treatment_photos;
-DROP POLICY IF EXISTS treatment_photos_insert_policy ON public.treatment_photos;
+-- -----------------------------------------------------------------------------
+-- BƯỚC 3: PHÁC ĐỒ ĐIỀU TRỊ (treatment_plans)
+-- -----------------------------------------------------------------------------
+CREATE POLICY treatment_plans_select_policy ON public.treatment_plans
+    FOR SELECT TO authenticated
+    USING (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (
+            (SELECT get_current_user_role()) = 'owner_admin'
+            OR (SELECT has_branch_access(branch_id))
+            OR lead_doctor_id = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1)
+        )
+    );
 
+CREATE POLICY treatment_plans_insert_policy ON public.treatment_plans
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (
+            (SELECT get_current_user_role()) = 'owner_admin'
+            OR ((SELECT get_current_user_role()) IN ('branch_manager', 'technician_doctor') AND (SELECT has_branch_access(branch_id)))
+        )
+    );
+
+CREATE POLICY treatment_plans_update_policy ON public.treatment_plans
+    FOR UPDATE TO authenticated
+    USING (
+        organization_id = (SELECT get_current_user_org_id())
+        AND (
+            (SELECT get_current_user_role()) = 'owner_admin'
+            OR ((SELECT get_current_user_role()) = 'branch_manager' AND (SELECT has_branch_access(branch_id)))
+            OR lead_doctor_id = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1)
+        )
+    );
+
+-- -----------------------------------------------------------------------------
+-- BƯỚC 4: ẢNH ĐIỀU TRỊ (treatment_photos): Ràng buộc quan hệ ảnh - buổi - khách
+-- -----------------------------------------------------------------------------
 CREATE POLICY treatment_photos_select_policy ON public.treatment_photos
     FOR SELECT TO authenticated
     USING (
@@ -74,27 +152,31 @@ CREATE POLICY treatment_photos_insert_policy ON public.treatment_photos
             (SELECT get_current_user_role()) = 'owner_admin'
             OR ((SELECT get_current_user_role()) IN ('branch_manager', 'technician_doctor') AND (SELECT has_branch_access(branch_id)))
         )
+        AND (
+            session_id IS NULL 
+            OR EXISTS (
+                SELECT 1 FROM public.treatment_sessions ts
+                WHERE ts.id = treatment_photos.session_id
+                  AND ts.organization_id = treatment_photos.organization_id
+            )
+        )
     );
 
--- 3. CAM KẾT ĐIỀU TRỊ (treatment_consents): Phân định theo phạm vi chi nhánh & người chứng kiến
-DROP POLICY IF EXISTS treatment_consents_select_policy ON public.treatment_consents;
-DROP POLICY IF EXISTS treatment_consents_insert_policy ON public.treatment_consents;
-
+-- -----------------------------------------------------------------------------
+-- BƯỚC 5: CAM KẾT ĐIỀU TRỊ (treatment_consents): Phân định chi nhánh & người chứng kiến
+-- -----------------------------------------------------------------------------
 CREATE POLICY treatment_consents_select_policy ON public.treatment_consents
     FOR SELECT TO authenticated
     USING (
         organization_id = (SELECT get_current_user_org_id())
         AND (
             (SELECT get_current_user_role()) = 'owner_admin'
-            OR (
-                -- Kiểm tra theo chi nhánh của khách hàng hoặc chi nhánh cam kết
-                (SELECT get_current_user_role()) IN ('branch_manager', 'cashier_receptionist', 'technician_doctor')
-                AND (
-                    (branch_id IS NOT NULL AND (SELECT has_branch_access(branch_id)))
-                    OR (branch_id IS NULL)
-                )
-            )
             OR witness_staff_id = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1)
+            OR EXISTS (
+                SELECT 1 FROM public.customers c 
+                WHERE c.id = treatment_consents.customer_id 
+                  AND (c.branch_id IS NULL OR (SELECT has_branch_access(c.branch_id)))
+            )
         )
     );
 
@@ -104,15 +186,49 @@ CREATE POLICY treatment_consents_insert_policy ON public.treatment_consents
         organization_id = (SELECT get_current_user_org_id())
         AND (
             (SELECT get_current_user_role()) = 'owner_admin'
-            OR ((SELECT get_current_user_role()) IN ('branch_manager', 'cashier_receptionist', 'technician_doctor') AND (branch_id IS NULL OR (SELECT has_branch_access(branch_id))))
+            OR (
+                (SELECT get_current_user_role()) IN ('branch_manager', 'cashier_receptionist', 'technician_doctor')
+                AND EXISTS (
+                    SELECT 1 FROM public.customers c 
+                    WHERE c.id = treatment_consents.customer_id 
+                      AND (c.branch_id IS NULL OR (SELECT has_branch_access(c.branch_id)))
+                )
+            )
         )
     );
 
--- 4. ĐIỀU CHUYỂN KHO ĐA CHI NHÁNH (branch_transfers & branch_transfer_items): Quản lý chi nhánh gửi HOẶC nhận
-DROP POLICY IF EXISTS branch_transfers_select_policy ON public.branch_transfers;
-DROP POLICY IF EXISTS branch_transfers_insert_policy ON public.branch_transfers;
-DROP POLICY IF EXISTS branch_transfers_update_policy ON public.branch_transfers;
+-- -----------------------------------------------------------------------------
+-- BƯỚC 6: NHẬT KÝ KIỂM TOÁN ĐIỀU TRỊ (treatment_session_audits): BẤT BIẾN (IMMUTABLE AUDIT)
+-- -----------------------------------------------------------------------------
+-- Chỉ cho phép SELECT và INSERT (không bao giờ cho phép UPDATE / DELETE nhật ký kiểm toán)
+CREATE POLICY treatment_session_audits_select_policy ON public.treatment_session_audits
+    FOR SELECT TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.treatment_sessions ts 
+            WHERE ts.id = treatment_session_audits.session_id 
+              AND ts.organization_id = (SELECT get_current_user_org_id())
+              AND (
+                  (SELECT get_current_user_role()) = 'owner_admin'
+                  OR (SELECT has_branch_access(ts.branch_id))
+                  OR ts.performed_by = (SELECT id FROM public.staff_profiles WHERE auth_user_id = auth.uid() LIMIT 1)
+              )
+        )
+    );
 
+CREATE POLICY treatment_session_audits_insert_policy ON public.treatment_session_audits
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.treatment_sessions ts 
+            WHERE ts.id = treatment_session_audits.session_id 
+              AND ts.organization_id = (SELECT get_current_user_org_id())
+        )
+    );
+
+-- -----------------------------------------------------------------------------
+-- BƯỚC 7: ĐIỀU CHUYỂN KHO (branch_transfers & branch_transfer_items): Hai đầu gửi/nhận
+-- -----------------------------------------------------------------------------
 CREATE POLICY branch_transfers_select_policy ON public.branch_transfers
     FOR SELECT TO authenticated
     USING (
@@ -144,6 +260,52 @@ CREATE POLICY branch_transfers_update_policy ON public.branch_transfers
                 (SELECT get_current_user_role()) = 'branch_manager' 
                 AND ((SELECT has_branch_access(from_branch_id)) OR (SELECT has_branch_access(to_branch_id)))
             )
+        )
+    );
+
+CREATE POLICY branch_transfer_items_select_policy ON public.branch_transfer_items
+    FOR SELECT TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.branch_transfers bt 
+            WHERE bt.id = branch_transfer_items.transfer_id 
+              AND bt.organization_id = (SELECT get_current_user_org_id())
+              AND (
+                  (SELECT get_current_user_role()) = 'owner_admin'
+                  OR (SELECT has_branch_access(bt.from_branch_id))
+                  OR (SELECT has_branch_access(bt.to_branch_id))
+              )
+        )
+    );
+
+CREATE POLICY branch_transfer_items_insert_policy ON public.branch_transfer_items
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.branch_transfers bt 
+            WHERE bt.id = branch_transfer_items.transfer_id 
+              AND bt.organization_id = (SELECT get_current_user_org_id())
+              AND (
+                  (SELECT get_current_user_role()) = 'owner_admin'
+                  OR ((SELECT get_current_user_role()) = 'branch_manager' AND (SELECT has_branch_access(bt.from_branch_id)))
+              )
+        )
+    );
+
+CREATE POLICY branch_transfer_items_update_policy ON public.branch_transfer_items
+    FOR UPDATE TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.branch_transfers bt 
+            WHERE bt.id = branch_transfer_items.transfer_id 
+              AND bt.organization_id = (SELECT get_current_user_org_id())
+              AND (
+                  (SELECT get_current_user_role()) = 'owner_admin'
+                  OR (
+                      (SELECT get_current_user_role()) = 'branch_manager' 
+                      AND ((SELECT has_branch_access(bt.from_branch_id)) OR (SELECT has_branch_access(bt.to_branch_id)))
+                  )
+              )
         )
     );
 
