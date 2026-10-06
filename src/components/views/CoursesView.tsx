@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Sparkles, CheckCircle2, History, PlusCircle, ShieldCheck, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { CustomerCourse } from '../../types';
@@ -48,6 +48,16 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
   const activeCourse = courses.find((c) => c.id === activeCourseId) || filteredCourses[0];
   const targetCust = activeCourse ? (customers.find((c) => c.id === activeCourse.customerId) || (activeCourse.customerName ? { id: activeCourse.customerId, name: activeCourse.customerName, phone: '', vipTier: 'standard' as const, totalSpent: 0, debt: 0, creditBalance: 0, orgId: '', primaryBranchId: '' } : null)) : null;
   const courseDeductions = sessionDeductions.filter((d) => d.courseId === activeCourse?.id);
+
+  const activeCustName = targetCust?.name || activeCourse?.customerName || (activeCourse ? mockNameMap[activeCourse.customerId] : '') || 'Khách Hàng';
+  const activeSoldBranch = branches.find((b) => b.id === activeCourse?.soldBranchId)?.name || 'Chi Nhánh Quận 1 (Trụ sở)';
+
+  // Auto-sync active course when filter changes
+  useEffect(() => {
+    if (filteredCourses.length > 0 && !filteredCourses.some((c) => c.id === activeCourseId)) {
+      setActiveCourseId(filteredCourses[0].id);
+    }
+  }, [filteredCourses, activeCourseId]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in items-start pb-8">
@@ -240,9 +250,9 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
               isSoftLight ? 'bg-[#FAFAF8] border-[#E5E7E4]' : 'bg-slate-50 border-slate-200'
             }`}>
               <div>
-                <p className={`font-bold ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{activeCourse.name}</p>
-                <p className={`text-[11px] ${isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}`}>
-                  Khách: <b>{targetCust?.name}</b> • Nơi mua: <b>{branches.find((b) => b.id === activeCourse.soldBranchId)?.name || 'Chi nhánh'}</b>
+                <p className={`font-bold text-sm ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{activeCourse.name}</p>
+                <p className={`text-xs font-semibold mt-0.5 ${isSoftLight ? 'text-[#59665F]' : 'text-slate-600'}`}>
+                  Khách Hàng: <b className="text-slate-900 font-bold">{activeCustName}</b> • Nơi mua: <b>{activeSoldBranch.split(' - ')[0]}</b>
                 </p>
               </div>
               <div className="text-right">
