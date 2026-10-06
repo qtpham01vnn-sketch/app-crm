@@ -320,6 +320,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prevCourses;
     });
   }, [sales, packages, currentBranch?.id]);
+
+  // Ensure customer "Thế Anh" has active package in courses
+  useEffect(() => {
+    const theAnhCust = customers.find(
+      (c) => c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')
+    );
+    if (theAnhCust) {
+      setCourses((prev) => {
+        if (!prev.some((c) => c.customerId === theAnhCust.id || c.customerName?.toLowerCase().includes('thế anh'))) {
+          const theAnhCourse: CustomerCourse = {
+            id: 'crs-the-anh-01',
+            customerId: theAnhCust.id,
+            customerName: theAnhCust.name,
+            packageId: 'pkg-01',
+            serviceId: 'svc-02',
+            name: 'Liệu Trình Trị Mụn Chuẩn Y Khoa (10 Buổi)',
+            totalSessions: 10,
+            usedSessions: 0,
+            price: 7500000,
+            startDate: new Date().toISOString().slice(0, 10),
+            expiryDate: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+            saleId: 'sale-the-anh-005',
+            soldBranchId: branches[0]?.id || '22222222-2222-2222-2222-222222222221',
+            allowInterBranch: true,
+            status: 'active'
+          };
+          return [theAnhCourse, ...prev];
+        }
+        return prev;
+      });
+    }
+  }, [customers, currentBranch?.id, branches]);
   const [payments, setPayments] = useState<Payment[]>(mockPayments);
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     try {

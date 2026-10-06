@@ -21,19 +21,29 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
 
   const filteredCourses = useMemo(() => {
     return courses.filter((c) => {
-      const matchBranch = selectedBranchId === 'all' || c.soldBranchId === selectedBranchId || c.allowInterBranch;
-      if (!matchBranch) return false;
+      if (selectedBranchId !== 'all') {
+        const branchIndex = branches.findIndex((b) => b.id === selectedBranchId);
+        const selectedBranch = branches[branchIndex];
+        const matchBranch =
+          c.soldBranchId === selectedBranchId ||
+          (selectedBranch && c.soldBranchId === selectedBranch.code) ||
+          (selectedBranch && c.soldBranchId?.includes(selectedBranch.code)) ||
+          (branchIndex === 0 && (c.soldBranchId === '22222222-2222-2222-2222-222222222221' || !c.soldBranchId)) ||
+          (branchIndex === 1 && c.soldBranchId === '22222222-2222-2222-2222-222222222222') ||
+          (branchIndex === 2 && c.soldBranchId === '22222222-2222-2222-2222-222222222223');
+        if (!matchBranch) return false;
+      }
+
       if (!searchTerm.trim()) return true;
-      const q = searchTerm.toLowerCase();
+      const q = searchTerm.toLowerCase().trim();
       const cust = customers.find((cust) => cust.id === c.customerId);
-      const custName = cust?.name || c.customerName || mockNameMap[c.customerId] || '';
-      return (
-        c.name.toLowerCase().includes(q) ||
-        custName.toLowerCase().includes(q) ||
-        (cust?.phone && cust.phone.includes(q))
-      );
+      const custName = (cust?.name || c.customerName || mockNameMap[c.customerId] || '').toLowerCase();
+      const courseName = (c.name || '').toLowerCase();
+      const phone = (cust?.phone || '').toLowerCase();
+
+      return courseName.includes(q) || custName.includes(q) || phone.includes(q);
     });
-  }, [courses, selectedBranchId, searchTerm, customers]);
+  }, [courses, selectedBranchId, searchTerm, customers, branches]);
 
   const activeCourse = courses.find((c) => c.id === activeCourseId) || filteredCourses[0];
   const targetCust = activeCourse ? (customers.find((c) => c.id === activeCourse.customerId) || (activeCourse.customerName ? { id: activeCourse.customerId, name: activeCourse.customerName, phone: '', vipTier: 'standard' as const, totalSpent: 0, debt: 0, creditBalance: 0, orgId: '', primaryBranchId: '' } : null)) : null;
