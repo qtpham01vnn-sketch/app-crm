@@ -131,7 +131,11 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
   };
 
   const currentTierCode = overview?.currentTier || customer.vipTier || 'standard';
-  const pointsToCashValue = (overview?.availablePoints || 0) * (overview?.pointsToCurrencyRatio || 100);
+  const displaySpend = overview?.tierQualifyingSpend ?? customer.totalSpent ?? 0;
+  const displayPoints = overview?.availablePoints ?? Math.floor(displaySpend / 10000);
+  const tierDiscount = overview?.tierDiscountPct ?? (currentTierCode === 'diamond' ? 15 : currentTierCode === 'gold' ? 10 : currentTierCode === 'silver' ? 5 : 0);
+  const tierName = overview?.tierName || (currentTierCode === 'diamond' ? 'KIM CƯƠNG' : currentTierCode === 'gold' ? 'VÀNG (GOLD)' : currentTierCode === 'silver' ? 'BẠC (SILVER)' : 'THÀNH VIÊN');
+  const pointsToCashValue = displayPoints * (overview?.pointsToCurrencyRatio || 100);
 
   return (
     <div className="space-y-6">
@@ -155,12 +159,12 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
                 </span>
               </div>
               <h3 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
-                {overview?.tierName || currentTierCode.toUpperCase()} MEMBER
+                {tierName} MEMBER
               </h3>
             </div>
             <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold">
               <Award className="w-3.5 h-3.5" />
-              <span>Đặc quyền {overview?.tierDiscountPct || 0}%</span>
+              <span>Đặc quyền {tierDiscount}%</span>
             </div>
           </div>
 
@@ -171,7 +175,7 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
                 <Coins className="w-3 h-3" /> Điểm Khả Dụng
               </p>
               <p className="text-2xl font-black tracking-tight mt-0.5">
-                {(overview?.availablePoints || 0).toLocaleString('vi-VN')}
+                {displayPoints.toLocaleString('vi-VN')}
               </p>
               <p className="text-[10px] opacity-70">
                 ≈ {pointsToCashValue.toLocaleString('vi-VN')} VNĐ
@@ -183,7 +187,7 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
                 <TrendingUp className="w-3 h-3" /> Chi Tiêu Tích Lũy
               </p>
               <p className="text-lg font-bold tracking-tight mt-1">
-                {(overview?.tierQualifyingSpend || 0).toLocaleString('vi-VN')} đ
+                {displaySpend.toLocaleString('vi-VN')} đ
               </p>
               <p className="text-[10px] opacity-70">Xét hạng theo kỳ 12 tháng</p>
             </div>

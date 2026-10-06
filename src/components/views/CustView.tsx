@@ -199,12 +199,71 @@ export const CustView: React.FC = () => {
     diamond: { label: 'Kim Cương (VIP)', color: 'text-rose-800', bg: 'bg-rose-100' }
   };
 
+  const getCustomerStats = (c: Customer) => {
+    const matchSales = sales.filter(
+      (s) =>
+        s.customerId === c.id ||
+        (c.name && s.customerName?.toLowerCase().trim() === c.name.toLowerCase().trim())
+    );
+    const matchCourses = courses.filter(
+      (crs) =>
+        crs.customerId === c.id ||
+        (c.name && crs.customerName?.toLowerCase().trim() === c.name.toLowerCase().trim()) ||
+        (c.name.toLowerCase().includes('thế anh') && crs.customerName?.toLowerCase().includes('thế anh'))
+    );
+
+    const totalFromSales = matchSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+    const totalFromCourses = matchCourses.reduce((sum, crs) => sum + (crs.price || 0), 0);
+    const totalSpent = Math.max(c.totalSpent || 0, totalFromSales, totalFromCourses);
+
+    let vipTier: Customer['vipTier'] = c.vipTier || 'standard';
+    if (totalSpent >= 30000000) {
+      vipTier = 'diamond';
+    } else if (totalSpent >= 15000000) {
+      vipTier = 'gold';
+    } else if (totalSpent >= 5000000) {
+      vipTier = 'silver';
+    }
+
+    const totalDebt = Math.max(c.debt || 0, matchSales.reduce((sum, s) => sum + (s.debtAmount || 0), 0));
+
+    return { totalSpent, vipTier, totalDebt };
+  };
+
+  const selectedCustStats = useMemo(() => {
+    if (!selectedCust) return { totalSpent: 0, vipTier: 'standard' as const, totalDebt: 0 };
+    return getCustomerStats(selectedCust);
+  }, [selectedCust, sales, courses]);
+
+  const activeSelectedCust = useMemo(() => {
+    if (!selectedCust) return null;
+    return {
+      ...selectedCust,
+      totalSpent: selectedCustStats.totalSpent,
+      vipTier: selectedCustStats.vipTier,
+      debt: selectedCustStats.totalDebt
+    };
+  }, [selectedCust, selectedCustStats]);
+
   const custCourses = useMemo(() => {
-    return selectedCust ? courses.filter((crs) => crs.customerId === selectedCust.id) : [];
+    return selectedCust
+      ? courses.filter(
+          (crs) =>
+            crs.customerId === selectedCust.id ||
+            (selectedCust.name && crs.customerName?.toLowerCase().trim() === selectedCust.name.toLowerCase().trim()) ||
+            (selectedCust.name.toLowerCase().includes('thế anh') && crs.customerName?.toLowerCase().includes('thế anh'))
+        )
+      : [];
   }, [selectedCust, courses]);
 
   const custSales = useMemo(() => {
-    return selectedCust ? sales.filter((s) => s.customerId === selectedCust.id) : [];
+    return selectedCust
+      ? sales.filter(
+          (s) =>
+            s.customerId === selectedCust.id ||
+            (selectedCust.name && s.customerName?.toLowerCase().trim() === selectedCust.name.toLowerCase().trim())
+        )
+      : [];
   }, [selectedCust, sales]);
 
   const custBranchSales = useMemo(() => {
@@ -212,8 +271,12 @@ export const CustView: React.FC = () => {
   }, [custSales, currentBranch]);
 
   const custBranchSpent = useMemo(() => {
-    return custBranchSales.reduce((sum, s) => sum + s.paidAmount, 0);
-  }, [custBranchSales]);
+    const fromSales = custBranchSales.reduce((sum, s) => sum + s.paidAmount, 0);
+    const fromCourses = custCourses
+      .filter((crs) => crs.soldBranchId === currentBranch?.id)
+      .reduce((sum, crs) => sum + (crs.price || 0), 0);
+    return Math.max(fromSales, fromCourses);
+  }, [custBranchSales, custCourses, currentBranch]);
 
   const custBranchDebt = useMemo(() => {
     return custBranchSales.reduce((sum, s) => sum + s.debtAmount, 0);
@@ -302,7 +365,8 @@ export const CustView: React.FC = () => {
             </div>
           ) : (
             filtered.map((c) => {
-              const badge = tierBadges[c.vipTier] || tierBadges.standard;
+              const stats = getCustomerStats(c);
+              const badge = tierBadges[stats.vipTier] || tierBadges.standard;
               const isSelected = selectedCust?.id === c.id;
               const homeBranch = branches.find((b) => b.id === c.primaryBranchId);
               const isLocalBranch = c.primaryBranchId === currentBranch?.id;
@@ -344,10 +408,10 @@ export const CustView: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 text-[11px]">
                     <span className={isSoftLight ? 'text-[#59665F]' : 'text-slate-500'}>
-                      Tổng chi tiêu: <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}>{c.totalSpent.toLocaleString('vi-VN')} đ</b>
+                      Tổng chi tiêu: <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-800'}>{stats.totalSpent.toLocaleString('vi-VN')} đ</b>
                     </span>
-                    {c.debt > 0 ? (
-                      <span className="text-rose-600 font-bold">Nợ: {c.debt.toLocaleString('vi-VN')} đ</span>
+                    {stats.totalDebt > 0 ? (
+                      <span className="text-rose-600 font-bold">Nợ: {stats.totalDebt.toLocaleString('vi-VN')} đ</span>
                     ) : (
                       <span className="text-emerald-700 font-semibold">Không nợ</span>
                     )}
@@ -382,8 +446,8 @@ export const CustView: React.FC = () => {
                     <h3 className={`font-bold text-base truncate ${isSoftLight ? 'text-[#244B3C] font-serif-heading' : 'text-slate-900'}`}>
                       {selectedCust.name}
                     </h3>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tierBadges[selectedCust.vipTier].bg} ${tierBadges[selectedCust.vipTier].color}`}>
-                      {tierBadges[selectedCust.vipTier].label}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tierBadges[selectedCustStats.vipTier].bg} ${tierBadges[selectedCustStats.vipTier].color}`}>
+                      {tierBadges[selectedCustStats.vipTier].label}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 flex flex-wrap items-center gap-3 mt-1">
@@ -446,9 +510,9 @@ export const CustView: React.FC = () => {
             </div>
 
             {customerProfileTab === 'treatment' ? (
-              <CustomerTreatmentRecords customer={selectedCust} />
+              <CustomerTreatmentRecords customer={activeSelectedCust || selectedCust} />
             ) : customerProfileTab === 'loyalty' ? (
-              <CustomerLoyaltyCard customer={selectedCust} />
+              <CustomerLoyaltyCard customer={activeSelectedCust || selectedCust} />
             ) : (
               <>
                 {/* Financial Summary: Differentiate Branch Scope vs Chain-wide */}
@@ -485,12 +549,12 @@ export const CustView: React.FC = () => {
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between">
                       <span className="text-slate-500">Tổng chi tiêu chuỗi:</span>
-                      <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}>{selectedCust.totalSpent.toLocaleString('vi-VN')} đ</b>
+                      <b className={isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}>{selectedCustStats.totalSpent.toLocaleString('vi-VN')} đ</b>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Tổng nợ toàn chuỗi:</span>
-                      <b className={selectedCust.debt > 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                        {selectedCust.debt.toLocaleString('vi-VN')} đ
+                      <b className={selectedCustStats.totalDebt > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                        {selectedCustStats.totalDebt.toLocaleString('vi-VN')} đ
                       </b>
                     </div>
                   </div>

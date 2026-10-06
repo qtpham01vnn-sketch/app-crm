@@ -108,11 +108,9 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
             (crs) =>
               crs.customerId === customer.id ||
               (crs.customerName &&
-                crs.customerName.toLowerCase().includes(customer.name.toLowerCase())) ||
+                crs.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim()) ||
               (customer.name.toLowerCase().includes('thế anh') &&
-                (crs.customerName?.toLowerCase().includes('thế anh') ||
-                  crs.customerId === 'c-01' ||
-                  crs.customerId === customer.id))
+                crs.customerName?.toLowerCase().includes('thế anh'))
           )
           .map((crs) => crs.id);
 
