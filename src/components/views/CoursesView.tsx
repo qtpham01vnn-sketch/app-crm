@@ -3,9 +3,17 @@ import { Sparkles, CheckCircle2, History, PlusCircle, ShieldCheck, Search } from
 import { useApp } from '../../context/AppContext';
 import type { CustomerCourse } from '../../types';
 
+const mockNameMap: Record<string, string> = {
+  'c-01': 'Chị Nguyễn Mai Anh',
+  'c-02': 'Anh Trần Văn Hùng',
+  'c-03': 'Chị Hoàng Bảo Ngọc',
+  'c-04': 'Cô Nguyễn Thị Hoa',
+  'c-05': 'Chị Lê Khánh Chi'
+};
+
 export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse) => void }> = ({ onOpenDeductModal }) => {
   const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme } = useApp();
-  const [courseScope, setCourseScope] = useState<'branch' | 'all'>('all');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCourseId, setActiveCourseId] = useState<string>(courses[0]?.id || '');
 
@@ -13,19 +21,19 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
 
   const filteredCourses = useMemo(() => {
     return courses.filter((c) => {
-      const matchScope = courseScope === 'all' || c.soldBranchId === currentBranch?.id || c.allowInterBranch;
-      if (!matchScope) return false;
+      const matchBranch = selectedBranchId === 'all' || c.soldBranchId === selectedBranchId || c.allowInterBranch;
+      if (!matchBranch) return false;
       if (!searchTerm.trim()) return true;
       const q = searchTerm.toLowerCase();
       const cust = customers.find((cust) => cust.id === c.customerId);
-      const custName = cust?.name || c.customerName || '';
+      const custName = cust?.name || c.customerName || mockNameMap[c.customerId] || '';
       return (
         c.name.toLowerCase().includes(q) ||
         custName.toLowerCase().includes(q) ||
         (cust?.phone && cust.phone.includes(q))
       );
     });
-  }, [courses, courseScope, currentBranch, searchTerm, customers]);
+  }, [courses, selectedBranchId, searchTerm, customers]);
 
   const activeCourse = courses.find((c) => c.id === activeCourseId) || filteredCourses[0];
   const targetCust = activeCourse ? (customers.find((c) => c.id === activeCourse.customerId) || (activeCourse.customerName ? { id: activeCourse.customerId, name: activeCourse.customerName, phone: '', vipTier: 'standard' as const, totalSpent: 0, debt: 0, creditBalance: 0, orgId: '', primaryBranchId: '' } : null)) : null;
@@ -43,32 +51,37 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                 Gói Liệu Trình Khách Hàng
               </h2>
               <p className={`text-[11px] ${isSoftLight ? 'text-[#59665F]' : 'text-slate-400'}`}>
-                {courseScope === 'branch' ? `Khả dụng tại ${currentBranch?.name}` : 'Toàn hệ thống'} ({filteredCourses.length} gói)
+                {selectedBranchId === 'all' ? 'Toàn bộ 3 chi nhánh' : branches.find((b) => b.id === selectedBranchId)?.name || 'Chi nhánh'} ({filteredCourses.length} gói)
               </p>
             </div>
           </div>
 
-          <div className="flex items-center p-1 rounded-xl bg-slate-100 text-xs font-semibold self-start sm:self-auto">
+          {/* Branch Filter Selector */}
+          <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 text-xs font-semibold self-start sm:self-auto">
             <button
-              onClick={() => setCourseScope('branch')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                courseScope === 'branch'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tại chi nhánh
-            </button>
-            <button
-              onClick={() => setCourseScope('all')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                courseScope === 'all'
+              onClick={() => setSelectedBranchId('all')}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                selectedBranchId === 'all'
                   ? 'bg-white text-slate-900 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Tất cả ({courses.length})
             </button>
+            {branches.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setSelectedBranchId(b.id)}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer truncate max-w-[120px] ${
+                  selectedBranchId === b.id
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={b.name}
+              >
+                {b.name.split(' - ')[0]}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -92,7 +105,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
           ) : (
             filteredCourses.map((crs) => {
               const cust = customers.find((c) => c.id === crs.customerId);
-              const displayName = cust?.name || crs.customerName || 'Khách hàng';
+              const displayName = cust?.name || crs.customerName || mockNameMap[crs.customerId] || 'Khách hàng';
               const remaining = crs.totalSessions - crs.usedSessions;
               const isSelected = crs.id === (activeCourse?.id || activeCourseId);
               const progress = (crs.usedSessions / crs.totalSessions) * 100;

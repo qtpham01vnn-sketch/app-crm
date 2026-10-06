@@ -260,9 +260,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch { /* ignore */ }
   }, [courses]);
+
   const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
-  const [sales, setSales] = useState<Sale[]>(mockSales);
+  const [sales, setSales] = useState<Sale[]>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('vua_app_sales') : null;
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return mockSales;
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('vua_app_sales', JSON.stringify(sales));
+      }
+    } catch { /* ignore */ }
+  }, [sales]);
+
+  // Sync courses with any package sold in sales
+  useEffect(() => {
+    setCourses((prevCourses) => {
+      const existingSaleIds = new Set(prevCourses.map((c) => c.saleId));
+      const missingCourses: CustomerCourse[] = [];
+
+      sales.forEach((s) => {
+        if (!existingSaleIds.has(s.id)) {
+          s.items?.forEach((it) => {
+            if (it.type === 'package') {
+              const pkg = packages.find((p) => p.id === it.refId);
+              for (let i = 0; i < it.qty; i++) {
+                missingCourses.push({
+                  id: 'course-' + s.id + '-' + i,
+                  customerId: s.customerId,
+                  customerName: s.customerName || 'Khách Hàng',
+                  packageId: it.refId,
+                  serviceId: pkg?.serviceId || 'svc-01',
+                  name: it.name,
+                  totalSessions: pkg?.sessions || 10,
+                  usedSessions: 0,
+                  price: it.price,
+                  startDate: s.date || new Date().toISOString().slice(0, 10),
+                  expiryDate: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+                  saleId: s.id,
+                  soldBranchId: s.branchId || currentBranch?.id || '',
+                  allowInterBranch: true,
+                  status: 'active'
+                });
+              }
+            }
+          });
+        }
+      });
+
+      if (missingCourses.length > 0) {
+        return [...missingCourses, ...prevCourses];
+      }
+      return prevCourses;
+    });
+  }, [sales, packages, currentBranch?.id]);
   const [payments, setPayments] = useState<Payment[]>(mockPayments);
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     try {
