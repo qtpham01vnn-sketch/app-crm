@@ -472,21 +472,33 @@ async function runTestSuite() {
 
 
   // ---------------------------------------------------------------------------
-  // CA 4: Dịch vụ lẻ không có thẻ (Walk-in single service without course)
+  // CA 4: Dịch vụ lẻ Bán trước Tháng 9 - Thực hiện Tháng 10 (KHÔNG SỬA NGÀY BÁN) & Dịch vụ lẻ tại quầy
   // ---------------------------------------------------------------------------
-  // 1. Single service sold in September with status 'draft' (chưa hoàn thành)
+  // 4.A. Bán dịch vụ lẻ trong tháng 9 (Hóa đơn xuất 2026-09-18, lưu thẻ dịch vụ đơn 1 buổi)
   const case4SaleId = crypto.randomUUID();
+  const case4CourseId = crypto.randomUUID();
+  
+  // Baseline Sept P&L before Case 4
+  const septBeforeC4 = await client.rpc('rpc_get_operating_pnl_report', {
+    p_org_id: ORG_ID,
+    p_branch_id: BRANCH_Q1,
+    p_start_date: '2026-09-01',
+    p_end_date: '2026-09-30'
+  });
+  const initSeptSales = septBeforeC4.data.invoicing_and_cashflow_kpi.net_invoiced_sales;
+  const initSeptEarned = septBeforeC4.data.recognized_revenue_kpi.total_recognized_revenue;
+
   const { error: s4InsErr } = await client.from('sales').insert({
     id: case4SaleId,
     organization_id: ORG_ID,
     branch_id: BRANCH_Q1,
     customer_id: CUSTOMER_ID,
-    invoice_number: `HD-SINGLE-TEST-${Date.now().toString().slice(-4)}`,
+    invoice_number: `HD-ADVANCE-SERV-${Date.now().toString().slice(-4)}`,
     subtotal: 1200000,
     discount_amount: 0,
     total_amount: 1200000,
     paid_amount: 1200000,
-    status: 'draft', // Bán trước nhưng chưa làm
+    status: 'completed', // Đã thanh toán tháng 9
     created_at: '2026-09-18T10:00:00+07:00'
   });
   assert.strictEqual(s4InsErr, null, `Case 4 insert sale error: ${s4InsErr?.message}`);
@@ -495,7 +507,7 @@ async function runTestSuite() {
     sale_id: case4SaleId,
     item_type: 'service',
     item_ref_id: SERVICE_A,
-    item_name: 'Dịch vụ lẻ chăm sóc da (1.2M)',
+    item_name: 'Dịch vụ lẻ chăm sóc da chuyên sâu (1.2M)',
     unit_price: 1200000,
     quantity: 1,
     line_discount: 0,
@@ -504,32 +516,62 @@ async function runTestSuite() {
   });
   assert.strictEqual(si4InsErr, null, `Case 4 insert sale item error: ${si4InsErr?.message}`);
 
-  // Query Sept P&L -> MUST NOT recognize single service revenue since status = 'draft'
-  const septSinglePnl = await client.rpc('rpc_get_operating_pnl_report', {
+  // Thẻ dịch vụ đơn (1 buổi) sinh cho dịch vụ mua trước
+  const { error: cc4InsErr } = await client.from('customer_courses').insert({
+    id: case4CourseId,
+    organization_id: ORG_ID,
+    customer_id: CUSTOMER_ID,
+    service_id: SERVICE_A,
+    package_id: null,
+    sale_id: case4SaleId,
+    sold_branch_id: BRANCH_Q1,
+    allow_inter_branch: true,
+    total_sessions: 1,
+    used_sessions: 0,
+    status: 'active',
+    created_at: '2026-09-18T10:00:00+07:00'
+  });
+  assert.strictEqual(cc4InsErr, null, `Case 4 insert course error: ${cc4InsErr?.message}`);
+
+  // Query Sept P&L -> Doanh số bán xuất hóa đơn tăng 1.2M, nhưng Doanh thu thực hiện vận hành = 0 đ (chưa làm)
+  const septAfterSalePnl = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
     p_branch_id: BRANCH_Q1,
     p_start_date: '2026-09-01',
     p_end_date: '2026-09-30'
   });
-  assert.strictEqual(septSinglePnl.data.recognized_revenue_kpi.recognized_single_services, 0, 'Tháng 9: Dịch vụ lẻ chưa làm không được ghi nhận doanh thu thực hiện');
+  assert.strictEqual(
+    septAfterSalePnl.data.invoicing_and_cashflow_kpi.net_invoiced_sales,
+    initSeptSales + 1200000,
+    'Tháng 9: Doanh số hóa đơn phải tăng đúng 1.200.000 đ'
+  );
+  assert.strictEqual(
+    septAfterSalePnl.data.recognized_revenue_kpi.total_recognized_revenue,
+    initSeptEarned,
+    'Tháng 9: Doanh thu thực hiện phải là 0đ khi chưa thực hiện buổi dịch vụ'
+  );
 
-  // Baseline Oct 06 before completion
+  // Baseline Oct 06 before service completion
   const oct06Before = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
     p_branch_id: BRANCH_Q1,
     p_start_date: '2026-10-06',
     p_end_date: '2026-10-06'
   });
-  const initOct06Single = oct06Before.data?.recognized_revenue_kpi?.recognized_single_services || 0;
+  const initOct06Sales = oct06Before.data.invoicing_and_cashflow_kpi.net_invoiced_sales;
+  const initOct06Earned = oct06Before.data.recognized_revenue_kpi.earned_treatment_revenue;
 
-  // Complete the single service on Oct 06
-  const { error: updS4DoneErr } = await client.from('sales').update({
-    status: 'completed',
-    created_at: '2026-10-06T14:00:00+07:00'
-  }).eq('id', case4SaleId);
-  assert.strictEqual(updS4DoneErr, null, `Update sale completed error: ${updS4DoneErr?.message}`);
+  // Thực hiện buổi dịch vụ vào ngày 2026-10-06 qua RPC (Sự kiện hoàn thành độc lập)
+  const deductResC4 = await client.rpc('rpc_deduct_course_session', {
+    p_course_id: case4CourseId,
+    p_branch_id: BRANCH_Q1,
+    p_staff_id: staffId,
+    p_sessions: 1,
+    p_notes: 'Thực hiện dịch vụ lẻ đã mua tháng 9'
+  });
+  assert.strictEqual(deductResC4.data.success, true, 'Case 4 deduct session failed');
 
-  // Query Oct 06 P&L -> MUST INCREASE BY EXACTLY 1.200.000 đ
+  // Query Oct 06 P&L -> Doanh số hóa đơn = 0 đ (bán ở T9), Doanh thu thực hiện tăng đúng 1.200.000 đ
   const oct06After = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
     p_branch_id: BRANCH_Q1,
@@ -537,12 +579,40 @@ async function runTestSuite() {
     p_end_date: '2026-10-06'
   });
   assert.strictEqual(
-    oct06After.data.recognized_revenue_kpi.recognized_single_services,
-    initOct06Single + 1200000,
-    'Tháng 10: Ghi nhận đúng 1.200.000 đ dịch vụ lẻ hoàn thành (Không tính 2 lần)'
+    oct06After.data.invoicing_and_cashflow_kpi.net_invoiced_sales,
+    initOct06Sales,
+    'Tháng 10: Doanh số hóa đơn KHÔNG tăng (thuộc kỳ tháng 9)'
   );
-  recordExecutedPass('Ca 4 (Dịch vụ lẻ không có thẻ - Walk-in Single Service): Ghi nhận đúng kỳ hoàn thành', 
-    `Bán T9 (chưa làm) = 0 đ; Hoàn thành trong T10 = Ghi nhận đúng 1.200.000 đ (Chống tính trùng 2 lần)`);
+  assert.strictEqual(
+    oct06After.data.recognized_revenue_kpi.earned_treatment_revenue,
+    initOct06Earned + 1200000,
+    'Tháng 10: Doanh thu thực hiện ghi nhận đúng 1.200.000 đ từ sự kiện hoàn thành'
+  );
+
+  // Query Sept P&L LẦN 2 -> BẢO TOÀN 100%: Doanh số vẫn 1.2M, Doanh thu vẫn 0đ
+  const septFinalPnl = await client.rpc('rpc_get_operating_pnl_report', {
+    p_org_id: ORG_ID,
+    p_branch_id: BRANCH_Q1,
+    p_start_date: '2026-09-01',
+    p_end_date: '2026-09-30'
+  });
+  assert.strictEqual(
+    septFinalPnl.data.invoicing_and_cashflow_kpi.net_invoiced_sales,
+    initSeptSales + 1200000,
+    'Tháng 9: Doanh số bán giữ nguyên 1.200.000 đ'
+  );
+  assert.strictEqual(
+    septFinalPnl.data.recognized_revenue_kpi.total_recognized_revenue,
+    initSeptEarned,
+    'Tháng 9: Doanh thu thực hiện vẫn giữ nguyên 0đ'
+  );
+
+  // Kiểm tra tuyệt đối: sales.created_at trên DB KHÔNG BỊ SỬA ĐỔI
+  const { data: verifiedSale } = await client.from('sales').select('created_at').eq('id', case4SaleId).single();
+  assert.ok(verifiedSale.created_at.startsWith('2026-09-18'), 'sales.created_at phải giữ nguyên ngày bán tháng 9');
+
+  recordExecutedPass('Ca 4 (Dịch vụ bán T9, làm T10 - Sự kiện hoàn thành riêng): Bảo toàn ngày hóa đơn', 
+    `Bán T9: Doanh số +1.2M, DT Thực hiện 0 đ; Làm T10: Doanh số 0 đ, DT Thực hiện +1.2M; Ngày hóa đơn T9 giữ nguyên 100%`);
 
 
   // ---------------------------------------------------------------------------
