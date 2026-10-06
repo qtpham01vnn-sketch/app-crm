@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2, Award } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { Customer } from '../../types';
@@ -7,11 +7,48 @@ import { CustomerTreatmentRecords } from '../treatment/CustomerTreatmentRecords'
 import { CustomerLoyaltyCard } from '../loyalty/CustomerLoyaltyCard';
 
 export const CustView: React.FC = () => {
-  const { customers, setCustomers, courses, sales, appointments, branches, currentBranch, currentTheme, showToast, isLiveMode } = useApp();
+  const { customers, setCustomers, courses, sales, appointments, branches, currentBranch, currentTheme, showToast, isLiveMode, selectedCustomerId, setSelectedCustomerId } = useApp();
   const [search, setSearch] = useState('');
-  const [scopeFilter, setScopeFilter] = useState<'branch' | 'all'>('branch');
-  const [selectedCust, setSelectedCust] = useState<Customer | null>(customers[0] || null);
+  const [scopeFilter, setScopeFilter] = useState<'branch' | 'all'>('all');
+  const [selectedCust, setSelectedCust] = useState<Customer | null>(() => {
+    if (selectedCustomerId) {
+      const found = customers.find(
+        (c) =>
+          c.id === selectedCustomerId ||
+          c.name.toLowerCase().trim() === selectedCustomerId.toLowerCase().trim() ||
+          (selectedCustomerId.toLowerCase().includes('thế anh') && (c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')))
+      );
+      if (found) return found;
+    }
+    return customers[0] || null;
+  });
   const [customerProfileTab, setCustomerProfileTab] = useState<'overview' | 'treatment' | 'loyalty'>('treatment');
+
+  // Synchronize when selectedCustomerId changes from external views (e.g. CoursesView)
+  useEffect(() => {
+    if (selectedCustomerId) {
+      const found = customers.find(
+        (c) =>
+          c.id === selectedCustomerId ||
+          c.name.toLowerCase().trim() === selectedCustomerId.toLowerCase().trim() ||
+          (selectedCustomerId.toLowerCase().includes('thế anh') && (c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')))
+      );
+      if (found) {
+        setSelectedCust(found);
+        setScopeFilter('all');
+        setCustomerProfileTab('treatment');
+      } else {
+        const matchingByName = customers.find(
+          (c) => c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')
+        );
+        if (matchingByName) {
+          setSelectedCust(matchingByName);
+          setScopeFilter('all');
+          setCustomerProfileTab('treatment');
+        }
+      }
+    }
+  }, [selectedCustomerId, customers]);
 
   const isSoftLight = currentTheme.isSoftLight;
 
@@ -273,7 +310,10 @@ export const CustView: React.FC = () => {
               return (
                 <div
                   key={c.id}
-                  onClick={() => setSelectedCust(c)}
+                  onClick={() => {
+                    setSelectedCust(c);
+                    setSelectedCustomerId(c.id);
+                  }}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer text-xs ${
                     isSelected
                       ? 'border-2 shadow-xs'

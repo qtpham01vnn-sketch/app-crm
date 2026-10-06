@@ -12,7 +12,7 @@ const mockNameMap: Record<string, string> = {
 };
 
 export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse) => void }> = ({ onOpenDeductModal }) => {
-  const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme, setActiveTab } = useApp();
+  const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme, setActiveTab, setSelectedCustomerId } = useApp();
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCourseId, setActiveCourseId] = useState<string>(courses[0]?.id || '');
@@ -308,7 +308,12 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
 
             {/* Link to Full EMR & Photo Compare */}
             <button
-              onClick={() => setActiveTab('cust')}
+              onClick={() => {
+                if (activeCourse) {
+                  setSelectedCustomerId(activeCourse.customerId);
+                }
+                setActiveTab('cust');
+              }}
               className="w-full mt-3 py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 flex items-center justify-center space-x-2 transition-all cursor-pointer text-xs shadow-xs active:scale-98"
             >
               <Sparkles className="w-4 h-4 text-indigo-600" />

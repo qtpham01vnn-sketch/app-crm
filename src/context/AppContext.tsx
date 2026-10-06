@@ -132,6 +132,8 @@ interface AppContextType {
   setActiveTab: (tab: NavTab) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  selectedCustomerId: string | null;
+  setSelectedCustomerId: (id: string | null) => void;
 
   // Data states
   customers: Customer[];
@@ -233,6 +235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRole] = useState<UserRole>('owner_admin');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
   const [services, setServices] = useState<Service[]>(mockServices);
@@ -1082,6 +1085,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab,
         searchQuery,
         setSearchQuery,
+        selectedCustomerId,
+        setSelectedCustomerId,
         customers,
         setCustomers,
         services,
