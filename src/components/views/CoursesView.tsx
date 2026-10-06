@@ -47,7 +47,11 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
 
   const activeCourse = courses.find((c) => c.id === activeCourseId) || filteredCourses[0];
   const targetCust = activeCourse ? (customers.find((c) => c.id === activeCourse.customerId) || (activeCourse.customerName ? { id: activeCourse.customerId, name: activeCourse.customerName, phone: '', vipTier: 'standard' as const, totalSpent: 0, debt: 0, creditBalance: 0, orgId: '', primaryBranchId: '' } : null)) : null;
-  const courseDeductions = sessionDeductions.filter((d) => d.courseId === activeCourse?.id);
+  const courseDeductions = useMemo(() => {
+    return sessionDeductions
+      .filter((d) => d.courseId === activeCourse?.id)
+      .sort((a, b) => new Date(a.performedAt).getTime() - new Date(b.performedAt).getTime());
+  }, [sessionDeductions, activeCourse?.id]);
 
   const activeCustName = targetCust?.name || activeCourse?.customerName || (activeCourse ? mockNameMap[activeCourse.customerId] : '') || 'Khách Hàng';
   const activeSoldBranch = branches.find((b) => b.id === activeCourse?.soldBranchId)?.name || 'Chi Nhánh Quận 1 (Trụ sở)';
