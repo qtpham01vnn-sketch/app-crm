@@ -166,9 +166,9 @@ export const mockCustomers: Customer[] = [
   {
     id: 'c-01',
     orgId: '11111111-1111-1111-1111-111111111111',
-    name: 'Chị Đặng Thu Thảo',
+    name: 'Chị Nguyễn Mai Anh',
     phone: '0988112233',
-    email: 'thuthao.dang@gmail.com',
+    email: 'maianh.nguyen@gmail.com',
     gender: 'female',
     birthday: '1992-05-18',
     address: 'Vinhomes Central Park, Bình Thạnh',

@@ -130,11 +130,16 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
     }
   };
 
-  const currentTierCode = overview?.currentTier || customer.vipTier || 'standard';
-  const displaySpend = overview?.tierQualifyingSpend ?? customer.totalSpent ?? 0;
-  const displayPoints = overview?.availablePoints ?? Math.floor(displaySpend / 10000);
-  const tierDiscount = overview?.tierDiscountPct ?? (currentTierCode === 'diamond' ? 15 : currentTierCode === 'gold' ? 10 : currentTierCode === 'silver' ? 5 : 0);
-  const tierName = overview?.tierName || (currentTierCode === 'diamond' ? 'KIM CƯƠNG' : currentTierCode === 'gold' ? 'VÀNG (GOLD)' : currentTierCode === 'silver' ? 'BẠC (SILVER)' : 'THÀNH VIÊN');
+  const effectiveSpend = Math.max(overview?.tierQualifyingSpend || 0, customer.totalSpent || 0);
+  let effectiveTierCode: string = customer.vipTier || 'standard';
+  if (effectiveSpend >= 30000000) effectiveTierCode = 'diamond';
+  else if (effectiveSpend >= 15000000) effectiveTierCode = 'gold';
+  else if (effectiveSpend >= 5000000) effectiveTierCode = 'silver';
+  else if (overview?.currentTier && overview.currentTier !== 'standard') effectiveTierCode = overview.currentTier;
+
+  const tierDiscount = effectiveTierCode === 'diamond' ? 15 : effectiveTierCode === 'gold' ? 10 : effectiveTierCode === 'silver' ? 5 : 0;
+  const tierName = effectiveTierCode === 'diamond' ? 'KIM CƯƠNG' : effectiveTierCode === 'gold' ? 'VÀNG (GOLD)' : effectiveTierCode === 'silver' ? 'BẠC (SILVER)' : 'THÀNH VIÊN';
+  const displayPoints = overview?.availablePoints && overview.availablePoints > 0 ? overview.availablePoints : Math.floor(effectiveSpend / 10000);
   const pointsToCashValue = displayPoints * (overview?.pointsToCurrencyRatio || 100);
 
   return (
@@ -142,7 +147,7 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
       {/* 1. DIGITAL MEMBERSHIP TIER CARD */}
       <div
         className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br border shadow-xl transition-all ${getTierCardStyle(
-          currentTierCode
+          effectiveTierCode
         )}`}
       >
         <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full bg-white/5 blur-2xl pointer-events-none" />
@@ -187,7 +192,7 @@ export const CustomerLoyaltyCard: React.FC<CustomerLoyaltyCardProps> = ({ custom
                 <TrendingUp className="w-3 h-3" /> Chi Tiêu Tích Lũy
               </p>
               <p className="text-lg font-bold tracking-tight mt-1">
-                {displaySpend.toLocaleString('vi-VN')} đ
+                {effectiveSpend.toLocaleString('vi-VN')} đ
               </p>
               <p className="text-[10px] opacity-70">Xét hạng theo kỳ 12 tháng</p>
             </div>

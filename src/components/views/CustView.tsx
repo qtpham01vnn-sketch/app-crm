@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Search, Phone, Mail, DollarSign, Sparkles, Building2, Award } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import type { Customer } from '../../types';
+import type { Customer, Sale } from '../../types';
 import { masterDataService } from '../../services/masterDataService';
 import { CustomerTreatmentRecords } from '../treatment/CustomerTreatmentRecords';
 import { CustomerLoyaltyCard } from '../loyalty/CustomerLoyaltyCard';
@@ -27,25 +27,21 @@ export const CustView: React.FC = () => {
   // Synchronize when selectedCustomerId changes from external views (e.g. CoursesView)
   useEffect(() => {
     if (selectedCustomerId) {
+      const q = selectedCustomerId.toLowerCase().trim();
       const found = customers.find(
         (c) =>
-          c.id === selectedCustomerId ||
-          c.name.toLowerCase().trim() === selectedCustomerId.toLowerCase().trim() ||
-          (selectedCustomerId.toLowerCase().includes('thế anh') && (c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')))
+          c.id.toLowerCase() === q ||
+          c.name.toLowerCase().trim() === q ||
+          (q.includes('mai anh') && c.name.toLowerCase().includes('mai anh')) ||
+          (q.includes('thế anh') && (c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh'))) ||
+          (q.includes('bảo ngọc') && c.name.toLowerCase().includes('bảo ngọc')) ||
+          (q.includes('hoa') && c.name.toLowerCase().includes('hoa')) ||
+          (q.includes('hùng') && c.name.toLowerCase().includes('hùng'))
       );
       if (found) {
         setSelectedCust(found);
         setScopeFilter('all');
         setCustomerProfileTab('treatment');
-      } else {
-        const matchingByName = customers.find(
-          (c) => c.name.toLowerCase().includes('thế anh') || c.name.toLowerCase().includes('the anh')
-        );
-        if (matchingByName) {
-          setSelectedCust(matchingByName);
-          setScopeFilter('all');
-          setCustomerProfileTab('treatment');
-        }
       }
     }
   }, [selectedCustomerId, customers]);
@@ -257,14 +253,58 @@ export const CustView: React.FC = () => {
   }, [selectedCust, courses]);
 
   const custSales = useMemo(() => {
-    return selectedCust
-      ? sales.filter(
-          (s) =>
-            s.customerId === selectedCust.id ||
-            (selectedCust.name && s.customerName?.toLowerCase().trim() === selectedCust.name.toLowerCase().trim())
-        )
-      : [];
-  }, [selectedCust, sales]);
+    if (!selectedCust) return [];
+    const foundSales = sales.filter(
+      (s) =>
+        s.customerId === selectedCust.id ||
+        (selectedCust.name && s.customerName?.toLowerCase().trim() === selectedCust.name.toLowerCase().trim()) ||
+        (selectedCust.name.toLowerCase().includes('thế anh') && s.customerName?.toLowerCase().includes('thế anh'))
+    );
+
+    const courseSaleIds = new Set(foundSales.map((s) => s.id));
+    const additionalFromCourses: Sale[] = [];
+    custCourses.forEach((crs) => {
+      if (!courseSaleIds.has(crs.saleId)) {
+        additionalFromCourses.push({
+          id: crs.saleId || `sale-${crs.id}`,
+          orgId: selectedCust.orgId || '',
+          branchId: crs.soldBranchId || currentBranch?.id || '',
+          customerId: selectedCust.id,
+          customerName: selectedCust.name,
+          invoiceNo: `HD-${crs.id.slice(-6).toUpperCase()}`,
+          date: crs.startDate || new Date().toISOString().slice(0, 10),
+          time: '09:30',
+          staffId: 'st-01',
+          staffName: 'BS. Phạm Minh Tuấn',
+          items: [
+            {
+              id: `item-${crs.id}`,
+              type: 'package',
+              refId: crs.packageId || 'pkg-01',
+              name: crs.name,
+              price: crs.price,
+              qty: 1
+            }
+          ],
+          subtotal: crs.price,
+          discountPct: 0,
+          discountAmount: 0,
+          taxPct: 0,
+          taxAmount: 0,
+          tipAmount: 0,
+          total: crs.price,
+          paidAmount: crs.price,
+          debtAmount: 0,
+          paymentMethod: 'cash',
+          status: 'completed',
+          notes: `Thanh toán trọn gói: ${crs.name}`,
+          createdAt: crs.startDate || new Date().toISOString()
+        });
+      }
+    });
+
+    return [...foundSales, ...additionalFromCourses];
+  }, [selectedCust, sales, custCourses, currentBranch?.id]);
 
   const custBranchSales = useMemo(() => {
     return custSales.filter((s) => s.branchId === currentBranch?.id);

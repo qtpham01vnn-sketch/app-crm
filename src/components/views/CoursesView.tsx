@@ -310,7 +310,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
             <button
               onClick={() => {
                 if (activeCourse) {
-                  setSelectedCustomerId(activeCourse.customerId);
+                  setSelectedCustomerId(targetCust?.id || activeCourse.customerId || activeCourse.customerName || '');
                 }
                 setActiveTab('cust');
               }}
