@@ -1,20 +1,21 @@
 -- =============================================================================
 -- ROLLBACK SCRIPT: 039_rollback_pnl_to_current_live.sql
--- Mục đích: Khôi phục hàm rpc_get_operating_pnl_report về đúng phiên bản 039 hiện tại trên Live
--- Sử dụng khi: Cần rollback bản vá 040 trên môi trường Live
+-- Nguồn gốc: Trích xuất trực tiếp 100% từ pg_proc trên Production Live (lskrcerzxltlrcewigrw)
+-- Thời điểm trích xuất: 2026-10-06T11:01:00+07:00
+-- Mục đích: Khôi phục hàm rpc_get_operating_pnl_report về đúng nguyên bản đang chạy trên Live
 -- =============================================================================
 
-CREATE OR REPLACE FUNCTION rpc_get_operating_pnl_report(
-    p_org_id UUID,
-    p_branch_id UUID DEFAULT NULL,
-    p_start_date DATE DEFAULT CURRENT_DATE - INTERVAL '30 days',
-    p_end_date DATE DEFAULT CURRENT_DATE
+CREATE OR REPLACE FUNCTION public.rpc_get_operating_pnl_report(
+    p_org_id uuid, 
+    p_branch_id uuid DEFAULT NULL::uuid, 
+    p_start_date date DEFAULT (CURRENT_DATE - '30 days'::interval), 
+    p_end_date date DEFAULT CURRENT_DATE
 )
-RETURNS JSONB
+RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
+SET search_path TO 'public', 'pg_temp'
+AS $function$
 DECLARE
     -- 0. Biến kiểm tra quyền
     v_user_org_id UUID;
@@ -90,7 +91,6 @@ BEGIN
     -- -------------------------------------------------------------------------
     -- 1. GÓC NHÌN BÁN HÀNG & DÒNG TIỀN (P7.1 INVOICING & CASHFLOW KPI)
     -- -------------------------------------------------------------------------
-    -- A. Tổng giá trị hóa đơn xuất trong kỳ (không tính hóa đơn huỷ)
     SELECT 
         COALESCE(SUM(total_amount + discount_amount), 0),
         COALESCE(SUM(discount_amount), 0),
@@ -102,7 +102,6 @@ BEGIN
       AND status <> 'cancelled'
       AND created_at >= v_start_ts AND created_at < v_next_day_ts;
 
-    -- B. Dòng tiền thực thu & hoàn tiền trong kỳ (Lọc theo thời điểm thanh toán thực tế)
     SELECT 
         COALESCE(SUM(CASE WHEN p.payment_type IN ('sale', 'debt_collection', 'deposit') AND p.payment_method IN ('cash', 'transfer_vietqr', 'card') AND p.reconciliation_status = 'confirmed' THEN p.amount ELSE 0 END), 0),
         COALESCE(SUM(CASE WHEN p.payment_type = 'refund' THEN p.amount ELSE 0 END), 0)
@@ -117,7 +116,6 @@ BEGIN
     -- -------------------------------------------------------------------------
     -- 2. GÓC NHÌN DOANH THU THỰC HIỆN VẬN HÀNH (P7.2 RECOGNIZED REVENUE KPI)
     -- -------------------------------------------------------------------------
-    -- A. Doanh thu Sản phẩm bán lẻ trong kỳ (sau phân bổ giảm giá hóa đơn)
     SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
     INTO v_recognized_product_sales
     FROM sale_items si
@@ -128,7 +126,6 @@ BEGIN
       AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
       AND si.item_type = 'product';
 
-    -- B. Doanh thu Dịch vụ lẻ làm ngay trong kỳ (sau phân bổ giảm giá hóa đơn)
     SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
     INTO v_recognized_single_services
     FROM sale_items si
@@ -139,7 +136,6 @@ BEGIN
       AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
       AND si.item_type = 'service';
 
-    -- C. Doanh thu Trừ buổi Liệu trình thực hiện trong kỳ (Phân bổ theo snapshot giá trị dòng gói/liệu trình)
     SELECT COALESCE(SUM(
         ROUND(
             sd.sessions_deducted::NUMERIC * (
@@ -151,7 +147,6 @@ BEGIN
                           AND (si.item_ref_id = cc.package_id OR si.item_ref_id = cc.service_id)
                         LIMIT 1
                     ),
-                    -- Dự phòng an toàn nếu thẻ liệu trình không gắn dòng sale_item cụ thể
                     COALESCE(s.total_amount::NUMERIC / NULLIF(cc.total_sessions, 0), 0)
                 )
             )
@@ -165,13 +160,11 @@ BEGIN
       AND (p_branch_id IS NULL OR sd.branch_id = p_branch_id)
       AND sd.performed_at >= v_start_ts AND sd.performed_at < v_next_day_ts;
 
-    -- Tổng doanh thu thực hiện vận hành (Recognized Revenue)
     v_total_recognized_revenue := v_recognized_product_sales + v_recognized_single_services + v_earned_treatment_revenue;
 
     -- -------------------------------------------------------------------------
     -- 3. GIÁ VỐN HÀNG BÁN & VẬT TƯ TIÊU HAO (COGS - SNAPSHOT LỊCH SỬ P7.2)
     -- -------------------------------------------------------------------------
-    -- A. Giá vốn sản phẩm bán lẻ trong kỳ
     SELECT COALESCE(SUM(si.quantity * si.cost_price_snapshot), 0)
     INTO v_cogs_products
     FROM sale_items si
@@ -182,7 +175,6 @@ BEGIN
       AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
       AND si.item_type = 'product';
 
-    -- B. Giá vốn vật tư tiêu hao ca dịch vụ / liệu trình thực tế
     SELECT COALESCE(SUM(ROUND(smu.base_quantity_deducted * smu.cost_price_snapshot)), 0)
     INTO v_material_cost
     FROM session_material_usages smu
@@ -191,16 +183,12 @@ BEGIN
       AND smu.status = 'confirmed'
       AND smu.used_at >= v_start_ts AND smu.used_at < v_next_day_ts;
 
-    -- Tổng COGS hợp nhất
     v_total_cogs := v_cogs_products + v_material_cost;
-
-    -- LỢI NHUẬN GỘP SAU COGS (Gross Profit)
     v_gross_profit := v_total_recognized_revenue - v_total_cogs;
 
     -- -------------------------------------------------------------------------
     -- 4. HOA HỒNG NHÂN SỰ & CHI PHÍ VẬN HÀNH (OPEX)
     -- -------------------------------------------------------------------------
-    -- A. Hoa hồng KTV & Bác sĩ phát sinh trong kỳ
     SELECT COALESCE(SUM(final_commission), 0) INTO v_staff_commissions
     FROM commission_records
     WHERE organization_id = p_org_id
@@ -208,7 +196,6 @@ BEGIN
       AND status IN ('eligible', 'approved', 'paid')
       AND occurred_at >= v_start_ts AND occurred_at < v_next_day_ts;
 
-    -- B. Chi phí vận hành đã thực chi trong kỳ (OPEX)
     SELECT COALESCE(SUM(amount), 0) INTO v_operating_expenses
     FROM expense_vouchers
     WHERE organization_id = p_org_id
@@ -216,17 +203,14 @@ BEGIN
       AND status = 'disbursed'
       AND expense_date BETWEEN p_start_date AND p_end_date;
 
-    -- C. Bút toán hoàn chi phát sinh trong kỳ (Expense Reversals)
     SELECT COALESCE(SUM(amount), 0) INTO v_expense_reversals
     FROM cashflow_ledger
     WHERE organization_id = p_org_id
       AND (p_branch_id IS NULL OR branch_id = p_branch_id)
-      AND transaction_category = 'expense_reversal'
+      AND entry_type = 'expense_reversal'
       AND occurred_at >= v_start_ts AND occurred_at < v_next_day_ts;
 
     v_net_operating_expenses := v_operating_expenses - v_expense_reversals;
-
-    -- LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS)
     v_operating_surplus := v_gross_profit - v_staff_commissions - v_net_operating_expenses;
 
     -- -------------------------------------------------------------------------
@@ -286,7 +270,7 @@ BEGIN
         'expense_categories', v_category_breakdown
     );
 END;
-$$;
+$function$;
 
-REVOKE EXECUTE ON FUNCTION rpc_get_operating_pnl_report(UUID, UUID, DATE, DATE) FROM public, anon;
-GRANT EXECUTE ON FUNCTION rpc_get_operating_pnl_report(UUID, UUID, DATE, DATE) TO authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.rpc_get_operating_pnl_report(uuid, uuid, date, date) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.rpc_get_operating_pnl_report(uuid, uuid, date, date) TO postgres, authenticated, service_role;
