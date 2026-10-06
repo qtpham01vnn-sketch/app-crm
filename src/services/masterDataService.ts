@@ -12,7 +12,7 @@ export const masterDataService = {
    */
   async getBranches(): Promise<Branch[]> {
     if (!isSupabaseConfigured || !supabase) return [];
-    const { data, error } = await supabase.from('branches').select('*').order('name');
+    const { data, error } = await supabase.from('branches').select('*').eq('status', 'active').order('name');
     if (error) {
       console.error('Error fetching branches:', error);
       return [];
