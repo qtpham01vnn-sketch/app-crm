@@ -547,7 +547,12 @@ export const ExpView: React.FC = () => {
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
 
               <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
-                <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
+                  <span className="px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
+                    Chờ xác minh số liệu Live
+                  </span>
+                </div>
                 <span className="text-[10px] text-slate-500 italic">Đối chiếu theo nguồn P7.1 & P7.2</span>
               </div>
               
