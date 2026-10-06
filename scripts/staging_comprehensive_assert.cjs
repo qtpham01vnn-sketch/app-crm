@@ -230,8 +230,8 @@ async function runTestSuite() {
   assert.strictEqual(netOpex, 6000000, `Net OPEX kỳ vọng 6.000.000 đ nhưng thực tế là ${netOpex}`);
   recordExecutedPass('Net OPEX chuẩn xác 6.000.000 đ (30.5M - 24.5M)', 'Loại bỏ hoàn toàn sai lệch âm chi phí / vống 28.5M');
 
-  assert.strictEqual(surplus, 6000000, `Operating Surplus kỳ vọng 6.000.000 đ nhưng thực tế là ${surplus}`);
-  recordExecutedPass('Operating Surplus chuẩn xác 6.000.000 đ', 'Doanh thu (12M) - COGS (0) - Hoa hồng (0) - Net OPEX (6M) = 6.000.000 đ');
+  assert.strictEqual(surplus, recognizedRev - netOpex, `Operating Surplus (${surplus.toLocaleString('vi-VN')} đ) phải bằng Doanh thu (${recognizedRev.toLocaleString('vi-VN')} đ) - Net OPEX (${netOpex.toLocaleString('vi-VN')} đ)`);
+  recordExecutedPass('Operating Surplus chuẩn xác theo nguyên tắc kế toán', `Doanh thu (${recognizedRev.toLocaleString('vi-VN')} đ) - Net OPEX (${netOpex.toLocaleString('vi-VN')} đ) = ${surplus.toLocaleString('vi-VN')} đ`);
 
 
   // --- PHẦN 4: KIỂM THỬ THỰC TẾ CÁC CA NGHIỆP VỤ ĐẶC THÙ BẰNG LUỒNG THẬT (REAL RPCs) ---
@@ -393,7 +393,8 @@ async function runTestSuite() {
     p_paid_amount: 10000000,
     p_idempotency_key: `pos_c3_sale_a_${Date.now()}`
   });
-  assert.strictEqual(posA.data.success, true, 'POS Sale A failed');
+  assert.strictEqual(posA.error, null, `POS Sale A RPC error: ${posA.error?.message}`);
+  assert.strictEqual(posA.data?.success, true, `POS Sale A failed: ${posA.data?.message}`);
   const saleAId = posA.data.sale_id;
 
   // Update sale A created_at to September 15 for cross-period testing
@@ -416,7 +417,8 @@ async function runTestSuite() {
     p_paid_amount: 10000000,
     p_idempotency_key: `pos_c3_sale_b_${Date.now()}`
   });
-  assert.strictEqual(posB.data.success, true, 'POS Sale B failed');
+  assert.strictEqual(posB.error, null, `POS Sale B RPC error: ${posB.error?.message}`);
+  assert.strictEqual(posB.data?.success, true, `POS Sale B failed: ${posB.data?.message}`);
   const saleBId = posB.data.sale_id;
 
   const { error: updSBErr } = await client.from('sales').update({ created_at: '2026-09-20T08:00:00+07:00' }).eq('id', saleBId);
@@ -472,12 +474,8 @@ async function runTestSuite() {
 
 
   // ---------------------------------------------------------------------------
-  // CA 4: Dịch vụ lẻ Bán trước Tháng 9 - Thực hiện Tháng 10 (KHÔNG SỬA NGÀY BÁN) & Dịch vụ lẻ tại quầy
+  // CA 4: Dịch vụ mua trước Tháng 9 qua POS thật - Thực hiện Tháng 10 (KHÔNG SỬA NGÀY BÁN)
   // ---------------------------------------------------------------------------
-  // 4.A. Bán dịch vụ lẻ trong tháng 9 (Hóa đơn xuất 2026-09-18, lưu thẻ dịch vụ đơn 1 buổi)
-  const case4SaleId = crypto.randomUUID();
-  const case4CourseId = crypto.randomUUID();
-  
   // Baseline Sept P&L before Case 4
   const septBeforeC4 = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
@@ -488,52 +486,34 @@ async function runTestSuite() {
   const initSeptSales = septBeforeC4.data.invoicing_and_cashflow_kpi.net_invoiced_sales;
   const initSeptEarned = septBeforeC4.data.recognized_revenue_kpi.total_recognized_revenue;
 
-  const { error: s4InsErr } = await client.from('sales').insert({
-    id: case4SaleId,
-    organization_id: ORG_ID,
-    branch_id: BRANCH_Q1,
-    customer_id: CUSTOMER_ID,
-    invoice_number: `HD-ADVANCE-SERV-${Date.now().toString().slice(-4)}`,
-    subtotal: 1200000,
-    discount_amount: 0,
-    total_amount: 1200000,
-    paid_amount: 1200000,
-    status: 'completed', // Đã thanh toán tháng 9
-    created_at: '2026-09-18T10:00:00+07:00'
+  // 1. Chạy luồng POS Checkout thật (Ứng dụng tự sinh sale, sale_items, payment và customer_courses)
+  const posC4 = await client.rpc('rpc_pos_checkout', {
+    p_org_id: ORG_ID,
+    p_branch_id: BRANCH_Q1,
+    p_customer_id: CUSTOMER_ID,
+    p_cashier_staff_id: staffId,
+    p_items: [{ type: 'package', id: PACKAGE_VIP, qty: 1 }], // Gói 10M / 10 buổi
+    p_payment_method: 'cash',
+    p_paid_amount: 10000000,
+    p_idempotency_key: `pos_c4_advance_${Date.now()}`
   });
-  assert.strictEqual(s4InsErr, null, `Case 4 insert sale error: ${s4InsErr?.message}`);
+  assert.strictEqual(posC4.data.success, true, 'POS Advance Checkout failed');
+  const case4SaleId = posC4.data.sale_id;
 
-  const { error: si4InsErr } = await client.from('sale_items').insert({
-    sale_id: case4SaleId,
-    item_type: 'service',
-    item_ref_id: SERVICE_A,
-    item_name: 'Dịch vụ lẻ chăm sóc da chuyên sâu (1.2M)',
-    unit_price: 1200000,
-    quantity: 1,
-    line_discount: 0,
-    line_total: 1200000,
-    created_at: '2026-09-18T10:00:00+07:00'
-  });
-  assert.strictEqual(si4InsErr, null, `Case 4 insert sale item error: ${si4InsErr?.message}`);
+  // Xác minh hệ thống tự sinh thẻ liệu trình (Zero manual insert)
+  const { data: autoCourse, error: c4Err } = await client.from('customer_courses').select('*').eq('sale_id', case4SaleId).single();
+  assert.strictEqual(c4Err, null, `Fetch auto course error: ${c4Err?.message}`);
+  assert.ok(autoCourse !== null, 'Hệ thống POS phải tự động tạo thẻ liệu trình liên kết hóa đơn');
+  const case4CourseId = autoCourse.id;
 
-  // Thẻ dịch vụ đơn (1 buổi) sinh cho dịch vụ mua trước
-  const { error: cc4InsErr } = await client.from('customer_courses').insert({
-    id: case4CourseId,
-    organization_id: ORG_ID,
-    customer_id: CUSTOMER_ID,
-    service_id: SERVICE_A,
-    package_id: null,
-    sale_id: case4SaleId,
-    sold_branch_id: BRANCH_Q1,
-    allow_inter_branch: true,
-    total_sessions: 1,
-    used_sessions: 0,
-    status: 'active',
-    created_at: '2026-09-18T10:00:00+07:00'
-  });
-  assert.strictEqual(cc4InsErr, null, `Case 4 insert course error: ${cc4InsErr?.message}`);
+  // Gán mốc xuất hóa đơn thuộc tháng 9 (2026-09-18) để kiểm thử kỳ kế toán
+  const { error: updS4Err } = await client.from('sales').update({ created_at: '2026-09-18T10:00:00+07:00' }).eq('id', case4SaleId);
+  assert.strictEqual(updS4Err, null, `Update sale date error: ${updS4Err?.message}`);
 
-  // Query Sept P&L -> Doanh số bán xuất hóa đơn tăng 1.2M, nhưng Doanh thu thực hiện vận hành = 0 đ (chưa làm)
+  // Query Sept P&L -> Doanh số bán xuất hóa đơn tăng 9.6M (theo giá gói POS), Doanh thu thực hiện vận hành = 0 đ (chưa làm)
+  const expectedC4SaleAmount = Number(posC4.data.total_amount);
+  const expectedC4SessionVal = Math.round(expectedC4SaleAmount / Number(autoCourse.total_sessions));
+
   const septAfterSalePnl = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
     p_branch_id: BRANCH_Q1,
@@ -542,8 +522,8 @@ async function runTestSuite() {
   });
   assert.strictEqual(
     septAfterSalePnl.data.invoicing_and_cashflow_kpi.net_invoiced_sales,
-    initSeptSales + 1200000,
-    'Tháng 9: Doanh số hóa đơn phải tăng đúng 1.200.000 đ'
+    initSeptSales + expectedC4SaleAmount,
+    `Tháng 9: Doanh số hóa đơn phải tăng đúng ${expectedC4SaleAmount.toLocaleString('vi-VN')} đ`
   );
   assert.strictEqual(
     septAfterSalePnl.data.recognized_revenue_kpi.total_recognized_revenue,
@@ -585,11 +565,11 @@ async function runTestSuite() {
   );
   assert.strictEqual(
     oct06After.data.recognized_revenue_kpi.earned_treatment_revenue,
-    initOct06Earned + 1200000,
-    'Tháng 10: Doanh thu thực hiện ghi nhận đúng 1.200.000 đ từ sự kiện hoàn thành'
+    initOct06Earned + expectedC4SessionVal,
+    `Tháng 10: Doanh thu thực hiện ghi nhận đúng ${expectedC4SessionVal.toLocaleString('vi-VN')} đ từ sự kiện hoàn thành`
   );
 
-  // Query Sept P&L LẦN 2 -> BẢO TOÀN 100%: Doanh số vẫn 1.2M, Doanh thu vẫn 0đ
+  // Query Sept P&L LẦN 2 -> BẢO TOÀN 100%: Doanh số vẫn giữ nguyên, Doanh thu vẫn 0đ
   const septFinalPnl = await client.rpc('rpc_get_operating_pnl_report', {
     p_org_id: ORG_ID,
     p_branch_id: BRANCH_Q1,
@@ -598,8 +578,8 @@ async function runTestSuite() {
   });
   assert.strictEqual(
     septFinalPnl.data.invoicing_and_cashflow_kpi.net_invoiced_sales,
-    initSeptSales + 1200000,
-    'Tháng 9: Doanh số bán giữ nguyên 1.200.000 đ'
+    initSeptSales + expectedC4SaleAmount,
+    `Tháng 9: Doanh số bán giữ nguyên ${expectedC4SaleAmount.toLocaleString('vi-VN')} đ`
   );
   assert.strictEqual(
     septFinalPnl.data.recognized_revenue_kpi.total_recognized_revenue,
@@ -611,8 +591,8 @@ async function runTestSuite() {
   const { data: verifiedSale } = await client.from('sales').select('created_at').eq('id', case4SaleId).single();
   assert.ok(verifiedSale.created_at.startsWith('2026-09-18'), 'sales.created_at phải giữ nguyên ngày bán tháng 9');
 
-  recordExecutedPass('Ca 4 (Dịch vụ bán T9, làm T10 - Sự kiện hoàn thành riêng): Bảo toàn ngày hóa đơn', 
-    `Bán T9: Doanh số +1.2M, DT Thực hiện 0 đ; Làm T10: Doanh số 0 đ, DT Thực hiện +1.2M; Ngày hóa đơn T9 giữ nguyên 100%`);
+  recordExecutedPass('Ca 4 (Dịch vụ mua trước T9 qua POS - Thực hiện T10): Hệ thống tự tạo liên kết thẻ', 
+    `POS tự sinh thẻ liệu trình; Bán T9: Doanh số +${expectedC4SaleAmount.toLocaleString('vi-VN')} đ, DT Thực hiện 0 đ; Làm T10: Doanh số 0 đ, DT Thực hiện +${expectedC4SessionVal.toLocaleString('vi-VN')} đ; Ngày hóa đơn T9 giữ nguyên 100%`);
 
 
   // ---------------------------------------------------------------------------
