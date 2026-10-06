@@ -113,7 +113,7 @@ export const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
 
       {/* Sidebar Container: Flex child on desktop, fixed off-canvas on mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-in-out border-r lg:static lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 relative ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-in-out border-r lg:static lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 ${
           isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         } ${
           isSoftLight
