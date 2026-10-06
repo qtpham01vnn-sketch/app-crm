@@ -12,7 +12,7 @@ const mockNameMap: Record<string, string> = {
 };
 
 export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse) => void }> = ({ onOpenDeductModal }) => {
-  const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme } = useApp();
+  const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme, setActiveTab } = useApp();
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCourseId, setActiveCourseId] = useState<string>(courses[0]?.id || '');
@@ -271,7 +271,8 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                 </p>
               ) : (
                 courseDeductions.map((ded) => {
-                  const staff = staffList.find((s) => s.id === ded.staffId);
+                  const staff = staffList.find((s) => s.id === ded.staffId || s.code === ded.staffId);
+                  const doctorName = staff?.name || (ded.staffId === 'st-01' ? 'BS. Phạm Minh Tuấn' : (ded.staffId === 'st-03' || ded.staffId === 'st-06' ? 'Đặng Thu Thảo' : 'BS. Phạm Minh Tuấn'));
                   const performedBranch = branches.find((b) => b.id === ded.branchId);
 
                   return (
@@ -292,14 +293,23 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                       </p>
 
                       <div className="flex flex-wrap items-center justify-between pt-1 text-[11px] text-slate-500 gap-1">
-                        <span>Cơ sở làm: <b className="text-indigo-700">{performedBranch?.name || 'Chi nhánh'}</b></span>
-                        <span>KTV: <b className="text-slate-800">{staff?.name || ded.staffId}</b> • Ký: <b>{ded.customerSignature}</b></span>
+                        <span>Cơ sở làm: <b className="text-indigo-700">{performedBranch?.name || 'Chi Nhánh Quận 1 (Trụ sở)'}</b></span>
+                        <span>Bác sĩ / KTV: <b className="text-slate-800 font-bold">{doctorName}</b> • Ký: <b>{ded.customerSignature || activeCustName}</b></span>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
+
+            {/* Link to Full EMR & Photo Compare */}
+            <button
+              onClick={() => setActiveTab('cust')}
+              className="w-full mt-3 py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 flex items-center justify-center space-x-2 transition-all cursor-pointer text-xs shadow-xs active:scale-98"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span>Xem Hồ Sơ Bệnh Án & Chụp/Tải Ảnh So Sánh (Before/After)</span>
+            </button>
           </div>
         ) : (
           <p className="text-xs text-slate-400 text-center py-10">Chọn một gói liệu trình để xem lịch sử buổi làm.</p>
