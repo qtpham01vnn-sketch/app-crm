@@ -225,7 +225,7 @@ BEGIN
     FROM cashflow_ledger
     WHERE organization_id = p_org_id
       AND (p_branch_id IS NULL OR branch_id = p_branch_id)
-      AND entry_type = 'expense_reversal'
+      AND transaction_category = 'expense_reversal'
       AND occurred_at >= v_start_ts AND occurred_at < v_next_day_ts;
 
     v_net_operating_expenses := v_operating_expenses - v_expense_reversals;
