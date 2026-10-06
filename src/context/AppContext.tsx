@@ -710,6 +710,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
+    // Auto-create CustomerCourse records for purchased packages
+    const newCourses: CustomerCourse[] = [];
+    cart.items.forEach((it) => {
+      if (it.type === 'package') {
+        const pkg = packages.find((p) => p.id === it.refId);
+        for (let i = 0; i < it.qty; i++) {
+          newCourses.push({
+            id: 'course-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).slice(2, 5),
+            customerId: cart.customerId || 'c-walkin',
+            packageId: it.refId,
+            serviceId: pkg?.serviceId || 'svc-01',
+            name: it.name,
+            totalSessions: pkg?.sessions || 10,
+            usedSessions: 0,
+            price: it.price,
+            startDate: new Date().toISOString().slice(0, 10),
+            expiryDate: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+            saleId,
+            soldBranchId: currentBranch?.id || '',
+            allowInterBranch: true,
+            status: 'active'
+          });
+        }
+      }
+    });
+    if (newCourses.length > 0) {
+      setCourses((prev) => [...newCourses, ...prev]);
+    }
+
     clearCart();
     setActiveInvoiceSaleId(saleId);
     showToast(`✅ Thanh toán thành công hóa đơn ${invoiceNo}`, 'success');
