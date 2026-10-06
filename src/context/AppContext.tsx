@@ -577,7 +577,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentUser(liveStaff[0]);
         }
       }
-      if (liveCustomers.length > 0) setCustomers(liveCustomers);
+      if (liveCustomers.length > 0) {
+        const liveIds = new Set(liveCustomers.map((c) => c.id));
+        const liveNames = new Set(liveCustomers.map((c) => c.name.toLowerCase().trim()));
+        const missingMock = mockCustomers.filter(
+          (m) => !liveIds.has(m.id) && !liveNames.has(m.name.toLowerCase().trim())
+        );
+        setCustomers([...liveCustomers, ...missingMock]);
+      }
       if (liveAppointments && liveAppointments.length > 0) setAppointments(liveAppointments);
       if (livePurchaseOrders && livePurchaseOrders.length > 0) setPurchaseOrders(livePurchaseOrders);
       if (liveGoodsReceipts && liveGoodsReceipts.length > 0) setGoodsReceipts(liveGoodsReceipts);

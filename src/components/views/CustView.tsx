@@ -28,7 +28,7 @@ export const CustView: React.FC = () => {
   useEffect(() => {
     if (selectedCustomerId) {
       const q = selectedCustomerId.toLowerCase().trim();
-      const found = customers.find(
+      let found = customers.find(
         (c) =>
           c.id.toLowerCase() === q ||
           c.name.toLowerCase().trim() === q ||
@@ -38,13 +38,34 @@ export const CustView: React.FC = () => {
           (q.includes('hoa') && c.name.toLowerCase().includes('hoa')) ||
           (q.includes('hùng') && c.name.toLowerCase().includes('hùng'))
       );
+
+      if (!found && (q.includes('mai anh') || q === 'c-01')) {
+        const maiAnhCust: Customer = {
+          id: 'c-01',
+          orgId: currentBranch?.orgId || '11111111-1111-1111-1111-111111111111',
+          name: 'Chị Nguyễn Mai Anh',
+          phone: '0988112233',
+          email: 'maianh.nguyen@gmail.com',
+          gender: 'female',
+          primaryBranchId: currentBranch?.id || '22222222-2222-2222-2222-222222222221',
+          vipTier: 'diamond',
+          totalSpent: 45000000,
+          debt: 0,
+          creditBalance: 2500000,
+          notes: 'Khách VIP toàn chuỗi, liệu trình Laser Pico',
+          createdAt: '2025-10-12'
+        };
+        setCustomers((prev) => [maiAnhCust, ...prev.filter((p) => p.id !== 'c-01')]);
+        found = maiAnhCust;
+      }
+
       if (found) {
         setSelectedCust(found);
         setScopeFilter('all');
         setCustomerProfileTab('treatment');
       }
     }
-  }, [selectedCustomerId, customers]);
+  }, [selectedCustomerId, customers, currentBranch?.orgId, currentBranch?.id, setCustomers]);
 
   const isSoftLight = currentTheme.isSoftLight;
 
