@@ -647,7 +647,7 @@ export const ExpView: React.FC = () => {
                       {(pnlReport.operating_deductions.expense_reversals || 0) > 0 && (
                         <div className="flex justify-between">
                           <span>• Hoàn chi / Thu hồi trong kỳ:</span>
-                          <span className="font-mono text-emerald-600">+ {(pnlReport.operating_deductions.expense_reversals).toLocaleString('vi-VN')}đ</span>
+                          <span className="font-mono text-emerald-600">+ {(pnlReport.operating_deductions.expense_reversals || 0).toLocaleString('vi-VN')}đ</span>
                         </div>
                       )}
                     </div>
