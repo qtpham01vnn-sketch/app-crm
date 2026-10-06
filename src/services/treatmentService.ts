@@ -9,7 +9,9 @@ export const treatmentService = {
    * Fetch full treatment history for a customer
    */
   async getCustomerTreatmentHistory(orgId: string, customerId: string): Promise<CustomerTreatmentHistory> {
-    if (!isSupabaseConfigured || !supabase) {
+    const isValidUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    if (!isSupabaseConfigured || !supabase || !isValidUuid(orgId) || !isValidUuid(customerId)) {
       return {
         customerId,
         treatmentPlans: [],

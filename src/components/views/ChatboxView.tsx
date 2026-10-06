@@ -158,23 +158,28 @@ export const ChatboxView: React.FC<ChatboxViewProps> = ({ onOpenNewApptModal }) 
           }
         }
 
-        // 2. Nếu là kênh Facebook Messenger -> Gửi trực tiếp qua Meta Graph API
+        // 2. Nếu là kênh Facebook Messenger -> Gửi qua Meta Graph API nếu là PSID hợp lệ (dãy số thực tế)
         if (!isNote && selectedThread.channelType === 'facebook_messenger' && selectedThread.externalUserId) {
           try {
-            const fbChannel = channels.find((c) => c.channelType === 'facebook_messenger' && c.accessTokenEnc);
-            const fbToken = fbChannel?.accessTokenEnc || 'EAAprnJJ6ZCckBSptRpHzg149sMUnJZAW390nPuyrZAcwrujL7KQwbMzl8qxxtbCht28bvIR3MVwUbonl0Js2RylxqFcZBll4Ngg5hZANUIgdZBZCIBOf3JFgWTXvHqM0jf3Ii9BzeRosxHepcja5ITQNjqWI7Tq3DAKo46hTTJGjifrFOnQQ8GGqaAd2VBWs7ji9hRQHWYt4gZDZD';
-            const fbRes = await fetch(`https://graph.facebook.com/v23.0/me/messages?access_token=${fbToken}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                recipient: { id: selectedThread.externalUserId },
-                message: { text: content }
-              })
-            });
-            const fbData = await fbRes.json();
-            if (fbData.error) {
-              console.error('Lỗi đẩy tin nhắn ra Facebook Messenger:', fbData.error);
-              showToast(`Facebook: ${fbData.error.message}`, 'error');
+            const isNumericPsid = /^\d+$/.test(selectedThread.externalUserId);
+            if (isNumericPsid) {
+              const fbChannel = channels.find((c) => c.channelType === 'facebook_messenger' && c.accessTokenEnc);
+              const fbToken = fbChannel?.accessTokenEnc || 'EAAprnJJ6ZCckBSptRpHzg149sMUnJZAW390nPuyrZAcwrujL7KQwbMzl8qxxtbCht28bvIR3MVwUbonl0Js2RylxqFcZBll4Ngg5hZANUIgdZBZCIBOf3JFgWTXvHqM0jf3Ii9BzeRosxHepcja5ITQNjqWI7Tq3DAKo46hTTJGjifrFOnQQ8GGqaAd2VBWs7ji9hRQHWYt4gZDZD';
+              const fbRes = await fetch(`https://graph.facebook.com/v23.0/me/messages?access_token=${fbToken}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipient: { id: selectedThread.externalUserId },
+                  message: { text: content }
+                })
+              });
+              const fbData = await fbRes.json();
+              if (fbData.error) {
+                console.error('Lỗi đẩy tin nhắn ra Facebook Messenger:', fbData.error);
+                showToast(`Facebook: ${fbData.error.message}`, 'error');
+              }
+            } else {
+              console.log('Tin nhắn hội thoại thử nghiệm (Mock PSID):', selectedThread.externalUserId);
             }
           } catch (fbErr) {
             console.error('Lỗi kết nối Facebook API:', fbErr);
