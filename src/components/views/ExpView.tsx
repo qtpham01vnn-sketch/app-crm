@@ -628,11 +628,30 @@ export const ExpView: React.FC = () => {
                   <span>4. Hoa Hồng KTV & Bác Sĩ:</span>
                   <span className="font-mono text-rose-600">- {((pnlReport.operating_deductions?.staff_commissions || 0)).toLocaleString('vi-VN')}đ</span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                  <span>5. Chi Phí Vận Hành Thực Tế (Net OPEX sau hoàn chi):</span>
-                  <span className="font-mono text-rose-600">
-                    - {((pnlReport.operating_deductions?.net_operating_expenses ?? pnlReport.operating_deductions?.operating_expenses_opex ?? 0)).toLocaleString('vi-VN')}đ
-                  </span>
+                <div className="py-1.5 border-b border-slate-100 text-slate-600 space-y-1">
+                  <div className="flex justify-between">
+                    <span>5. Chi Phí Vận Hành Thực Tế (Net OPEX):</span>
+                    <span className={`font-mono ${(pnlReport.operating_deductions?.net_operating_expenses ?? 0) < 0 ? 'text-emerald-700 font-bold' : 'text-rose-600'}`}>
+                      {(pnlReport.operating_deductions?.net_operating_expenses ?? 0) < 0 
+                        ? `+ ${(Math.abs(pnlReport.operating_deductions?.net_operating_expenses ?? 0)).toLocaleString('vi-VN')}đ`
+                        : `- ${(pnlReport.operating_deductions?.net_operating_expenses ?? pnlReport.operating_deductions?.operating_expenses_opex ?? 0).toLocaleString('vi-VN')}đ`
+                      }
+                    </span>
+                  </div>
+                  {pnlReport.operating_deductions?.operating_expenses_gross !== undefined && (
+                    <div className="pl-4 text-[11px] text-slate-500 space-y-0.5">
+                      <div className="flex justify-between">
+                        <span>• Chi phí thực chi trong kỳ:</span>
+                        <span className="font-mono text-rose-600">- {(pnlReport.operating_deductions.operating_expenses_gross || 0).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                      {(pnlReport.operating_deductions.expense_reversals || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span>• Hoàn chi / Thu hồi trong kỳ:</span>
+                          <span className="font-mono text-emerald-600">+ {(pnlReport.operating_deductions.expense_reversals).toLocaleString('vi-VN')}đ</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black bg-sky-50 px-2 rounded-lg text-sm">
                   <span className="text-sky-900">6. LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS) (3 - 4 - 5):</span>
