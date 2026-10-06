@@ -70,37 +70,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, errorMessa
               <p className="text-[11px] font-bold text-amber-900 mb-1.5 flex items-center gap-1">
                 ⚡ Điền nhanh tài khoản Diễn tập Staging:
               </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => fillAccount('admin.staging@phuongnam.vn')}
-                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
-              >
-                👑 Admin Tổng
-              </button>
-              <button
-                type="button"
-                onClick={() => fillAccount('manager.q1@phuongnam.vn')}
-                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
-              >
-                🏢 Quản lý Q1
-              </button>
-              <button
-                type="button"
-                onClick={() => fillAccount('reception.q1@phuongnam.vn')}
-                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
-              >
-                👩‍💼 Lễ tân Q1
-              </button>
-              <button
-                type="button"
-                onClick={() => fillAccount('doctor.tuan@phuongnam.vn')}
-                className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
-              >
-                👨‍⚕️ Bác sĩ Tuấn
-              </button>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fillAccount('admin.staging@phuongnam.vn')}
+                  className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+                >
+                  👑 Admin Tổng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillAccount('manager.q1@phuongnam.vn')}
+                  className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+                >
+                  🏢 Quản lý Q1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillAccount('reception.q1@phuongnam.vn')}
+                  className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+                >
+                  👩‍💼 Lễ tân Q1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillAccount('doctor.tuan@phuongnam.vn')}
+                  className="px-2 py-1.5 text-[11px] font-semibold bg-white hover:bg-amber-100/60 border border-amber-200 text-slate-800 rounded-lg text-left transition-all shadow-xs"
+                >
+                  👨‍⚕️ Bác sĩ Tuấn
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Error message */}
           {(error || externalError) && (
