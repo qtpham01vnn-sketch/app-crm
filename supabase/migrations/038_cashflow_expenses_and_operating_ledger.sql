@@ -770,6 +770,9 @@ GRANT EXECUTE ON FUNCTION rpc_disburse_expense_voucher TO authenticated, service
 REVOKE EXECUTE ON FUNCTION rpc_cancel_or_reverse_expense_voucher FROM public, anon;
 GRANT EXECUTE ON FUNCTION rpc_cancel_or_reverse_expense_voucher TO authenticated, service_role;
 
+REVOKE EXECUTE ON FUNCTION rpc_record_cashflow_entry FROM public, anon;
+GRANT EXECUTE ON FUNCTION rpc_record_cashflow_entry TO authenticated, service_role;
+
 REVOKE EXECUTE ON FUNCTION rpc_get_operating_pnl_report FROM public, anon;
 GRANT EXECUTE ON FUNCTION rpc_get_operating_pnl_report TO authenticated, service_role;
 
