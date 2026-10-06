@@ -707,7 +707,166 @@ export const reportExportService = {
   },
 
   /**
-   * PDF Generation using jsPDF & jspdf-autotable (Landscape A4)
+  /**
+   * Safe Base64 encoding for large binary ArrayBuffers
+   */
+  arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, Math.min(i + chunkSize, len))));
+    }
+    return btoa(binary);
+  },
+
+  /**
+   * Load and register Unicode fonts into jsPDF Virtual File System
+   */
+  async setupPdfUnicodeFonts(doc: jsPDF): Promise<string> {
+    let activeFont = 'helvetica';
+    try {
+      if (typeof window !== 'undefined') {
+        const [regRes, boldRes] = await Promise.all([
+          fetch('/fonts/Roboto-Regular.ttf').catch(() => null),
+          fetch('/fonts/Roboto-Bold.ttf').catch(() => null)
+        ]);
+
+        let hasReg = false;
+        if (regRes && regRes.ok) {
+          const regBuf = await regRes.arrayBuffer();
+          const regB64 = this.arrayBufferToBase64(regBuf);
+          doc.addFileToVFS('Roboto-Regular.ttf', regB64);
+          doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+          hasReg = true;
+        }
+
+        if (boldRes && boldRes.ok) {
+          const boldBuf = await boldRes.arrayBuffer();
+          const boldB64 = this.arrayBufferToBase64(boldBuf);
+          doc.addFileToVFS('Roboto-Bold.ttf', boldB64);
+          doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+        }
+
+        if (hasReg) {
+          activeFont = 'Roboto';
+          doc.setFont('Roboto', 'normal');
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi nạp font tiếng Việt Unicode:', err);
+    }
+    return activeFont;
+  },
+
+  /**
+   * Render Standard TCVN Document Header
+   */
+  renderTcvnHeader(doc: jsPDF, title: string, dateRange: { startDate: string; endDate: string }, branchName: string, fontName: string) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // 1. Góc trái: Tên cơ quan, đơn vị
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 58, 138); // Deep Navy
+    doc.text('VIỆN THẨM MỸ & PHÒNG KHÁM PHƯƠNG NAM', 14, 12);
+
+    doc.setFont(fontName, 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('HỆ THỐNG QUẢN TRỊ Y KHOA NỘI BỘ (CRM & ERP)', 14, 16);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.3);
+    doc.line(14, 18, 90, 18);
+
+    // 2. Góc phải: Mẫu biểu nội bộ theo thể thức văn bản
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text('MẪU BÁO CÁO QUẢN TRỊ NỘI BỘ', pageWidth - 14, 12, { align: 'right' });
+
+    doc.setFont(fontName, 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Tiêu chuẩn Thể thức Quản lý Y tế & Thẩm mỹ', pageWidth - 14, 16, { align: 'right' });
+    doc.line(pageWidth - 90, 18, pageWidth - 14, 18);
+
+    // 3. Tiêu đề chính giữa trang
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30, 58, 138);
+    doc.text(title, pageWidth / 2, 26, { align: 'center' });
+
+    // 4. Thông tin trích yếu thời gian & chi nhánh
+    doc.setFont(fontName, 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    const startStr = dateRange.startDate ? dateRange.startDate.split('-').reverse().join('/') : '';
+    const endStr = dateRange.endDate ? dateRange.endDate.split('-').reverse().join('/') : '';
+    doc.text(
+      `Kỳ báo cáo: Từ ngày ${startStr} đến ngày ${endStr}   |   Chi nhánh: ${branchName}   |   Đơn vị tính: VNĐ / Ca / Khách`,
+      pageWidth / 2,
+      31,
+      { align: 'center' }
+    );
+
+    // Đường kẻ phân cách
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(0.6);
+    doc.line(14, 34, pageWidth - 14, 34);
+  },
+
+  /**
+   * Render Standard TCVN 3-Column Signature Block
+   */
+  renderTcvnSignatures(doc: jsPDF, startY: number, fontName: string) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    let y = startY + 8;
+    if (y + 35 > pageHeight - 15) {
+      doc.addPage();
+      y = 20;
+    }
+
+    const today = new Date();
+    const dayStr = String(today.getDate()).padStart(2, '0');
+    const monthStr = String(today.getMonth() + 1).padStart(2, '0');
+    const yearStr = today.getFullYear();
+
+    // Địa danh, ngày tháng năm (Căn lề phải)
+    doc.setFont(fontName, 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`TP. Hồ Chí Minh, ngày ${dayStr} tháng ${monthStr} năm ${yearStr}`, pageWidth - 14, y, { align: 'right' });
+
+    y += 6;
+    const col1X = 45;
+    const col2X = pageWidth / 2;
+    const col3X = pageWidth - 45;
+
+    // Hàng 1: Chức danh in hoa đậm
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 58, 138);
+    doc.text('NGƯỜI LẬP BIỂU', col1X, y, { align: 'center' });
+    doc.text('KẾ TOÁN TRƯỞNG / QUẢN LÝ', col2X, y, { align: 'center' });
+    doc.text('GIÁM ĐỐC / ĐẠI DIỆN CƠ SỞ', col3X, y, { align: 'center' });
+
+    // Hàng 2: Hướng dẫn ký
+    y += 4;
+    doc.setFont(fontName, 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('(Ký, ghi rõ họ tên)', col1X, y, { align: 'center' });
+    doc.text('(Ký, ghi rõ họ tên)', col2X, y, { align: 'center' });
+    doc.text('(Ký, đóng dấu)', col3X, y, { align: 'center' });
+  },
+
+  /**
+   * PDF Generation using jsPDF & jspdf-autotable (Landscape A4, TCVN Compliance)
    */
   async generatePdf(params: ExportReportParams): Promise<Blob> {
     const doc = new jsPDF({
@@ -716,23 +875,7 @@ export const reportExportService = {
       format: 'a4'
     });
 
-    // Load Unicode font if available
-    try {
-      if (typeof window !== 'undefined') {
-        const fontRes = await fetch('/fonts/Arial.ttf');
-        if (fontRes.ok) {
-          const fontBuf = await fontRes.arrayBuffer();
-          const base64Font = btoa(
-            new Uint8Array(fontBuf).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
-          doc.addFileToVFS('Arial.ttf', base64Font);
-          doc.addFont('Arial.ttf', 'Arial', 'normal');
-          doc.setFont('Arial');
-        }
-      }
-    } catch {
-      // Fallback to standard
-    }
+    const fontName = await this.setupPdfUnicodeFonts(doc);
 
     const branchName =
       params.selectedBranchId === 'all'
@@ -743,19 +886,19 @@ export const reportExportService = {
     switch (params.reportType) {
       case 'p7_1':
         reportTitle = 'BÁO CÁO BÁN HÀNG, DOANH THU & DÒNG TIỀN (P7.1)';
-        this.renderP71Pdf(doc, params, branchName);
+        this.renderP71Pdf(doc, params, branchName, fontName);
         break;
       case 'p7_2':
         reportTitle = 'BÁO CÁO GIÁ VỐN COGS & LỢI NHUẬN GỘP (P7.2)';
-        this.renderP72Pdf(doc, params, branchName);
+        this.renderP72Pdf(doc, params, branchName, fontName);
         break;
       case 'p7_3':
-        reportTitle = 'BÁO CÁO HIỆU SUẤT NHÂN SỰ & PHÒNG GHẾ (P7.3)';
-        this.renderP73Pdf(doc, params, branchName);
+        reportTitle = 'BÁO CÁO HIỆU SUẤT NHÂN SỰ, BÁC SĨ & PHÒNG GHẾ (P7.3)';
+        this.renderP73Pdf(doc, params, branchName, fontName);
         break;
       case 'p7_4':
         reportTitle = 'BÁO CÁO PHÂN TÍCH KHÁCH HÀNG, RETENTION & COHORT (P7.4)';
-        this.renderP74Pdf(doc, params, branchName);
+        this.renderP74Pdf(doc, params, branchName, fontName);
         break;
     }
 
@@ -765,20 +908,14 @@ export const reportExportService = {
       doc.setPage(i);
       // Header top bar
       doc.setFillColor(30, 58, 138); // Navy
-      doc.rect(14, 10, 269, 1.5, 'F');
-
-      // Top title text (page 1)
-      if (i === 1) {
-        doc.setFontSize(9);
-        doc.setTextColor(100, 116, 139);
-        doc.text('VIỆN THẨM MỸ & PHÒNG KHÁM PHƯƠNG NAM • HỆ THỐNG QUẢN TRỊ NỘI BỘ', 14, 8);
-      }
+      doc.rect(14, 6, 269, 1.2, 'F');
 
       // Footer
-      doc.setFontSize(8);
+      doc.setFont(fontName, 'normal');
+      doc.setFontSize(7.5);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        `PHƯƠNG NAM CLINIC • Thời điểm xuất: ${getNowVietnamString()} • Báo cáo: ${reportTitle}`,
+        `PHƯƠNG NAM CLINIC • Thời điểm xuất: ${getNowVietnamString()} • ${reportTitle} • Tiêu chuẩn TCVN`,
         14,
         202
       );
@@ -791,25 +928,15 @@ export const reportExportService = {
   /**
    * PDF Render for P7.1
    */
-  renderP71Pdf(doc: jsPDF, params: ExportReportParams, branchName: string) {
+  renderP71Pdf(doc: jsPDF, params: ExportReportParams, branchName: string, fontName: string) {
     const data = params.data.p7_1;
     if (!data) return;
 
-    doc.setFontSize(14);
-    doc.setTextColor(30, 58, 138);
-    doc.text('BÁO CÁO BÁN HÀNG, DOANH THU & DÒNG TIỀN (P7.1)', 14, 18);
-
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(
-      `Kỳ báo cáo: ${params.dateRange.startDate} đến ${params.dateRange.endDate}   |   Chi nhánh: ${branchName}   |   Múi giờ: Asia/Ho_Chi_Minh (UTC+7)`,
-      14,
-      24
-    );
+    this.renderTcvnHeader(doc, 'BÁO CÁO BÁN HÀNG, DOANH THU & DÒNG TIỀN (P7.1)', params.dateRange, branchName, fontName);
 
     // Summary Table
     autoTable(doc, {
-      startY: 28,
+      startY: 38,
       head: [['Chỉ Số Quản Trị Bán Hàng', 'Giá Trị (VNĐ)', 'Chỉ Số Dòng Tiền & Đối Soát', 'Giá Trị (VNĐ)']],
       body: [
         [
@@ -850,15 +977,17 @@ export const reportExportService = {
         ]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2 }
+      headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+      bodyStyles: { font: fontName, fontSize: 8 },
+      styles: { font: fontName, cellPadding: 2 }
     });
+
+    let finalY = (doc as any).lastAutoTable?.finalY || 90;
 
     // Drilldown Table
     if (params.detailLevel === 'full' && data.invoicesDrilldown?.length) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 90;
-      doc.setFontSize(10);
+      doc.setFont(fontName, 'bold');
+      doc.setFontSize(9.5);
       doc.setTextColor(30, 58, 138);
       doc.text('CHI TIẾT CHỨNG TỪ HÓA ĐƠN BÁN HÀNG', 14, finalY + 8);
 
@@ -889,35 +1018,29 @@ export const reportExportService = {
           inv.createdAt ? inv.createdAt.split('T')[0] : ''
         ]),
         theme: 'striped',
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 7.5 },
-        bodyStyles: { fontSize: 7.5 },
-        styles: { cellPadding: 1.5 },
+        headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 7.5 },
+        bodyStyles: { font: fontName, fontSize: 7.5 },
+        styles: { font: fontName, cellPadding: 1.5 },
         showHead: 'everyPage'
       });
+
+      finalY = (doc as any).lastAutoTable?.finalY || finalY;
     }
+
+    this.renderTcvnSignatures(doc, finalY, fontName);
   },
 
   /**
    * PDF Render for P7.2
    */
-  renderP72Pdf(doc: jsPDF, params: ExportReportParams, branchName: string) {
+  renderP72Pdf(doc: jsPDF, params: ExportReportParams, branchName: string, fontName: string) {
     const data = params.data.p7_2;
     if (!data) return;
 
-    doc.setFontSize(14);
-    doc.setTextColor(30, 58, 138);
-    doc.text('BÁO CÁO GIÁ VỐN COGS, HAO PHÍ VẬT TƯ & LỢI NHUẬN GỘP (P7.2)', 14, 18);
-
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(
-      `Kỳ báo cáo: ${params.dateRange.startDate} đến ${params.dateRange.endDate}   |   Chi nhánh: ${branchName}   |   Múi giờ: Asia/Ho_Chi_Minh (UTC+7)`,
-      14,
-      24
-    );
+    this.renderTcvnHeader(doc, 'BÁO CÁO GIÁ VỐN COGS, HAO PHÍ VẬT TƯ & LỢI NHUẬN GỘP (P7.2)', params.dateRange, branchName, fontName);
 
     autoTable(doc, {
-      startY: 28,
+      startY: 38,
       head: [['Chỉ Số Quản Trị Giá Vốn & Lãi Gộp', 'Giá Trị', 'Đơn Vị', 'Ghi Chú & Diễn Giải Nghiệp Vụ']],
       body: [
         [
@@ -952,14 +1075,16 @@ export const reportExportService = {
         ]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2.5 }
+      headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+      bodyStyles: { font: fontName, fontSize: 8 },
+      styles: { font: fontName, cellPadding: 2.5 }
     });
 
+    let finalY = (doc as any).lastAutoTable?.finalY || 90;
+
     if (params.detailLevel === 'full' && data.drilldown?.items?.length) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 90;
-      doc.setFontSize(10);
+      doc.setFont(fontName, 'bold');
+      doc.setFontSize(9.5);
       doc.setTextColor(30, 58, 138);
       doc.text('CHI TIẾT HAO PHÍ VẬT TƯ TIÊU HAO THEO CA ĐIỀU TRỊ', 14, finalY + 8);
 
@@ -990,35 +1115,29 @@ export const reportExportService = {
           formatCurrency(i.totalCost)
         ]),
         theme: 'striped',
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 7.5 },
-        bodyStyles: { fontSize: 7.5 },
-        styles: { cellPadding: 1.5 },
+        headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 7.5 },
+        bodyStyles: { font: fontName, fontSize: 7.5 },
+        styles: { font: fontName, cellPadding: 1.5 },
         showHead: 'everyPage'
       });
+
+      finalY = (doc as any).lastAutoTable?.finalY || finalY;
     }
+
+    this.renderTcvnSignatures(doc, finalY, fontName);
   },
 
   /**
    * PDF Render for P7.3
    */
-  renderP73Pdf(doc: jsPDF, params: ExportReportParams, branchName: string) {
+  renderP73Pdf(doc: jsPDF, params: ExportReportParams, branchName: string, fontName: string) {
     const data = params.data.p7_3;
     if (!data) return;
 
-    doc.setFontSize(14);
-    doc.setTextColor(30, 58, 138);
-    doc.text('BÁO CÁO HIỆU SUẤT NHÂN SỰ, BÁC SĨ & PHÒNG GHẾ (P7.3)', 14, 18);
-
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(
-      `Kỳ báo cáo: ${params.dateRange.startDate} đến ${params.dateRange.endDate}   |   Chi nhánh: ${branchName}   |   Múi giờ: Asia/Ho_Chi_Minh (UTC+7)`,
-      14,
-      24
-    );
+    this.renderTcvnHeader(doc, 'BÁO CÁO HIỆU SUẤT NHÂN SỰ, BÁC SĨ & PHÒNG GHẾ (P7.3)', params.dateRange, branchName, fontName);
 
     autoTable(doc, {
-      startY: 28,
+      startY: 38,
       head: [
         [
           'Mã NV',
@@ -1046,15 +1165,17 @@ export const reportExportService = {
         formatPercent(st.utilizationPct)
       ]),
       theme: 'grid',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2 },
+      headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+      bodyStyles: { font: fontName, fontSize: 8 },
+      styles: { font: fontName, cellPadding: 2 },
       showHead: 'everyPage'
     });
 
+    let finalY = (doc as any).lastAutoTable?.finalY || 100;
+
     if (data.resourceMetrics?.length) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 100;
-      doc.setFontSize(10);
+      doc.setFont(fontName, 'bold');
+      doc.setFontSize(9.5);
       doc.setTextColor(13, 148, 136);
       doc.text('CÔNG SUẤT KHAI THÁC PHÒNG / GHẾ ĐIỀU TRỊ', 14, finalY + 8);
 
@@ -1071,36 +1192,30 @@ export const reportExportService = {
           formatPercent(r.actualUtilizationPct)
         ]),
         theme: 'striped',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontSize: 8 },
-        bodyStyles: { fontSize: 8 },
-        styles: { cellPadding: 2 },
+        headStyles: { font: fontName, fontStyle: 'bold', fillColor: [13, 148, 136], textColor: 255, fontSize: 8 },
+        bodyStyles: { font: fontName, fontSize: 8 },
+        styles: { font: fontName, cellPadding: 2 },
         showHead: 'everyPage'
       });
+
+      finalY = (doc as any).lastAutoTable?.finalY || finalY;
     }
+
+    this.renderTcvnSignatures(doc, finalY, fontName);
   },
 
   /**
    * PDF Render for P7.4
    */
-  renderP74Pdf(doc: jsPDF, params: ExportReportParams, branchName: string) {
+  renderP74Pdf(doc: jsPDF, params: ExportReportParams, branchName: string, fontName: string) {
     const data = params.data.p7_4;
     if (!data) return;
 
-    doc.setFontSize(14);
-    doc.setTextColor(30, 58, 138);
-    doc.text('BÁO CÁO PHÂN TÍCH KHÁCH HÀNG, RETENTION & COHORT (P7.4)', 14, 18);
-
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(
-      `Kỳ báo cáo: ${params.dateRange.startDate} đến ${params.dateRange.endDate}   |   Chi nhánh: ${branchName}   |   Múi giờ: Asia/Ho_Chi_Minh (UTC+7)`,
-      14,
-      24
-    );
+    this.renderTcvnHeader(doc, 'BÁO CÁO PHÂN TÍCH KHÁCH HÀNG, RETENTION & COHORT (P7.4)', params.dateRange, branchName, fontName);
 
     // Summary Metrics
     autoTable(doc, {
-      startY: 28,
+      startY: 38,
       head: [['Chỉ Số Quản Trị Khách Hàng', 'Giá Trị', 'Chỉ Số Giữ Chân & Quay Lại', 'Giá Trị']],
       body: [
         [
@@ -1129,14 +1244,15 @@ export const reportExportService = {
         ]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2 }
+      headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+      bodyStyles: { font: fontName, fontSize: 8 },
+      styles: { font: fontName, cellPadding: 2 }
     });
 
     // RFM Table
     let currentY = (doc as any).lastAutoTable?.finalY || 80;
-    doc.setFontSize(10);
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(9.5);
     doc.setTextColor(30, 58, 138);
     doc.text('BẢNG PHÂN KHÚC KHÁCH HÀNG RFM', 14, currentY + 7);
 
@@ -1156,16 +1272,17 @@ export const reportExportService = {
           : 'Duy trì trải nghiệm'
       ]),
       theme: 'striped',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2 }
+      headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+      bodyStyles: { font: fontName, fontSize: 8 },
+      styles: { font: fontName, cellPadding: 2 }
     });
 
     // Cohort Tables
     currentY = (doc as any).lastAutoTable?.finalY || 130;
     if (data.cohortServiceRetention?.length || data.cohortRepurchaseRetention?.length) {
       doc.addPage();
-      doc.setFontSize(11);
+      doc.setFont(fontName, 'bold');
+      doc.setFontSize(10);
       doc.setTextColor(30, 58, 138);
       doc.text('COHORT GIỮ CHÂN PHỤC VỤ (30 / 60 / 90 NGÀY)', 14, 18);
 
@@ -1183,13 +1300,14 @@ export const reportExportService = {
           c.retention90d.pct !== null ? formatPercent(c.retention90d.pct) : 'Chưa đủ theo dõi'
         ]),
         theme: 'grid',
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
-        bodyStyles: { fontSize: 8 },
-        styles: { cellPadding: 2 }
+        headStyles: { font: fontName, fontStyle: 'bold', fillColor: [30, 58, 138], textColor: 255, fontSize: 8 },
+        bodyStyles: { font: fontName, fontSize: 8 },
+        styles: { font: fontName, cellPadding: 2 }
       });
 
       const nextY = (doc as any).lastAutoTable?.finalY || 80;
-      doc.setFontSize(11);
+      doc.setFont(fontName, 'bold');
+      doc.setFontSize(10);
       doc.setTextColor(13, 148, 136);
       doc.text('COHORT MUA LẠI ĐƠN MỚI (30 / 60 / 90 NGÀY)', 14, nextY + 8);
 
@@ -1207,11 +1325,15 @@ export const reportExportService = {
           c.repurchase90d.pct !== null ? formatPercent(c.repurchase90d.pct) : 'Chưa đủ theo dõi'
         ]),
         theme: 'grid',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontSize: 8 },
-        bodyStyles: { fontSize: 8 },
-        styles: { cellPadding: 2 }
+        headStyles: { font: fontName, fontStyle: 'bold', fillColor: [13, 148, 136], textColor: 255, fontSize: 8 },
+        bodyStyles: { font: fontName, fontSize: 8 },
+        styles: { font: fontName, cellPadding: 2 }
       });
+
+      currentY = (doc as any).lastAutoTable?.finalY || currentY;
     }
+
+    this.renderTcvnSignatures(doc, currentY, fontName);
   },
 
   /**
