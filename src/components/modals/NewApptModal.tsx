@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Calendar, X, Check, UserPlus, Search, Clock, MapPin, Sparkles } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { masterDataService } from '../../services/masterDataService';
 import type { Customer } from '../../types';
 
 export const NewApptModal: React.FC<{
@@ -11,7 +12,7 @@ export const NewApptModal: React.FC<{
   initialDate?: string;
   initialTime?: string;
 }> = ({ isOpen, onClose, initialStaffId, initialRoomOrBed, initialDate, initialTime }) => {
-  const { customers, setCustomers, services, staffList, currentBranch, branches, addAppointment, currentTheme, showToast } = useApp();
+  const { customers, setCustomers, services, staffList, currentBranch, branches, addAppointment, currentTheme, showToast, isLiveMode } = useApp();
 
   // Step 1: Branch
   const [selectedBranchId, setSelectedBranchId] = useState(currentBranch?.id || branches[0]?.id || '');
@@ -37,12 +38,16 @@ export const NewApptModal: React.FC<{
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync selected branch on open
+  // Sync selected branch and fields on open
   useEffect(() => {
     if (isOpen) {
       if (currentBranch) setSelectedBranchId(currentBranch.id);
-      if (!customerId && customers.length > 0) setCustomerId(customers[0].id);
-      if (!serviceId && services.length > 0) setServiceId(services[0].id);
+      if (customers.length > 0 && (!customerId || !customers.some((c) => c.id === customerId))) {
+        setCustomerId(customers[0].id);
+      }
+      if (services.length > 0 && (!serviceId || !services.some((s) => s.id === serviceId))) {
+        setServiceId(services[0].id);
+      }
       if (initialStaffId) setStaffId(initialStaffId);
       if (initialRoomOrBed) setRoomOrBed(initialRoomOrBed);
       if (initialDate) setDate(initialDate);
@@ -61,10 +66,10 @@ export const NewApptModal: React.FC<{
       if (!staffId || !branchStaff.some((s) => s.id === staffId)) {
         setStaffId(branchStaff[0].id);
       }
-    } else {
-      setStaffId('');
+    } else if (staffList.length > 0 && (!staffId || !staffList.some((s) => s.id === staffId))) {
+      setStaffId(staffList[0].id);
     }
-  }, [branchStaff, staffId]);
+  }, [branchStaff, staffList, staffId]);
 
   // Filter customers by search
   const filteredCustomers = useMemo(() => {
@@ -73,10 +78,17 @@ export const NewApptModal: React.FC<{
     return customers.filter((c) => c.name.toLowerCase().includes(q) || c.phone.includes(q));
   }, [customers, customerSearch]);
 
+  // Sync customerId with filtered results
+  useEffect(() => {
+    if (filteredCustomers.length > 0 && !filteredCustomers.some((c) => c.id === customerId)) {
+      setCustomerId(filteredCustomers[0].id);
+    }
+  }, [filteredCustomers, customerId]);
+
   const selectedService = services.find((s) => s.id === serviceId) || services[0];
-  const selectedStaff = staffList.find((s) => s.id === staffId) || branchStaff[0];
+  const selectedStaff = staffList.find((s) => s.id === staffId) || branchStaff[0] || staffList[0];
   const selectedBranch = branches.find((b) => b.id === selectedBranchId) || currentBranch;
-  const targetCust = customers.find((c) => c.id === customerId);
+  const targetCust = customers.find((c) => c.id === customerId) || filteredCustomers[0] || customers[0];
 
   // Calculate estimated end time
   const endTime = useMemo(() => {
@@ -103,26 +115,76 @@ export const NewApptModal: React.FC<{
         showToast('⚠️ Vui lòng điền đủ Tên và Số điện thoại khách mới', 'warning');
         return;
       }
-      const newCustId = `c-new-${Date.now().toString().slice(-4)}`;
-      const newCustomer: Customer = {
-        id: newCustId,
-        orgId: selectedBranch?.id || '',
-        primaryBranchId: selectedBranchId,
-        name: newCustName.trim(),
-        phone: newCustPhone.trim(),
-        gender: 'female',
-        vipTier: 'standard',
-        totalSpent: 0,
-        debt: 0,
-        creditBalance: 0,
-        notes: newCustNotes.trim(),
-        createdAt: new Date().toISOString()
-      };
-      setCustomers((prev) => [newCustomer, ...prev]);
-      effectiveCustomerId = newCustId;
-      effectiveCustName = newCustName.trim();
-      effectiveCustPhone = newCustPhone.trim();
-      showToast(`✅ Đã tạo hồ sơ khách hàng: ${effectiveCustName}`, 'success');
+      if (isLiveMode) {
+        if (!selectedBranch?.orgId || !selectedBranchId) {
+          showToast('⚠️ Chưa xác định chi nhánh hợp lệ để tạo khách', 'error');
+          return;
+        }
+        setIsSubmitting(true);
+        try {
+          const created = await masterDataService.createCustomer(
+            {
+              name: newCustName.trim(),
+              phone: newCustPhone.trim(),
+              notes: newCustNotes.trim() || undefined,
+              vipTier: 'standard',
+              gender: 'female'
+            },
+            selectedBranch.orgId,
+            selectedBranchId
+          );
+          if (!created) {
+            throw new Error('Máy chủ không phản hồi bản ghi khách hàng mới');
+          }
+          setCustomers((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+          effectiveCustomerId = created.id;
+          effectiveCustName = created.name;
+          effectiveCustPhone = created.phone;
+          showToast(`✅ Đã tạo hồ sơ khách hàng: ${effectiveCustName}`, 'success');
+        } catch (err: any) {
+          setIsSubmitting(false);
+          showToast(`❌ Lỗi tạo hồ sơ khách hàng: ${err?.message || err}`, 'error');
+          return;
+        }
+      } else {
+        const newCustId = `c-new-${Date.now().toString().slice(-4)}`;
+        const newCustomer: Customer = {
+          id: newCustId,
+          orgId: selectedBranch?.id || '',
+          primaryBranchId: selectedBranchId,
+          name: newCustName.trim(),
+          phone: newCustPhone.trim(),
+          gender: 'female',
+          vipTier: 'standard',
+          totalSpent: 0,
+          debt: 0,
+          creditBalance: 0,
+          notes: newCustNotes.trim(),
+          createdAt: new Date().toISOString()
+        };
+        setCustomers((prev) => [newCustomer, ...prev]);
+        effectiveCustomerId = newCustId;
+        effectiveCustName = newCustName.trim();
+        effectiveCustPhone = newCustPhone.trim();
+        showToast(`✅ Đã tạo hồ sơ khách hàng: ${effectiveCustName}`, 'success');
+      }
+    } else {
+      const selected = filteredCustomers.find((c) => c.id === customerId) || customers.find((c) => c.id === customerId) || filteredCustomers[0] || customers[0];
+      if (selected) {
+        effectiveCustomerId = selected.id;
+        effectiveCustName = selected.name;
+        effectiveCustPhone = selected.phone;
+      }
+    }
+
+    if (!selectedService) {
+      showToast('⚠️ Vui lòng chọn dịch vụ thực hiện', 'warning');
+      return;
+    }
+
+    if (!selectedStaff) {
+      showToast('⚠️ Vui lòng chọn Bác sĩ / KTV phụ trách', 'warning');
+      return;
     }
 
     setIsSubmitting(true);
@@ -132,15 +194,15 @@ export const NewApptModal: React.FC<{
         customerId: effectiveCustomerId,
         customerName: effectiveCustName,
         customerPhone: effectiveCustPhone,
-        serviceId: selectedService?.id || 'svc-01',
-        serviceName: selectedService?.name || 'Dịch Vụ Spa',
-        staffId: selectedStaff?.id || 'stf-01',
-        staffName: selectedStaff?.name || 'KTV Phương Nam',
+        serviceId: selectedService.id,
+        serviceName: selectedService.name,
+        staffId: selectedStaff.id,
+        staffName: selectedStaff.name,
         date,
         time,
-        durationMinutes: selectedService?.durationMinutes || 60,
+        durationMinutes: selectedService.durationMinutes || 60,
         status: 'confirmed',
-        priceSnapshot: selectedService?.basePrice || 350000,
+        priceSnapshot: selectedService.basePrice || 350000,
         roomOrBed,
         notes: notes.trim()
       });
