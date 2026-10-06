@@ -88,7 +88,7 @@ export const ReportsView: React.FC = () => {
     error: null
   });
 
-  const handleOpenExportModal = () => {
+  const handleOpenExportModal = (defaultFormat: ExportFormat = 'pdf') => {
     let mappedReport: ReportType = 'p7_1';
     if (reportTab === 'cogs') mappedReport = 'p7_2';
     else if (reportTab === 'utilization') mappedReport = 'p7_3';
@@ -98,17 +98,20 @@ export const ReportsView: React.FC = () => {
       ...prev,
       isOpen: true,
       selectedReport: mappedReport,
+      format: defaultFormat,
       error: null,
       statusText: ''
     }));
   };
 
-  const handleExecuteExport = async () => {
+  const handleExecuteExport = async (formatOverride?: ExportFormat) => {
+    const activeFormat = formatOverride || exportModal.format;
     setExportModal((prev) => ({
       ...prev,
+      format: activeFormat,
       isExporting: true,
       error: null,
-      statusText: 'Đang chuẩn bị dữ liệu báo cáo...'
+      statusText: `Đang chuẩn bị dữ liệu xuất file ${activeFormat.toUpperCase()}...`
     }));
 
     try {
@@ -117,7 +120,7 @@ export const ReportsView: React.FC = () => {
           ? 'Toan_Chuoi'
           : (branches.find((b) => b.id === selectedBranchId)?.name || 'Chi_Nhanh').replace(/\s+/g, '_');
 
-      const ext = exportModal.format === 'excel' ? 'xlsx' : 'pdf';
+      const ext = activeFormat === 'excel' ? 'xlsx' : 'pdf';
       const reportCodeMap: Record<ReportType, string> = {
         p7_1: 'Bao_Cao_Ban_Hang_Dong_Tien_P7_1',
         p7_2: 'Bao_Cao_Gia_Von_Lai_Gop_P7_2',
@@ -128,7 +131,7 @@ export const ReportsView: React.FC = () => {
 
       const blob = await reportExportService.exportReport({
         reportType: exportModal.selectedReport,
-        format: exportModal.format,
+        format: activeFormat,
         detailLevel: exportModal.detailLevel,
         dateRange: { startDate, endDate },
         selectedBranchId,
@@ -154,6 +157,25 @@ export const ReportsView: React.FC = () => {
         error: err.message || 'Xuất file thất bại. Vui lòng thử lại!'
       }));
     }
+  };
+
+  const handleQuickExport = (format: ExportFormat) => {
+    let mappedReport: ReportType = 'p7_1';
+    if (reportTab === 'cogs') mappedReport = 'p7_2';
+    else if (reportTab === 'utilization') mappedReport = 'p7_3';
+    else if (reportTab === 'retention') mappedReport = 'p7_4';
+
+    setExportModal({
+      isOpen: true,
+      selectedReport: mappedReport,
+      format,
+      detailLevel: 'full',
+      isExporting: true,
+      statusText: `Đang tạo file ${format.toUpperCase()}...`,
+      error: null
+    });
+
+    handleExecuteExport(format);
   };
 
   // Handle Preset Date Selection
@@ -319,7 +341,7 @@ export const ReportsView: React.FC = () => {
           <button
             onClick={fetchReport}
             disabled={loading}
-            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl flex items-center space-x-1 transition-all disabled:opacity-50"
+            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl flex items-center space-x-1 transition-all disabled:opacity-50 cursor-pointer"
             title="Làm mới dữ liệu từ máy chủ"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-sky-600' : ''}`} />
@@ -327,12 +349,32 @@ export const ReportsView: React.FC = () => {
           </button>
 
           <button
-            onClick={handleOpenExportModal}
-            className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition-all"
-            title="Xuất báo cáo định dạng Excel (.xlsx) hoặc PDF Quản trị"
+            onClick={() => handleQuickExport('excel')}
+            disabled={loading || exportModal.isExporting}
+            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+            title="Xuất trực tiếp file Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Xuất Excel</span>
+          </button>
+
+          <button
+            onClick={() => handleQuickExport('pdf')}
+            disabled={loading || exportModal.isExporting}
+            className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+            title="Xuất trực tiếp file PDF chuẩn TCVN (.pdf)"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Xuất PDF (TCVN)</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenExportModal('pdf')}
+            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-2 rounded-xl flex items-center space-x-1 transition-all cursor-pointer"
+            title="Mở bảng tùy chọn nâng cao"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Xuất Báo Cáo (Excel / PDF)</span>
+            <span>Tùy chọn...</span>
           </button>
         </div>
       </div>
@@ -1763,32 +1805,32 @@ export const ReportsView: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setExportModal((p) => ({ ...p, isOpen: false }))}
                   disabled={exportModal.isExporting}
-                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition-all disabled:opacity-50"
+                  className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  Hủy Bỏ
+                  Đóng
                 </button>
                 <button
                   type="button"
-                  onClick={handleExecuteExport}
+                  onClick={() => handleExecuteExport('excel')}
                   disabled={exportModal.isExporting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all flex items-center space-x-1.5 disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
                 >
-                  {exportModal.isExporting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang Xuất File...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Bắt Đầu Xuất File</span>
-                    </>
-                  )}
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Tải File Excel (.xlsx)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExecuteExport('pdf')}
+                  disabled={exportModal.isExporting}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Tải File PDF (TCVN)</span>
                 </button>
               </div>
             </div>
