@@ -545,14 +545,6 @@ export const ExpView: React.FC = () => {
             </div>
           ) : (
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
-              {/* Cảnh báo trạng thái đối soát */}
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                <p className="text-[11px] font-semibold text-amber-900 leading-tight">
-                  <span className="font-bold uppercase tracking-wider text-amber-800 mr-1">[ĐANG ĐỐI SOÁT]:</span>
-                  Báo cáo P&L đang trong giai đoạn đối soát đa kỳ (Staging Rehearsal) — Chưa sử dụng để chốt số liệu tài chính chính thức.
-                </p>
-              </div>
 
               <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
