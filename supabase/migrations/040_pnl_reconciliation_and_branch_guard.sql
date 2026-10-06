@@ -1,9 +1,9 @@
+-- SHA256_CHECKSUM: fc7c13a8b3d3ae5ebae9388a015efb5463228d9b34c41ee479713d6be2347e23
 -- =============================================================================
--- MIGRATION 040: BẢN VÁ HOÀN THIỆN TOÀN DIỆN BÁO CÁO P&L & BẢO VỆ ĐA CHI NHÁNH
--- Mục tiêu:
--- 1. Phân quyền chi nhánh chặt chẽ: branch_manager truyền p_branch_id=NULL chỉ được xem các chi nhánh được phân quyền.
--- 2. Phiếu chi & Hoàn chi chuẩn kế toán: Giữ nguyên chi gốc status IN ('disbursed', 'reversed'), ghi nhận hoàn chi đúng kỳ thực tế.
--- 3. Doanh thu liệu trình chuẩn xác: Bỏ hoàn toàn fallback s.total_amount, đánh dấu buổi chưa đối soát.
+-- MIGRATION 040.2-STAGING: BẢN VÁ HOÀN THIỆN NGHIỆP VỤ P&L & BẢO VỆ PHÂN QUYỀN ĐA CHI NHÁNH
+-- Target Database: Staging (yvwsitkgpujeqlgeiuge)
+-- Environment: STAGING ONLY (DO NOT APPLY TO PRODUCTION)
+-- Released: 2026-10-06T10:05:00+07:00
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION rpc_get_operating_pnl_report(
@@ -123,7 +123,7 @@ BEGIN
     -- 2. GÓC NHÌN DOANH THU THỰC HIỆN VẬN HÀNH (P7.2 RECOGNIZED REVENUE KPI)
     -- -------------------------------------------------------------------------
     -- A. Doanh thu Sản phẩm bán lẻ trong kỳ (sau phân bổ giảm giá hóa đơn)
-    SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
+    SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
     INTO v_recognized_product_sales
     FROM sale_items si
     JOIN sales s ON s.id = si.sale_id
@@ -136,42 +136,84 @@ BEGIN
       AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
       AND si.item_type = 'product';
 
-    -- B. Doanh thu Dịch vụ lẻ làm ngay trong kỳ (sau phân bổ giảm giá hóa đơn)
-    SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (s.discount_amount::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
-    INTO v_recognized_single_services
-    FROM sale_items si
-    JOIN sales s ON s.id = si.sale_id
-    WHERE s.organization_id = p_org_id
-      AND (
-          (p_branch_id IS NOT NULL AND s.branch_id = p_branch_id)
-          OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(s.branch_id)))
-      )
-      AND s.status NOT IN ('cancelled', 'refunded')
-      AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
-      AND si.item_type = 'service';
-
-    -- C. Doanh thu Trừ buổi Liệu trình thực hiện trong kỳ (Chỉ tính khi có dòng hóa đơn gốc đối soát)
-    WITH deduction_details AS (
+    -- B. Doanh thu Dịch vụ lẻ làm ngay / hoàn thành theo sự kiện thực hiện trong kỳ (sau phân bổ giảm giá)
+    WITH single_service_fulfillments AS (
         SELECT 
-            sd.id AS deduction_id,
-            sd.sessions_deducted,
+            si.id AS sale_item_id,
+            si.sale_id,
+            s.organization_id,
+            s.branch_id,
+            ROUND(si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0)))) AS net_service_amount,
+            COALESCE(
+                (
+                    SELECT ts.performed_at
+                    FROM treatment_sessions ts
+                    WHERE ts.organization_id = s.organization_id
+                      AND ts.customer_id = s.customer_id
+                      AND ts.status = 'completed'
+                      AND ts.course_id IS NULL
+                      AND ts.performed_at >= s.created_at - INTERVAL '1 day'
+                    ORDER BY ts.performed_at ASC
+                    LIMIT 1
+                ),
+                s.created_at
+            ) AS service_performed_at
+        FROM sale_items si
+        JOIN sales s ON s.id = si.sale_id
+        WHERE s.organization_id = p_org_id
+          AND s.status NOT IN ('cancelled', 'refunded')
+          AND si.item_type = 'service'
+    )
+    SELECT COALESCE(SUM(net_service_amount), 0)
+    INTO v_recognized_single_services
+    FROM single_service_fulfillments ssf
+    WHERE ssf.organization_id = p_org_id
+      AND (
+          (p_branch_id IS NOT NULL AND ssf.branch_id = p_branch_id)
+          OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(ssf.branch_id)))
+      )
+      AND ssf.service_performed_at >= v_start_ts AND ssf.service_performed_at < v_next_day_ts;
+
+    -- C. Doanh thu Trừ buổi Liệu trình thực hiện trong kỳ (Chống nhân bản dòng khi JOIN & Bỏ hoàn toàn Fallback)
+    WITH course_unit_prices AS (
+        SELECT 
+            cc.id AS course_id,
             cc.total_sessions,
-            si.line_total,
-            s.discount_amount,
-            s.subtotal,
             CASE 
-                WHEN si.id IS NOT NULL AND cc.total_sessions > 0 THEN
-                    ROUND(
-                        sd.sessions_deducted::NUMERIC * (
-                            (si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0)))) / cc.total_sessions
-                        )
-                    )
+                WHEN cc.sale_id IS NOT NULL THEN (
+                    SELECT 
+                        SUM(si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0))))
+                        / NULLIF((
+                            SELECT SUM(cc2.total_sessions)
+                            FROM customer_courses cc2
+                            WHERE cc2.sale_id = cc.sale_id
+                              AND (cc2.package_id IS NOT DISTINCT FROM cc.package_id)
+                              AND (cc2.service_id IS NOT DISTINCT FROM cc.service_id)
+                        ), 0)
+                    FROM sale_items si
+                    JOIN sales s ON s.id = si.sale_id
+                    WHERE si.sale_id = cc.sale_id
+                      AND (si.item_ref_id = cc.package_id OR si.item_ref_id = cc.service_id)
+                      AND s.status NOT IN ('cancelled', 'refunded')
+                )
                 ELSE NULL
-            END AS calculated_revenue
+            END AS unit_session_price
+        FROM customer_courses cc
+        WHERE cc.organization_id = p_org_id
+    ),
+    deduction_calculations AS (
+        SELECT 
+            sd.id,
+            sd.sessions_deducted,
+            cup.unit_session_price,
+            CASE 
+                WHEN cup.unit_session_price IS NOT NULL THEN
+                    ROUND(sd.sessions_deducted::NUMERIC * cup.unit_session_price)
+                ELSE NULL
+            END AS session_revenue
         FROM session_deductions sd
         JOIN customer_courses cc ON cc.id = sd.course_id
-        LEFT JOIN sales s ON s.id = cc.sale_id AND s.status NOT IN ('cancelled', 'refunded')
-        LEFT JOIN sale_items si ON si.sale_id = cc.sale_id AND (si.item_ref_id = cc.package_id OR si.item_ref_id = cc.service_id)
+        JOIN course_unit_prices cup ON cup.course_id = cc.id
         WHERE cc.organization_id = p_org_id
           AND (
               (p_branch_id IS NOT NULL AND sd.branch_id = p_branch_id)
@@ -180,10 +222,10 @@ BEGIN
           AND sd.performed_at >= v_start_ts AND sd.performed_at < v_next_day_ts
     )
     SELECT 
-        COALESCE(SUM(calculated_revenue), 0),
-        COALESCE(SUM(CASE WHEN calculated_revenue IS NULL THEN sessions_deducted ELSE 0 END), 0)
+        COALESCE(SUM(session_revenue), 0),
+        COALESCE(SUM(CASE WHEN session_revenue IS NULL THEN sessions_deducted ELSE 0 END), 0)
     INTO v_earned_treatment_revenue, v_unreconciled_sessions_count
-    FROM deduction_details;
+    FROM deduction_calculations;
 
     -- Tổng doanh thu thực hiện vận hành (Recognized Revenue)
     v_total_recognized_revenue := v_recognized_product_sales + v_recognized_single_services + v_earned_treatment_revenue;
@@ -237,7 +279,7 @@ BEGIN
       AND status IN ('eligible', 'approved', 'paid')
       AND occurred_at >= v_start_ts AND occurred_at < v_next_day_ts;
 
-    -- B. Chi phí vận hành đã từng giải ngân trong kỳ (Bảo toàn lịch sử: status IN ('disbursed', 'reversed'))
+    -- B. Chi phí vận hành đã thực sự giải ngân trong kỳ (Bảo toàn lịch sử: status IN ('disbursed', 'reversed') HOẶC disbursed_at IS NOT NULL)
     SELECT COALESCE(SUM(amount), 0) INTO v_operating_expenses_gross
     FROM expense_vouchers
     WHERE organization_id = p_org_id
@@ -245,10 +287,13 @@ BEGIN
           (p_branch_id IS NOT NULL AND branch_id = p_branch_id)
           OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(branch_id)))
       )
-      AND status IN ('disbursed', 'reversed')
+      AND (
+          status IN ('disbursed', 'reversed')
+          OR disbursed_at IS NOT NULL
+      )
       AND expense_date BETWEEN p_start_date AND p_end_date;
 
-    -- C. Bút toán hoàn chi phát sinh trong kỳ (Expense Reversals theo ngày xảy ra)
+    -- C. Bút toán hoàn chi phát sinh trong kỳ (Expense Reversals theo ngày thực tế xảy ra)
     SELECT COALESCE(SUM(amount), 0) INTO v_expense_reversals
     FROM cashflow_ledger
     WHERE organization_id = p_org_id
@@ -283,7 +328,10 @@ BEGIN
               (p_branch_id IS NOT NULL AND branch_id = p_branch_id)
               OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(branch_id)))
           )
-          AND status IN ('disbursed', 'reversed')
+          AND (
+              status IN ('disbursed', 'reversed')
+              OR disbursed_at IS NOT NULL
+          )
           AND expense_date BETWEEN p_start_date AND p_end_date
         GROUP BY category_name
         ORDER BY total_amount DESC
