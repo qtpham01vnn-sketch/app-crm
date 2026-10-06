@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, AlertCircle, Loader2, Shield } from 'lucide-react';
 import { authService } from '../../services/authService';
+import { supabaseEnvType } from '../../lib/supabase';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -63,11 +64,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, errorMessa
             Sử dụng tài khoản nhân viên được cấp bởi quản trị viên
           </p>
 
-          {/* Quick Selection for Staging */}
-          <div className="mb-5 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl">
-            <p className="text-[11px] font-bold text-amber-900 mb-1.5 flex items-center gap-1">
-              ⚡ Điền nhanh tài khoản Diễn tập Staging:
-            </p>
+          {/* Quick Selection for Staging Only */}
+          {supabaseEnvType === 'staging' && (
+            <div className="mb-5 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl">
+              <p className="text-[11px] font-bold text-amber-900 mb-1.5 flex items-center gap-1">
+                ⚡ Điền nhanh tài khoản Diễn tập Staging:
+              </p>
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"

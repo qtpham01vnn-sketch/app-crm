@@ -42,16 +42,33 @@ export const ExpView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const [pnlLoading, setPnlLoading] = useState(false);
+  const [pnlError, setPnlError] = useState<string | null>(null);
+
+  const loadPnL = async () => {
+    setPnlLoading(true);
+    setPnlError(null);
+    try {
+      const pnl = await expenseService.getOperatingPnLReport(orgId, currentBranch?.id, startDate, endDate);
+      setPnlReport(pnl);
+    } catch (err: any) {
+      console.warn('Lỗi khi tải báo cáo P&L:', err);
+      setPnlError(err.message || 'Không thể tải báo cáo P&L từ máy chủ.');
+      setPnlReport(null);
+    } finally {
+      setPnlLoading(false);
+    }
+  };
+
   const loadData = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const [cats, accs, vchs, cfl, pnl] = await Promise.all([
+      const [cats, accs, vchs, cfl] = await Promise.all([
         expenseService.getCategories(orgId),
         expenseService.getAccounts(orgId, currentBranch?.id),
         expenseService.getVouchers(orgId, currentBranch?.id, startDate, endDate),
-        expenseService.getCashflowLedger(orgId, currentBranch?.id, 50),
-        expenseService.getOperatingPnLReport(orgId, currentBranch?.id, startDate, endDate)
+        expenseService.getCashflowLedger(orgId, currentBranch?.id, 50)
       ]);
 
       setCategories(cats);
@@ -62,13 +79,15 @@ export const ExpView: React.FC = () => {
 
       setVouchers(vchs);
       setCashflow(cfl);
-      setPnlReport(pnl);
     } catch (err: any) {
       console.error('Lỗi khi tải dữ liệu sổ quỹ & chi phí:', err);
       setErrorMessage(err.message || 'Lỗi không xác định khi kết nối cơ sở dữ liệu');
     } finally {
       setIsLoading(false);
     }
+
+    // Tải PnL độc lập để không chặn các tab sổ quỹ/phiếu chi
+    loadPnL();
   };
 
   useEffect(() => {
@@ -495,45 +514,76 @@ export const ExpView: React.FC = () => {
       {/* TAB 3: BÁO CÁO LÃI/LỖ (P&L) */}
       {activeTab === 'pnl' && (
         <div className="space-y-6">
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
-            <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
-              <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
-              <span className="text-[10px] text-slate-500 italic">Đối chiếu theo nguồn P7.1 & P7.2</span>
+          {pnlLoading ? (
+            <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200/80 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xs font-semibold text-slate-600">Đang tổng hợp báo cáo kinh doanh vận hành (P&L)...</p>
             </div>
-            
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="font-bold text-slate-700">1. Tổng Doanh Thu Hóa Đơn (Net Invoiced Sales):</span>
-                <span className="font-bold text-slate-900">{((pnlReport?.sales_and_revenue.net_invoiced_sales || 0)).toLocaleString('vi-VN')}đ</span>
+          ) : pnlError || !pnlReport ? (
+            <div className="bg-rose-50/60 p-6 rounded-2xl border border-rose-200 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-bold text-sm text-rose-900">Chưa tải được báo cáo kết quả hoạt động kinh doanh (P&L)</h4>
+                  <p className="text-xs text-rose-700">
+                    {pnlError || 'Hàm tổng hợp P&L từ máy chủ chưa sẵn sàng hoặc đang được nâng cấp.'}
+                  </p>
+                  <p className="text-[11px] text-rose-600/90 italic">
+                    Hệ thống không hiển thị số 0 giả định để bảo đảm tính chính xác tuyệt đối của số liệu tài chính.
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                <span>2. Giá Vốn Hàng Bán & Tiêu Hao (COGS):</span>
-                <span className="font-mono text-rose-600">- {((pnlReport?.cogs_and_gross_profit.total_cogs || 0)).toLocaleString('vi-VN')}đ</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-200 font-bold bg-indigo-50/50 px-2 rounded-lg">
-                <span className="text-indigo-900">3. LỢI NHUẬN GỘP SAU COGS (1 - 2):</span>
-                <span className="text-indigo-700 font-black">
-                  {((pnlReport?.cogs_and_gross_profit.gross_profit_after_cogs || 0)).toLocaleString('vi-VN')}đ 
-                  <span className="text-[10px] ml-1 text-indigo-500 font-normal">({pnlReport?.cogs_and_gross_profit.gross_profit_margin_pct || 0}%)</span>
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                <span>4. Hoa Hồng KTV & Bác Sĩ:</span>
-                <span className="font-mono text-rose-600">- {((pnlReport?.operating_deductions.staff_commissions || 0)).toLocaleString('vi-VN')}đ</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                <span>5. Chi Phí Vận Hành Đã Thực Chi (OPEX):</span>
-                <span className="font-mono text-rose-600">- {((pnlReport?.operating_deductions.operating_expenses_opex || 0)).toLocaleString('vi-VN')}đ</span>
-              </div>
-              <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black bg-sky-50 px-2 rounded-lg text-sm">
-                <span className="text-sky-900">6. LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS) (3 - 4 - 5):</span>
-                <span className={`${(pnlReport?.operating_surplus_preliminary.amount || 0) >= 0 ? 'text-sky-800' : 'text-rose-700'}`}>
-                  {((pnlReport?.operating_surplus_preliminary.amount || 0)).toLocaleString('vi-VN')}đ
-                  <span className="text-xs ml-1 text-slate-500 font-normal">({pnlReport?.operating_surplus_preliminary.operating_margin_pct || 0}%)</span>
-                </span>
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={loadPnL}
+                  className="px-3 py-1.5 bg-white border border-rose-200 text-rose-700 hover:bg-rose-100/50 rounded-lg text-xs font-semibold shadow-xs transition-all"
+                >
+                  🔄 Tải lại báo cáo
+                </button>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
+              <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
+                <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
+                <span className="text-[10px] text-slate-500 italic">Đối chiếu theo nguồn P7.1 & P7.2</span>
+              </div>
+              
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="font-bold text-slate-700">1. Tổng Doanh Thu Hóa Đơn (Net Invoiced Sales):</span>
+                  <span className="font-bold text-slate-900">{((pnlReport.sales_and_revenue?.net_invoiced_sales || 0)).toLocaleString('vi-VN')}đ</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+                  <span>2. Giá Vốn Hàng Bán & Tiêu Hao (COGS):</span>
+                  <span className="font-mono text-rose-600">- {((pnlReport.cogs_and_gross_profit?.total_cogs || 0)).toLocaleString('vi-VN')}đ</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-200 font-bold bg-indigo-50/50 px-2 rounded-lg">
+                  <span className="text-indigo-900">3. LỢI NHUẬN GỘP SAU COGS (1 - 2):</span>
+                  <span className="text-indigo-700 font-black">
+                    {((pnlReport.cogs_and_gross_profit?.gross_profit_after_cogs || 0)).toLocaleString('vi-VN')}đ 
+                    <span className="text-[10px] ml-1 text-indigo-500 font-normal">({pnlReport.cogs_and_gross_profit?.gross_profit_margin_pct || 0}%)</span>
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+                  <span>4. Hoa Hồng KTV & Bác Sĩ:</span>
+                  <span className="font-mono text-rose-600">- {((pnlReport.operating_deductions?.staff_commissions || 0)).toLocaleString('vi-VN')}đ</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+                  <span>5. Chi Phí Vận Hành Đã Thực Chi (OPEX):</span>
+                  <span className="font-mono text-rose-600">- {((pnlReport.operating_deductions?.operating_expenses_opex || 0)).toLocaleString('vi-VN')}đ</span>
+                </div>
+                <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black bg-sky-50 px-2 rounded-lg text-sm">
+                  <span className="text-sky-900">6. LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS) (3 - 4 - 5):</span>
+                  <span className={`${(pnlReport.operating_surplus_preliminary?.amount || 0) >= 0 ? 'text-sky-800' : 'text-rose-700'}`}>
+                    {((pnlReport.operating_surplus_preliminary?.amount || 0)).toLocaleString('vi-VN')}đ
+                    <span className="text-xs ml-1 text-slate-500 font-normal">({pnlReport.operating_surplus_preliminary?.operating_margin_pct || 0}%)</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
