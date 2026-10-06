@@ -545,16 +545,74 @@ export const ExpView: React.FC = () => {
             </div>
           ) : (
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4">
+              {/* Cảnh báo trạng thái đối soát */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <p className="text-[11px] font-semibold text-amber-900 leading-tight">
+                  <span className="font-bold uppercase tracking-wider text-amber-800 mr-1">[ĐANG ĐỐI SOÁT]:</span>
+                  Báo cáo P&L đang trong giai đoạn đối soát đa kỳ (Staging Rehearsal) — Chưa sử dụng để chốt số liệu tài chính chính thức.
+                </p>
+              </div>
+
               <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-slate-900">Báo Cáo Kết Quả Hoạt Động Kinh Doanh Sơ Bộ (P&L)</h4>
                 <span className="text-[10px] text-slate-500 italic">Đối chiếu theo nguồn P7.1 & P7.2</span>
               </div>
               
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="font-bold text-slate-700">1. Tổng Doanh Thu Hóa Đơn (Net Invoiced Sales):</span>
-                  <span className="font-bold text-slate-900">{((pnlReport.sales_and_revenue?.net_invoiced_sales || 0)).toLocaleString('vi-VN')}đ</span>
+              {/* PHẦN 1: GÓC NHÌN BÁN HÀNG & DÒNG TIỀN (P7.1) */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
+                <h5 className="font-bold text-xs text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  💵 Góc nhìn 1: Bán Hàng & Dòng Tiền (Invoicing & Cashflow)
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-[11px] text-slate-500 block">Doanh số hóa đơn (Net Invoiced):</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {(pnlReport.invoicing_and_cashflow_kpi?.net_invoiced_sales ?? pnlReport.sales_and_revenue?.net_invoiced_sales ?? 0).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                    <span className="text-[11px] text-emerald-700 block">Dòng tiền thực thu trong kỳ:</span>
+                    <span className="font-bold text-emerald-800 text-sm">
+                      {(pnlReport.invoicing_and_cashflow_kpi?.cash_collected ?? pnlReport.sales_and_revenue?.cash_collected ?? 0).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-rose-50 rounded-lg border border-rose-100">
+                    <span className="text-[11px] text-rose-700 block">Hoàn trả khách hàng trong kỳ:</span>
+                    <span className="font-bold text-rose-800 text-sm">
+                      {(pnlReport.invoicing_and_cashflow_kpi?.cash_refunded ?? 0).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
                 </div>
+              </div>
+
+              {/* PHẦN 2: GÓC NHÌN DOANH THU THỰC HIỆN & LỢI NHUẬN (P7.2) */}
+              <div className="space-y-2 text-xs pt-1">
+                <h5 className="font-bold text-xs text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  📊 Góc nhìn 2: Doanh Thu Thực Hiện & Lợi Nhuận Vận Hành
+                </h5>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="font-bold text-slate-700">1. Tổng Doanh Thu Thực Hiện (Recognized Revenue):</span>
+                  <span className="font-bold text-slate-900">
+                    {(pnlReport.recognized_revenue_kpi?.total_recognized_revenue ?? pnlReport.sales_and_revenue?.net_invoiced_sales ?? 0).toLocaleString('vi-VN')}đ
+                  </span>
+                </div>
+                {pnlReport.recognized_revenue_kpi && (
+                  <div className="pl-4 text-[11px] text-slate-500 space-y-1">
+                    <div className="flex justify-between">
+                      <span>• Bán lẻ sản phẩm:</span>
+                      <span className="font-mono">{(pnlReport.recognized_revenue_kpi.recognized_product_sales || 0).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>• Dịch vụ lẻ làm ngay:</span>
+                      <span className="font-mono">{(pnlReport.recognized_revenue_kpi.recognized_single_services || 0).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>• Trừ buổi liệu trình thực tế:</span>
+                      <span className="font-mono">{(pnlReport.recognized_revenue_kpi.earned_treatment_revenue || 0).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
                   <span>2. Giá Vốn Hàng Bán & Tiêu Hao (COGS):</span>
                   <span className="font-mono text-rose-600">- {((pnlReport.cogs_and_gross_profit?.total_cogs || 0)).toLocaleString('vi-VN')}đ</span>
@@ -571,8 +629,10 @@ export const ExpView: React.FC = () => {
                   <span className="font-mono text-rose-600">- {((pnlReport.operating_deductions?.staff_commissions || 0)).toLocaleString('vi-VN')}đ</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-                  <span>5. Chi Phí Vận Hành Đã Thực Chi (OPEX):</span>
-                  <span className="font-mono text-rose-600">- {((pnlReport.operating_deductions?.operating_expenses_opex || 0)).toLocaleString('vi-VN')}đ</span>
+                  <span>5. Chi Phí Vận Hành Thực Tế (Net OPEX sau hoàn chi):</span>
+                  <span className="font-mono text-rose-600">
+                    - {((pnlReport.operating_deductions?.net_operating_expenses ?? pnlReport.operating_deductions?.operating_expenses_opex ?? 0)).toLocaleString('vi-VN')}đ
+                  </span>
                 </div>
                 <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black bg-sky-50 px-2 rounded-lg text-sm">
                   <span className="text-sky-900">6. LỢI NHUẬN HOẠT ĐỘNG SƠ BỘ (OPERATING SURPLUS) (3 - 4 - 5):</span>

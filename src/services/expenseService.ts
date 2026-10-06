@@ -66,19 +66,38 @@ export interface CashflowEntry {
 
 export interface OperatingPnLReport {
   period: { start_date: string; end_date: string };
-  sales_and_revenue: {
+  invoicing_and_cashflow_kpi?: {
+    gross_sales: number;
+    total_discounts: number;
+    net_invoiced_sales: number;
+    cash_collected: number;
+    cash_refunded: number;
+    net_cash_collected: number;
+  };
+  recognized_revenue_kpi?: {
+    recognized_product_sales: number;
+    recognized_single_services: number;
+    earned_treatment_revenue: number;
+    total_recognized_revenue: number;
+  };
+  sales_and_revenue?: {
     gross_sales: number;
     net_invoiced_sales: number;
     cash_collected: number;
   };
   cogs_and_gross_profit: {
+    cogs_products?: number;
+    material_cost?: number;
     total_cogs: number;
     gross_profit_after_cogs: number;
     gross_profit_margin_pct: number;
   };
   operating_deductions: {
     staff_commissions: number;
-    operating_expenses_opex: number;
+    operating_expenses_gross?: number;
+    expense_reversals?: number;
+    net_operating_expenses?: number;
+    operating_expenses_opex?: number;
   };
   operating_surplus_preliminary: {
     amount: number;
