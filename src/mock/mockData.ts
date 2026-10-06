@@ -481,7 +481,7 @@ export const mockSessionDeductions: SessionDeduction[] = [
     sessionsDeducted: 1,
     performedAt: '2026-02-01 14:30',
     notes: 'Buổi 1: Bắn Laser Toning mức năng lượng 1.2J tại Q1. Da ửng nhẹ, đã đắp mask B5.',
-    customerSignature: 'Đặng Thu Thảo'
+    customerSignature: 'Chị Nguyễn Mai Anh'
   },
   {
     id: 'ded-02',
@@ -491,7 +491,7 @@ export const mockSessionDeductions: SessionDeduction[] = [
     sessionsDeducted: 1,
     performedAt: '2026-02-18 15:00',
     notes: 'Buổi 2: Làm liên chi nhánh tại Quận 7 (BS. Đức). Tăng năng lượng lên 1.4J. Da đáp ứng rất tốt.',
-    customerSignature: 'Đặng Thu Thảo'
+    customerSignature: 'Chị Nguyễn Mai Anh'
   },
   {
     id: 'ded-03',
@@ -501,7 +501,7 @@ export const mockSessionDeductions: SessionDeduction[] = [
     sessionsDeducted: 1,
     performedAt: '2026-01-20 10:30',
     notes: 'Buổi 1: Lấy nhân mụn chuẩn y khoa & chiếu đèn sinh học tại Q7.',
-    customerSignature: 'Hoàng Bảo Ngọc'
+    customerSignature: 'Chị Hoàng Bảo Ngọc'
   }
 ];
 

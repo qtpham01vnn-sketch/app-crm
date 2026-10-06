@@ -261,7 +261,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch { /* ignore */ }
   }, [courses]);
 
-  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
+  const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('vua_app_session_deductions') : null;
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return mockSessionDeductions;
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('vua_app_session_deductions', JSON.stringify(sessionDeductions));
+      }
+    } catch { /* ignore */ }
+  }, [sessionDeductions]);
+
+  // Auto-sync deduction logs for any course that has usedSessions > 0
+  useEffect(() => {
+    setSessionDeductions((prevDeds) => {
+      let updated = [...prevDeds];
+      let hasChanges = false;
+
+      courses.forEach((crs) => {
+        const existingForCourse = updated.filter((d) => d.courseId === crs.id);
+        const missingCount = crs.usedSessions - existingForCourse.length;
+        if (missingCount > 0) {
+          hasChanges = true;
+          const cust = customers.find((c) => c.id === crs.customerId);
+          const custName = cust?.name || crs.customerName || (crs.customerId === 'c-01' ? 'Chị Nguyễn Mai Anh' : 'Khách Hàng');
+          for (let i = 0; i < missingCount; i++) {
+            const sessionNum = existingForCourse.length + i + 1;
+            updated.unshift({
+              id: `ded-${crs.id}-${sessionNum}-${Date.now().toString().slice(-4)}`,
+              courseId: crs.id,
+              branchId: crs.soldBranchId || currentBranch?.id || '',
+              staffId: 'st-01',
+              sessionsDeducted: 1,
+              performedAt: new Date(Date.now() - (missingCount - 1 - i) * 1800000).toISOString().replace('T', ' ').slice(0, 16),
+              notes: `Buổi ${sessionNum}: Lấy nhân mụn chuẩn y khoa, bắn Laser Pico 1.4J, đắp mặt nạ phục hồi da B5. Tình trạng da đáp ứng tốt.`,
+              customerSignature: custName
+            });
+          }
+        }
+      });
+
+      return hasChanges ? updated : prevDeds;
+    });
+  }, [courses, customers, currentBranch?.id]);
+
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [sales, setSales] = useState<Sale[]>(() => {
     try {

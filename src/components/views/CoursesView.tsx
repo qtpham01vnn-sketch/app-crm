@@ -294,7 +294,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
 
                       <div className="flex flex-wrap items-center justify-between pt-1 text-[11px] text-slate-500 gap-1">
                         <span>Cơ sở làm: <b className="text-indigo-700">{performedBranch?.name || 'Chi Nhánh Quận 1 (Trụ sở)'}</b></span>
-                        <span>Bác sĩ / KTV: <b className="text-slate-800 font-bold">{doctorName}</b> • Ký: <b>{ded.customerSignature || activeCustName}</b></span>
+                        <span>Bác sĩ / KTV: <b className="text-slate-800 font-bold">{doctorName}</b> • Khách ký xác nhận: <b className="text-emerald-800 font-bold">{ded.customerSignature || activeCustName}</b></span>
                       </div>
                     </div>
                   );
@@ -308,7 +308,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
               className="w-full mt-3 py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 flex items-center justify-center space-x-2 transition-all cursor-pointer text-xs shadow-xs active:scale-98"
             >
               <Sparkles className="w-4 h-4 text-indigo-600" />
-              <span>Xem Hồ Sơ Bệnh Án & Chụp/Tải Ảnh So Sánh (Before/After)</span>
+              <span>Xem Bệnh Án Điện Tử & Chụp/Tải Ảnh So Sánh (Before/After) của {activeCustName}</span>
             </button>
           </div>
         ) : (
