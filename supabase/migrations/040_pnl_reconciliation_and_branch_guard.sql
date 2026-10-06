@@ -1,9 +1,8 @@
--- SHA256_CHECKSUM: fc7c13a8b3d3ae5ebae9388a015efb5463228d9b34c41ee479713d6be2347e23
 -- =============================================================================
--- MIGRATION 040.2-STAGING: BẢN VÁ HOÀN THIỆN NGHIỆP VỤ P&L & BẢO VỆ PHÂN QUYỀN ĐA CHI NHÁNH
+-- MIGRATION 040.3-STAGING: BẢN VÁ HOÀN THIỆN NGHIỆP VỤ P&L & BẢO VỆ PHÂN QUYỀN ĐA CHI NHÁNH
 -- Target Database: Staging (yvwsitkgpujeqlgeiuge)
 -- Environment: STAGING ONLY (DO NOT APPLY TO PRODUCTION)
--- Released: 2026-10-06T10:05:00+07:00
+-- Released: 2026-10-06T10:15:00+07:00
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION rpc_get_operating_pnl_report(
@@ -136,45 +135,24 @@ BEGIN
       AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
       AND si.item_type = 'product';
 
-    -- B. Doanh thu Dịch vụ lẻ làm ngay / hoàn thành theo sự kiện thực hiện trong kỳ (sau phân bổ giảm giá)
-    WITH single_service_fulfillments AS (
-        SELECT 
-            si.id AS sale_item_id,
-            si.sale_id,
-            s.organization_id,
-            s.branch_id,
-            ROUND(si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0)))) AS net_service_amount,
-            COALESCE(
-                (
-                    SELECT ts.performed_at
-                    FROM treatment_sessions ts
-                    WHERE ts.organization_id = s.organization_id
-                      AND ts.customer_id = s.customer_id
-                      AND ts.status = 'completed'
-                      AND ts.course_id IS NULL
-                      AND ts.performed_at >= s.created_at - INTERVAL '1 day'
-                    ORDER BY ts.performed_at ASC
-                    LIMIT 1
-                ),
-                s.created_at
-            ) AS service_performed_at
-        FROM sale_items si
-        JOIN sales s ON s.id = si.sale_id
-        WHERE s.organization_id = p_org_id
-          AND s.status NOT IN ('cancelled', 'refunded')
-          AND si.item_type = 'service'
-    )
-    SELECT COALESCE(SUM(net_service_amount), 0)
+    -- B. Doanh thu Dịch vụ lẻ làm ngay tại quầy hoàn tất trong kỳ (không qua trừ buổi liệu trình)
+    SELECT COALESCE(SUM(ROUND(si.line_total * (1 - (COALESCE(s.discount_amount, 0)::NUMERIC / NULLIF(s.subtotal, 0))))), 0)
     INTO v_recognized_single_services
-    FROM single_service_fulfillments ssf
-    WHERE ssf.organization_id = p_org_id
+    FROM sale_items si
+    JOIN sales s ON s.id = si.sale_id
+    WHERE s.organization_id = p_org_id
       AND (
-          (p_branch_id IS NOT NULL AND ssf.branch_id = p_branch_id)
-          OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(ssf.branch_id)))
+          (p_branch_id IS NOT NULL AND s.branch_id = p_branch_id)
+          OR (p_branch_id IS NULL AND (v_user_role = 'owner_admin' OR has_branch_access(s.branch_id)))
       )
-      AND ssf.service_performed_at >= v_start_ts AND ssf.service_performed_at < v_next_day_ts;
+      AND s.status = 'completed'
+      AND s.created_at >= v_start_ts AND s.created_at < v_next_day_ts
+      AND si.item_type = 'service'
+      AND NOT EXISTS (
+          SELECT 1 FROM customer_courses cc WHERE cc.sale_id = s.id AND cc.service_id = si.item_ref_id
+      );
 
-    -- C. Doanh thu Trừ buổi Liệu trình thực hiện trong kỳ (Chống nhân bản dòng khi JOIN & Bỏ hoàn toàn Fallback)
+    -- C. Doanh thu Thực hiện theo sự kiện trừ buổi ca dịch vụ / liệu trình (Liên kết chính xác chứng từ gốc)
     WITH course_unit_prices AS (
         SELECT 
             cc.id AS course_id,
