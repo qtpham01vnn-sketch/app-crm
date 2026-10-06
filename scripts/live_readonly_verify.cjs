@@ -2,12 +2,10 @@
  * =============================================================================
  * LIVE POST-DEPLOYMENT READ-ONLY VERIFICATION SCRIPT (CHỈ ĐỌC - 100% AN TOÀN)
  * =============================================================================
- * Mục đích:
- * 1. Xác minh sau triển khai migration 040 lên môi trường Live (Production: lskrcerzxltlrcewigrw)
- * 2. TUYỆT ĐỐI KHÔNG GHI / SỬA / XÓA / TẠO TEST FIXTURES / GIẢI NGÂN TRÊN LIVE.
- * 3. Kiểm tra tính toàn vẹn phân quyền đa chi nhánh và cấu trúc JSONB của hàm P&L.
- * 4. Đối soát tam giác số dư Quỹ - Sổ cái tiền mặt chỉ đọc (Read-only Balance Audit).
- * 5. Nếu thiếu phiên Admin/Manager hợp lệ: Ghi rõ NOT RUN, KHÔNG tính vào PASSED.
+ * Quy tắc thực thi:
+ * 1. Không có biến môi trường đăng nhập -> Ghi nhận NOT RUN, KHÔNG tính vào PASSED.
+ * 2. Đã có biến môi trường đăng nhập mà thực thi lỗi / rò rỉ quyền -> BẮT BUỘC FAIL (Mã thoát lỗi exit code 1).
+ * 3. Tuyệt đối không ghi / sửa / xóa / giải ngân trên Live (Chỉ đọc 100%).
  * =============================================================================
  */
 
@@ -69,7 +67,7 @@ async function runLiveReadOnlyVerification() {
     p_end_date: '2026-10-06'
   });
   
-  assert.ok(anonErr !== null, 'Truy cập vô danh phải bị từ chối');
+  assert.ok(anonErr !== null, 'Truy cập vô danh bắt buộc phải bị từ chối');
   assert.strictEqual(
     anonErr.message.includes('Truy cập trái phép') || anonErr.message.includes('permission denied') || anonErr.code === '42501' || anonErr.code === 'P0001',
     true,
@@ -103,26 +101,20 @@ async function runLiveReadOnlyVerification() {
       email: liveAdminEmail,
       password: liveAdminPassword
     });
+    assert.strictEqual(authAdminErr, null, `Xác thực tài khoản Admin Live thất bại: ${authAdminErr?.message}`);
 
-    if (authAdminErr) {
-      recordNotRun('Báo cáo P&L Owner Admin trên Live', `Xác thực tài khoản Admin thất bại: ${authAdminErr.message}`);
-    } else {
-      const { data: pnlAdminAll, error: pnlAdminErr } = await client.rpc('rpc_get_operating_pnl_report', {
-        p_org_id: ORG_ID,
-        p_branch_id: null,
-        p_start_date: '2026-10-01',
-        p_end_date: '2026-10-06'
-      });
-
-      if (pnlAdminErr) {
-        recordNotRun('Báo cáo P&L Owner Admin trên Live', `Gọi RPC thất bại: ${pnlAdminErr.message}`);
-      } else {
-        assert.ok(pnlAdminAll.recognized_revenue_kpi !== undefined, 'Cấu trúc P&L phải có recognized_revenue_kpi');
-        assert.ok(pnlAdminAll.operating_deductions !== undefined, 'Cấu trúc P&L phải có operating_deductions');
-        recordExecutedPass('Owner Admin xem báo cáo P&L toàn chuỗi thành công', 
-          `Cấu trúc P&L 040 hợp lệ: Recognized Revenue = ${pnlAdminAll.recognized_revenue_kpi?.total_recognized_revenue?.toLocaleString('vi-VN')} đ, Net OPEX = ${pnlAdminAll.operating_deductions?.net_operating_expenses?.toLocaleString('vi-VN')} đ`);
-      }
-    }
+    const { data: pnlAdminAll, error: pnlAdminErr } = await client.rpc('rpc_get_operating_pnl_report', {
+      p_org_id: ORG_ID,
+      p_branch_id: null,
+      p_start_date: '2026-10-01',
+      p_end_date: '2026-10-06'
+    });
+    assert.strictEqual(pnlAdminErr, null, `Gọi RPC P&L Admin Live thất bại: ${pnlAdminErr?.message}`);
+    assert.ok(pnlAdminAll.recognized_revenue_kpi !== undefined, 'Cấu trúc P&L phải có recognized_revenue_kpi');
+    assert.ok(pnlAdminAll.operating_deductions !== undefined, 'Cấu trúc P&L phải có operating_deductions');
+    
+    recordExecutedPass('Owner Admin xem báo cáo P&L toàn chuỗi thành công', 
+      `Cấu trúc P&L 040 hợp lệ: Recognized Revenue = ${pnlAdminAll.recognized_revenue_kpi?.total_recognized_revenue?.toLocaleString('vi-VN')} đ, Net OPEX = ${pnlAdminAll.operating_deductions?.net_operating_expenses?.toLocaleString('vi-VN')} đ`);
   } else {
     recordNotRun('Báo cáo P&L Owner Admin trên Live', 'Thiếu biến môi trường LIVE_ADMIN_EMAIL / LIVE_ADMIN_PASSWORD (Không đoán mật khẩu)');
   }
@@ -139,24 +131,24 @@ async function runLiveReadOnlyVerification() {
       email: liveManagerEmail,
       password: liveManagerPassword
     });
+    assert.strictEqual(authMgrErr, null, `Xác thực tài khoản Manager Live thất bại: ${authMgrErr?.message}`);
 
-    if (authMgrErr) {
-      recordNotRun('Phân quyền Branch Manager trên Live', `Xác thực tài khoản Manager thất bại: ${authMgrErr.message}`);
-    } else {
-      // Query unauthorized branch Q7
-      const { data: q7Res, error: q7Err } = await client.rpc('rpc_get_operating_pnl_report', {
-        p_org_id: ORG_ID,
-        p_branch_id: q7Branch.id,
-        p_start_date: '2026-10-01',
-        p_end_date: '2026-10-06'
-      });
+    // Truy cập chi nhánh trái quyền (Q7)
+    const { data: q7Res, error: q7Err } = await client.rpc('rpc_get_operating_pnl_report', {
+      p_org_id: ORG_ID,
+      p_branch_id: q7Branch.id,
+      p_start_date: '2026-10-01',
+      p_end_date: '2026-10-06'
+    });
 
-      if (q7Err && (q7Err.code === 'P0001' || q7Err.message.includes('không có quyền'))) {
-        recordExecutedPass('Manager bị chặn khi truy cập chi nhánh không thuộc phân quyền', `Mã lỗi: ${q7Err.code} - ${q7Err.message}`);
-      } else {
-        recordNotRun('Manager bị chặn khi truy cập chi nhánh trái phép', 'Kết quả truy cập không trả về lỗi chặn quyền như kỳ vọng');
-      }
-    }
+    // Bắt buộc phải có lỗi chặn quyền (P0001)
+    assert.ok(q7Err !== null, 'LỖI BẢO MẬT: Manager truy cập chi nhánh trái quyền nhưng không bị chặn!');
+    assert.strictEqual(
+      q7Err.code === 'P0001' || q7Err.message.includes('không có quyền') || q7Err.message.includes('Truy cập trái phép'),
+      true,
+      `Mã lỗi trả về phải là chặn quyền P0001 (Thực tế: ${q7Err.code} - ${q7Err.message})`
+    );
+    recordExecutedPass('Manager bị chặn khi truy cập chi nhánh không thuộc phân quyền', `Mã lỗi bảo vệ: ${q7Err.code} - ${q7Err.message}`);
   } else {
     recordNotRun('Phân quyền và giới hạn chi nhánh Manager trên Live', 'Thiếu biến môi trường LIVE_MANAGER_EMAIL / LIVE_MANAGER_PASSWORD');
   }
@@ -167,23 +159,30 @@ async function runLiveReadOnlyVerification() {
   console.log('\n--- [CHECK 5] ĐỐI SOÁT TAM GIÁC CHỨNG TỪ - SỔ CÁI - QUỸ TIỀN MẶT CHỈ ĐỌC (AUDIT) ---');
   if (liveAdminEmail && liveAdminPassword) {
     const { data: accounts, error: accErr } = await client.from('financial_accounts').select('id, account_code, current_balance').eq('organization_id', ORG_ID);
-    if (accErr) {
-      recordNotRun('Đối soát tam giác Quỹ - Sổ cái Live', `Không thể truy vấn tài khoản tài chính: ${accErr.message}`);
-    } else if (accounts && accounts.length > 0) {
+    assert.strictEqual(accErr, null, `Truy vấn tài khoản quỹ thất bại: ${accErr?.message}`);
+
+    if (accounts && accounts.length > 0) {
       let matchedCount = 0;
       for (const acc of accounts) {
-        const { data: latestLedger } = await client.from('cashflow_ledger')
+        const { data: latestLedger, error: ledErr } = await client.from('cashflow_ledger')
           .select('balance_after')
           .eq('account_id', acc.id)
           .order('occurred_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        if (latestLedger && Number(latestLedger.balance_after) === Number(acc.current_balance)) {
+        assert.strictEqual(ledErr, null, `Truy vấn sổ cái cho quỹ ${acc.account_code} thất bại: ${ledErr?.message}`);
+
+        if (latestLedger) {
+          assert.strictEqual(
+            Number(latestLedger.balance_after),
+            Number(acc.current_balance),
+            `Số dư sổ cái (balance_after: ${latestLedger.balance_after}) bị lệch so với tài khoản quỹ ${acc.account_code} (${acc.current_balance})`
+          );
           matchedCount++;
         }
       }
-      recordExecutedPass('Đối soát tam giác Quỹ - Sổ cái chỉ đọc trên Live', `Khớp ${matchedCount}/${accounts.length} tài khoản quỹ với bút toán sổ cái mới nhất`);
+      recordExecutedPass('Đối soát tam giác Quỹ - Sổ cái chỉ đọc trên Live', `Khớp 100% (${matchedCount}/${accounts.length} tài khoản quỹ khớp với bút toán sổ cái mới nhất)`);
     } else {
       recordExecutedPass('Kiểm tra tài khoản quỹ Live', 'Không có tài khoản tài chính cần đối soát');
     }
@@ -204,6 +203,6 @@ async function runLiveReadOnlyVerification() {
 }
 
 runLiveReadOnlyVerification().catch(err => {
-  console.error('\n❌ KIỂM TRA READ-ONLY LIVE THẤT BẠI:', err);
+  console.error('\n❌ KIỂM TRA READ-ONLY LIVE THẤT BẠI TẠI ASSERTION:', err.message);
   process.exit(1);
 });
