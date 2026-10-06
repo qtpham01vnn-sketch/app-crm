@@ -241,7 +241,7 @@ export const ExpView: React.FC = () => {
           <div className="flex items-center space-x-2">
             <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
             <span className="text-lg font-black text-emerald-700">
-              {((pnlReport?.sales_and_revenue.cash_collected || 0)).toLocaleString('vi-VN')}đ
+              {(pnlReport?.invoicing_and_cashflow_kpi?.cash_collected ?? pnlReport?.sales_and_revenue?.cash_collected ?? 0).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
@@ -261,7 +261,7 @@ export const ExpView: React.FC = () => {
           <div className="flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-indigo-600" />
             <span className="text-lg font-black text-indigo-700">
-              {((pnlReport?.cogs_and_gross_profit.gross_profit_after_cogs || 0)).toLocaleString('vi-VN')}đ
+              {(pnlReport?.cogs_and_gross_profit?.gross_profit_after_cogs ?? 0).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
@@ -271,9 +271,9 @@ export const ExpView: React.FC = () => {
           <div className="flex items-center space-x-2">
             <DollarSign className="w-5 h-5 text-sky-600" />
             <span className={`text-lg font-black ${
-              (pnlReport?.operating_surplus_preliminary.amount || 0) >= 0 ? 'text-sky-700' : 'text-rose-700'
+              (pnlReport?.operating_surplus_preliminary?.amount ?? 0) >= 0 ? 'text-sky-700' : 'text-rose-700'
             }`}>
-              {((pnlReport?.operating_surplus_preliminary.amount || 0)).toLocaleString('vi-VN')}đ
+              {(pnlReport?.operating_surplus_preliminary?.amount ?? 0).toLocaleString('vi-VN')}đ
             </span>
           </div>
         </div>
