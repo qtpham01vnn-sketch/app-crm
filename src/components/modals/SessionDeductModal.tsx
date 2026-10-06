@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, X, FileCheck, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { CustomerCourse } from '../../types';
@@ -11,7 +11,15 @@ export const SessionDeductModal: React.FC<{
   const { staffList, currentUser, deductSession } = useApp();
 
   const [staffId, setStaffId] = useState(currentUser.id);
-  const [notes, setNotes] = useState('Khách thực hiện liệu trình định kỳ theo phác đồ.');
+  const [notes, setNotes] = useState('');
+
+  const nextSessionNum = course ? (course.usedSessions || 0) + 1 : 1;
+
+  useEffect(() => {
+    if (course) {
+      setNotes(`Buổi ${nextSessionNum}: Thực hiện liệu trình theo phác đồ chuẩn y khoa. Tình trạng đáp ứng tốt.`);
+    }
+  }, [course, nextSessionNum]);
 
   if (!isOpen || !course) return null;
 
@@ -19,7 +27,7 @@ export const SessionDeductModal: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    deductSession(course.id, staffId, notes);
+    deductSession(course.id, staffId, notes.trim());
     onClose();
   };
 
@@ -29,7 +37,7 @@ export const SessionDeductModal: React.FC<{
         <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Sparkles className="w-5 h-5 text-amber-400" />
-            <h3 className="font-bold text-base">Xác Nhận Trừ Buổi Liệu Trình</h3>
+            <h3 className="font-bold text-base">Xác Nhận Trừ Buổi #{nextSessionNum} / {course.totalSessions}</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
             <X className="w-5 h-5" />
@@ -41,8 +49,8 @@ export const SessionDeductModal: React.FC<{
           <div className="p-3.5 bg-sky-50 rounded-xl border border-sky-200 space-y-1">
             <p className="font-bold text-sm text-sky-900">{course.name}</p>
             <div className="flex justify-between text-slate-600 pt-1">
-              <span>Đã thực hiện: <b className="text-slate-800">{course.usedSessions} / {course.totalSessions}</b> buổi</span>
-              <span>Còn lại: <b className="text-emerald-700">{remaining}</b> buổi</span>
+              <span>Đang trừ lượt: <b className="text-indigo-700 font-black">Buổi #{nextSessionNum}</b></span>
+              <span>Còn lại sau trừ: <b className="text-emerald-700 font-black">{remaining - 1}</b> buổi</span>
             </div>
           </div>
 
@@ -62,7 +70,7 @@ export const SessionDeductModal: React.FC<{
           </div>
 
           <div>
-            <label className="block text-slate-700 font-bold mb-1">Ghi chú tình trạng da / Răng miệng & Thông số máy</label>
+            <label className="block text-slate-700 font-bold mb-1">Ghi chú tình trạng da / Răng miệng & Diễn tiến buổi #{nextSessionNum}</label>
             <textarea
               rows={3}
               value={notes}
@@ -75,7 +83,7 @@ export const SessionDeductModal: React.FC<{
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start space-x-2 text-amber-900">
             <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span className="text-[11px] leading-relaxed">
-              <b>Ledger bất biến:</b> Thao tác trừ buổi sẽ sinh nhật ký kiểm toán không thể xóa hoặc sửa đè, đảm bảo đối soát chính xác số buổi của khách hàng.
+              <b>Ledger bất biến:</b> Thao tác trừ buổi sẽ sinh nhật ký kiểm toán Buổi #{nextSessionNum} không thể xóa hoặc sửa đè, đảm bảo đối soát chính xác số buổi của khách hàng.
             </span>
           </div>
 
@@ -92,7 +100,7 @@ export const SessionDeductModal: React.FC<{
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/20 flex items-center space-x-1.5 transition-all"
             >
               <FileCheck className="w-4 h-4" />
-              <span>Xác Nhận Trừ 1 Buổi</span>
+              <span>Xác Nhận Trừ Buổi #{nextSessionNum}</span>
             </button>
           </div>
         </form>

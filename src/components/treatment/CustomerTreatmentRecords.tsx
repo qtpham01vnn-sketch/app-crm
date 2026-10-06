@@ -109,8 +109,11 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
               crs.customerId === customer.id ||
               (crs.customerName &&
                 crs.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim()) ||
-              (customer.name.toLowerCase().includes('thế anh') &&
-                crs.customerName?.toLowerCase().includes('thế anh'))
+              (customer.name.toLowerCase().includes('hoa') && (crs.customerName?.toLowerCase().includes('hoa') || crs.customerId === 'c-04')) ||
+              (customer.name.toLowerCase().includes('thế anh') && crs.customerName?.toLowerCase().includes('thế anh')) ||
+              (customer.name.toLowerCase().includes('mai anh') && (crs.customerName?.toLowerCase().includes('mai anh') || crs.customerId === 'c-01')) ||
+              (customer.name.toLowerCase().includes('bảo ngọc') && (crs.customerName?.toLowerCase().includes('bảo ngọc') || crs.customerId === 'c-03')) ||
+              (customer.name.toLowerCase().includes('hùng') && (crs.customerName?.toLowerCase().includes('hùng') || crs.customerId === 'c-02'))
           )
           .map((crs) => crs.id);
 
@@ -132,6 +135,7 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
                 : 'BS. Phạm Minh Tuấn');
             const branch = branches.find((b) => b.id === ded.branchId);
             const crs = courses.find((c) => c.id === ded.courseId);
+            const sessionIndex = idx + 1;
 
             return {
               id: ded.id,
@@ -139,17 +143,17 @@ export const CustomerTreatmentRecords: React.FC<CustomerTreatmentRecordsProps> =
               branchId: ded.branchId,
               branchName: branch?.name || 'Chi Nhánh Quận 1 (Trụ sở)',
               customerId: customer.id,
-              sessionCode: `SS-${customer.name.slice(0, 3).toUpperCase()}-${String(idx + 1).padStart(2, '0')}`,
-              sessionNumber: idx + 1,
+              sessionCode: `SS-${customer.name.slice(0, 3).toUpperCase()}-${String(sessionIndex).padStart(2, '0')}`,
+              sessionNumber: sessionIndex,
               performedAt: ded.performedAt,
               performedBy: ded.staffId,
               performedByName: doctorName,
               treatmentArea: crs?.name || 'Toàn mặt (Chuẩn y khoa)',
               protocolPerformed:
-                ded.notes || 'Quy trình chuẩn y khoa theo phác đồ điều trị',
+                ded.notes || `Buổi ${sessionIndex}: Quy trình chuẩn y khoa theo phác đồ điều trị`,
               preTreatmentNotes: 'Khách hàng chuẩn bị tốt, vùng da đáp ứng tiêu chuẩn',
               postTreatmentNotes:
-                ded.notes || 'Thực hiện êm ái, da hơi hồng nhẹ, đáp ứng tốt với bước sóng',
+                ded.notes || `Buổi ${sessionIndex}: Thực hiện êm ái, da hơi hồng nhẹ, đáp ứng tốt với bước sóng`,
               clinicalReactions: 'Bình thường, hấp thu tốt',
               homecareInstructions:
                 'Bôi kem chống nắng SPF50+, dưỡng ẩm phục hồi, tránh nước nóng 6 giờ đầu.',

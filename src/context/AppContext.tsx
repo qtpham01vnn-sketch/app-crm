@@ -934,6 +934,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const deductionId = 'ded-' + Date.now().toString().slice(-6);
     const targetCust = customers.find((c) => c.id === course.customerId);
+    const defaultNote = `Buổi ${newUsed}: Thực hiện liệu trình theo phác đồ chuẩn y khoa. Tình trạng đáp ứng tốt.`;
+    const cleanNotes = notes && notes.trim()
+      ? (notes.startsWith(`Buổi ${newUsed}`) || notes.startsWith(`Buổi #`) ? notes.trim() : `Buổi ${newUsed}: ${notes.trim()}`)
+      : defaultNote;
+
     const newDed: SessionDeduction = {
       id: deductionId,
       courseId,
@@ -941,12 +946,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       staffId,
       sessionsDeducted: 1,
       performedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      notes: notes || 'Trừ 1 buổi liệu trình theo phác đồ',
-      customerSignature: targetCust ? targetCust.name : 'Khách xác nhận'
+      notes: cleanNotes,
+      customerSignature: targetCust ? targetCust.name : (course.customerName || 'Khách xác nhận')
     };
 
     setSessionDeductions((prev) => [newDed, ...prev]);
-    showToast(`✅ Đã trừ 1 buổi của gói "${course.name}" (Còn ${course.totalSessions - newUsed} buổi)`, 'success');
+    showToast(`✅ Đã trừ Buổi #${newUsed} của gói "${course.name}" (Còn lại ${course.totalSessions - newUsed} buổi)`, 'success');
   };
 
   // Realtime subscription for appointments (multi-user sync)

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Sparkles, CheckCircle2, History, PlusCircle, ShieldCheck, Search } from 'lucide-react';
+import { Sparkles, History, PlusCircle, ShieldCheck, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { CustomerCourse } from '../../types';
 
@@ -215,7 +215,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                         style={{ backgroundColor: currentTheme.buttonBg }}
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Trừ 1 Buổi Tại {currentBranch?.name.split(' - ')[0]}</span>
+                        <span>Trừ Buổi #{crs.usedSessions + 1} Tại {currentBranch?.name.split(' - ')[0]}</span>
                       </button>
                     )}
                   </div>
@@ -274,10 +274,11 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                   Chưa có lượt thực hiện nào được ghi nhận cho gói này.
                 </p>
               ) : (
-                courseDeductions.map((ded) => {
+                courseDeductions.map((ded, idx) => {
                   const staff = staffList.find((s) => s.id === ded.staffId || s.code === ded.staffId);
                   const doctorName = staff?.name || (ded.staffId === 'st-01' ? 'BS. Phạm Minh Tuấn' : (ded.staffId === 'st-03' || ded.staffId === 'st-06' ? 'Đặng Thu Thảo' : 'BS. Phạm Minh Tuấn'));
                   const performedBranch = branches.find((b) => b.id === ded.branchId);
+                  const sessionIndex = idx + 1;
 
                   return (
                     <div
@@ -286,8 +287,10 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span className="font-bold text-slate-900">Trừ {ded.sessionsDeducted} buổi điều trị</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700">
+                            Buổi #{sessionIndex} / {activeCourse.totalSessions}
+                          </span>
+                          <span className="font-bold text-slate-900">Đã thực hiện 1 buổi</span>
                         </div>
                         <span className="font-mono text-[11px] text-slate-500">{ded.performedAt}</span>
                       </div>
