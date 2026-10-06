@@ -187,6 +187,7 @@ export interface PackageCombo {
 export interface CustomerCourse {
   id: string;
   customerId: string;
+  customerName?: string;
   packageId?: string;
   serviceId: string;
   name: string;

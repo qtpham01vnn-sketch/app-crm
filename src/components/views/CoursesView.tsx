@@ -1,24 +1,34 @@
 import React, { useState, useMemo } from 'react';
-import { Sparkles, CheckCircle2, History, PlusCircle, ShieldCheck } from 'lucide-react';
+import { Sparkles, CheckCircle2, History, PlusCircle, ShieldCheck, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { CustomerCourse } from '../../types';
 
 export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse) => void }> = ({ onOpenDeductModal }) => {
   const { courses, customers, sessionDeductions, staffList, branches, currentBranch, currentTheme } = useApp();
   const [courseScope, setCourseScope] = useState<'branch' | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [activeCourseId, setActiveCourseId] = useState<string>(courses[0]?.id || '');
 
   const isSoftLight = currentTheme.isSoftLight;
 
   const filteredCourses = useMemo(() => {
-    if (courseScope === 'branch') {
-      return courses.filter((c) => c.soldBranchId === currentBranch?.id || c.allowInterBranch);
-    }
-    return courses;
-  }, [courses, courseScope, currentBranch]);
+    return courses.filter((c) => {
+      const matchScope = courseScope === 'all' || c.soldBranchId === currentBranch?.id || c.allowInterBranch;
+      if (!matchScope) return false;
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase();
+      const cust = customers.find((cust) => cust.id === c.customerId);
+      const custName = cust?.name || c.customerName || '';
+      return (
+        c.name.toLowerCase().includes(q) ||
+        custName.toLowerCase().includes(q) ||
+        (cust?.phone && cust.phone.includes(q))
+      );
+    });
+  }, [courses, courseScope, currentBranch, searchTerm, customers]);
 
   const activeCourse = courses.find((c) => c.id === activeCourseId) || filteredCourses[0];
-  const targetCust = activeCourse ? customers.find((c) => c.id === activeCourse.customerId) : null;
+  const targetCust = activeCourse ? (customers.find((c) => c.id === activeCourse.customerId) || (activeCourse.customerName ? { id: activeCourse.customerId, name: activeCourse.customerName, phone: '', vipTier: 'standard' as const, totalSpent: 0, debt: 0, creditBalance: 0, orgId: '', primaryBranchId: '' } : null)) : null;
   const courseDeductions = sessionDeductions.filter((d) => d.courseId === activeCourse?.id);
 
   return (
@@ -62,14 +72,27 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm theo tên khách hàng, SĐT hoặc tên gói..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#B83D62] transition-all"
+          />
+        </div>
+
         <div className="space-y-3">
           {filteredCourses.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-              Không có gói liệu trình nào đang hoạt động tại cơ sở này.
+              Không tìm thấy gói liệu trình nào phù hợp.
             </div>
           ) : (
             filteredCourses.map((crs) => {
               const cust = customers.find((c) => c.id === crs.customerId);
+              const displayName = cust?.name || crs.customerName || 'Khách hàng';
               const remaining = crs.totalSessions - crs.usedSessions;
               const isSelected = crs.id === (activeCourse?.id || activeCourseId);
               const progress = (crs.usedSessions / crs.totalSessions) * 100;
@@ -108,7 +131,7 @@ export const CoursesView: React.FC<{ onOpenDeductModal: (course: CustomerCourse)
                       </div>
                       <h4 className={`font-bold text-sm mt-1.5 ${isSoftLight ? 'text-[#244B3C]' : 'text-slate-900'}`}>{crs.name}</h4>
                       <p className={`text-xs font-semibold mt-0.5 ${isSoftLight ? 'text-[#59665F]' : 'text-slate-600'}`}>
-                        Khách: {cust?.name || 'Khách hàng'} • Bán tại: <b>{soldBranch ? soldBranch.name.split(' - ')[0] : 'Chi nhánh gốc'}</b>
+                        Khách: <b className="text-slate-900">{displayName}</b> • Bán tại: <b>{soldBranch ? soldBranch.name.split(' - ')[0] : 'Chi nhánh gốc'}</b>
                       </p>
                     </div>
 

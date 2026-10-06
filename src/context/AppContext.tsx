@@ -245,7 +245,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return mockBranchStocks;
   });
   const [packages, setPackages] = useState<PackageCombo[]>(mockPackages);
-  const [courses, setCourses] = useState<CustomerCourse[]>(mockCustomerCourses);
+  const [courses, setCourses] = useState<CustomerCourse[]>(() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('vua_app_courses') : null;
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return mockCustomerCourses;
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('vua_app_courses', JSON.stringify(courses));
+      }
+    } catch { /* ignore */ }
+  }, [courses]);
   const [sessionDeductions, setSessionDeductions] = useState<SessionDeduction[]>(mockSessionDeductions);
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [sales, setSales] = useState<Sale[]>(mockSales);
@@ -719,6 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           newCourses.push({
             id: 'course-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).slice(2, 5),
             customerId: cart.customerId || 'c-walkin',
+            customerName: targetCustomer ? targetCustomer.name : 'Khách Hàng',
             packageId: it.refId,
             serviceId: pkg?.serviceId || 'svc-01',
             name: it.name,
